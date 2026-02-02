@@ -1,0 +1,12 @@
+# Default training configuration
+
+data_path: "data/raw/dataset.csv"
+target_column: "target"
+test_size: 0.2
+
+model:
+  n_estimators: 100
+  max_depth: null
+  random_state: 42
+
+model_path: "models/model.pkl"
