@@ -1,0 +1,436 @@
+/* ── Ito Merchandising App — Mobile-first CSS ────────────────────────── */
+
+:root {
+  --primary: #1a73e8;
+  --primary-dark: #1557b0;
+  --success: #34a853;
+  --warning: #fbbc04;
+  --danger: #ea4335;
+  --bg: #f5f7fa;
+  --card-bg: #ffffff;
+  --text: #202124;
+  --text-secondary: #5f6368;
+  --border: #dadce0;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.app-header {
+  background: var(--primary);
+  color: white;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow);
+}
+
+.app-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.app-header .user-info {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.app-header button {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.container.wide {
+  max-width: 1100px;
+}
+
+/* ── Navigation Tabs ─────────────────────────────────────────────────── */
+.nav-tabs {
+  display: flex;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: sticky;
+  top: 48px;
+  z-index: 99;
+}
+
+.nav-tabs button {
+  flex: 1;
+  min-width: fit-content;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.nav-tabs button.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+
+.card h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.card .meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Forms ────────────────────────────────────────────────────────────── */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.form-group select,
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.form-group select:focus,
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-success { background: var(--success); color: white; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-block { width: 100%; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── SKU Action Chips ────────────────────────────────────────────────── */
+.sku-list { list-style: none; }
+
+.sku-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sku-item:last-child { border-bottom: none; }
+
+.sku-item .sku-name {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 120px;
+}
+
+.action-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.15s;
+}
+
+.chip-refill { background: #fce8e6; color: var(--danger); border-color: #fce8e6; }
+.chip-refill.selected { background: var(--danger); color: white; }
+.chip-placed { background: #e6f4ea; color: var(--success); border-color: #e6f4ea; }
+.chip-placed.selected { background: var(--success); color: white; }
+.chip-order { background: #fef7e0; color: #e37400; border-color: #fef7e0; }
+.chip-order.selected { background: var(--warning); color: #333; }
+
+/* ── Photo upload ────────────────────────────────────────────────────── */
+.photo-upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.photo-upload-area:hover { border-color: var(--primary); }
+
+.photo-preview {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.photo-preview img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* ── Dashboard ───────────────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-card .stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* ── Table ────────────────────────────────────────────────────────────── */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th, td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Severity badges ─────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-red { background: #fce8e6; color: var(--danger); }
+.badge-yellow { background: #fef7e0; color: #e37400; }
+.badge-green { background: #e6f4ea; color: var(--success); }
+
+/* ── Login Page ──────────────────────────────────────────────────────── */
+.login-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.login-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 360px;
+}
+
+.login-card h2 {
+  text-align: center;
+  margin-bottom: 24px;
+  color: var(--primary);
+}
+
+/* ── Filters bar ─────────────────────────────────────────────────────── */
+.filters-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filters-bar select,
+.filters-bar input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+}
+
+/* ── CV Results overlay ──────────────────────────────────────────────── */
+.cv-result-container {
+  position: relative;
+  display: inline-block;
+}
+
+.cv-result-container img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.cv-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.cv-box {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 2px;
+}
+
+.cv-box.void { border-color: var(--danger); background: rgba(234,67,53,0.15); }
+.cv-box.product { border-color: var(--success); background: rgba(52,168,83,0.1); }
+
+/* ── Toast notifications ─────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #323232;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  animation: fadeInUp 0.3s;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Section visibility ──────────────────────────────────────────────── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Responsive: wider on desktop ────────────────────────────────────── */
+@media (min-width: 768px) {
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
+}

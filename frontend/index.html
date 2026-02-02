@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Ito Merchandising</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- ═══ Login Page ═══ -->
+  <div id="login-page" class="login-wrapper" style="display:none;">
+    <form class="login-card" onsubmit="handleLogin(event)">
+      <h2>Ito Merchandising</h2>
+      <div class="form-group">
+        <label for="login-user">Username</label>
+        <input id="login-user" type="text" placeholder="Enter username" required>
+      </div>
+      <div class="form-group">
+        <label for="login-pass">Password</label>
+        <input id="login-pass" type="password" placeholder="Enter password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      <p class="meta" style="text-align:center;margin-top:16px;">
+        Demo: admin / admin123 &nbsp;|&nbsp; merch1 / merch123
+      </p>
+    </form>
+  </div>
+
+  <!-- ═══ Main App ═══ -->
+  <div id="app" style="display:none;">
+
+    <!-- Header -->
+    <header class="app-header">
+      <h1>Ito</h1>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="user-info" id="header-name"></span>
+        <button onclick="handleLogout()">Logout</button>
+      </div>
+    </header>
+
+    <!-- Nav Tabs -->
+    <nav class="nav-tabs">
+      <button data-page="visit" class="active" onclick="navigateTo('visit')">New Visit</button>
+      <button data-page="history" onclick="navigateTo('history')">History</button>
+      <button data-page="dashboard" onclick="navigateTo('dashboard')">Dashboard</button>
+      <button data-page="manage" data-admin-only onclick="navigateTo('manage')">Manage</button>
+    </nav>
+
+    <!-- ═══ Page: New Visit ═══ -->
+    <div id="page-visit" class="page active">
+      <div class="container">
+        <h2 style="margin:16px 0 12px;">Store Visit</h2>
+
+        <!-- Store Selection -->
+        <div class="card">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Select Store</label>
+            <select id="visit-store-select" onchange="onStoreSelected()">
+              <option value="">Loading stores...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- SKU Actions -->
+        <div id="visit-sku-section" style="display:none;">
+          <div class="card">
+            <h3>SKU Status</h3>
+            <p class="meta" style="margin-bottom:10px;">Tap an action for each product that needs attention.</p>
+            <ul class="sku-list" id="visit-sku-list"></ul>
+          </div>
+        </div>
+
+        <!-- Photo Upload -->
+        <div id="visit-photo-section" style="display:none;">
+          <div class="card">
+            <h3>Shelf Photos</h3>
+            <label class="photo-upload-area" for="photo-input">
+              <div>Tap to take or select shelf photos (max 3)</div>
+              <input id="photo-input" type="file" accept="image/*" multiple capture="environment"
+                     style="display:none" onchange="onPhotosSelected(this)">
+            </label>
+            <div class="photo-preview" id="photo-preview-list"></div>
+          </div>
+        </div>
+
+        <!-- Notes + Submit -->
+        <div id="visit-submit-section" style="display:none;">
+          <div class="card">
+            <div class="form-group">
+              <label>Notes (optional)</label>
+              <textarea id="visit-notes" rows="2" placeholder="Any additional observations..."></textarea>
+            </div>
+            <button id="btn-submit-visit" class="btn btn-primary btn-block" onclick="submitVisit()">
+              Submit Visit
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Page: History ═══ -->
+    <div id="page-history" class="page">
+      <div class="container">
+        <h2 style="margin:16px 0 12px;">Visit History</h2>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Page: Dashboard ═══ -->
+    <div id="page-dashboard" class="page">
+      <div class="container wide">
+        <h2 style="margin:16px 0 12px;">Executive Dashboard</h2>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+          <select id="filter-region" onchange="refreshDashboard()">
+            <option value="">All Regions</option>
+          </select>
+          <input type="date" id="filter-date-from" onchange="refreshDashboard()">
+          <input type="date" id="filter-date-to" onchange="refreshDashboard()">
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-visits">-</div>
+            <div class="stat-label">Total Visits</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-coverage">-</div>
+            <div class="stat-label">Store Coverage</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-refills" style="color:var(--danger)">-</div>
+            <div class="stat-label">Needs Refill</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-orders" style="color:#e37400">-</div>
+            <div class="stat-label">Needs Order</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-placed" style="color:var(--success)">-</div>
+            <div class="stat-label">Placed on Shelf</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-photos">-</div>
+            <div class="stat-label">Photos Analyzed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-incidents-red" style="color:var(--danger)">-</div>
+            <div class="stat-label">Overdue Incidents</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-total-incidents">-</div>
+            <div class="stat-label">Total Incidents</div>
+          </div>
+        </div>
+
+        <!-- By Store Table -->
+        <div class="card">
+          <h3>Performance by Store</h3>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Store</th><th>Region</th><th>Visits</th>
+                  <th>Refills</th><th>Placed</th><th>Orders</th>
+                </tr>
+              </thead>
+              <tbody id="store-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Incidents Table -->
+        <div class="card">
+          <h3>Unresolved Incidents</h3>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Store</th><th>SKU</th><th>Issue</th>
+                  <th>Age</th><th>Merchandiser</th><th>Reported</th>
+                </tr>
+              </thead>
+              <tbody id="incidents-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="dashboard-content"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Page: Manage (Admin) ═══ -->
+    <div id="page-manage" class="page">
+      <div class="container">
+        <h2 style="margin:16px 0 12px;">Manage</h2>
+        <h3 style="margin-bottom:8px;">Stores</h3>
+        <div id="manage-stores-list"></div>
+        <h3 style="margin:16px 0 8px;">SKUs</h3>
+        <div id="manage-skus-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
