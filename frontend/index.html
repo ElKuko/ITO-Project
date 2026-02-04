@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -14,14 +14,14 @@
     <form class="login-card" onsubmit="handleLogin(event)">
       <h2>Ito Merchandising</h2>
       <div class="form-group">
-        <label for="login-user">Username</label>
-        <input id="login-user" type="text" placeholder="Enter username" required>
+        <label for="login-user">Usuario</label>
+        <input id="login-user" type="text" placeholder="Ingrese usuario" required>
       </div>
       <div class="form-group">
-        <label for="login-pass">Password</label>
-        <input id="login-pass" type="password" placeholder="Enter password" required>
+        <label for="login-pass">Contraseña</label>
+        <input id="login-pass" type="password" placeholder="Ingrese contraseña" required>
       </div>
-      <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      <button type="submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
       <p class="meta" style="text-align:center;margin-top:16px;">
         Demo: admin / admin123 &nbsp;|&nbsp; merch1 / merch123
       </p>
@@ -36,74 +36,177 @@
       <h1>Ito</h1>
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="user-info" id="header-name"></span>
-        <button onclick="handleLogout()">Logout</button>
+        <button onclick="handleLogout()">Salir</button>
       </div>
     </header>
 
     <!-- Nav Tabs -->
     <nav class="nav-tabs">
-      <button data-page="visit" class="active" onclick="navigateTo('visit')">New Visit</button>
-      <button data-page="history" onclick="navigateTo('history')">History</button>
+      <button data-page="visit" class="active" onclick="navigateTo('visit')">Nueva Visita</button>
+      <button data-page="history" onclick="navigateTo('history')">Historial</button>
       <button data-page="dashboard" onclick="navigateTo('dashboard')">Dashboard</button>
-      <button data-page="manage" data-admin-only onclick="navigateTo('manage')">Manage</button>
+      <button data-page="approvals" onclick="navigateTo('approvals')">SKUs</button>
     </nav>
 
-    <!-- ═══ Page: New Visit ═══ -->
+    <!-- ═══ Page: New Visit (6-Step Wizard) ═══ -->
     <div id="page-visit" class="page active">
       <div class="container">
-        <h2 style="margin:16px 0 12px;">Store Visit</h2>
 
-        <!-- Store Selection -->
-        <div class="card">
-          <div class="form-group" style="margin-bottom:0">
-            <label>Select Store</label>
-            <select id="visit-store-select" onchange="onStoreSelected()">
-              <option value="">Loading stores...</option>
-            </select>
-          </div>
+        <!-- Step Indicator -->
+        <div class="step-indicator" id="step-indicator">
+          <span class="step active" data-step="1">1</span>
+          <span class="step" data-step="2">2</span>
+          <span class="step" data-step="3">3</span>
+          <span class="step" data-step="4">4</span>
+          <span class="step" data-step="5">5</span>
+          <span class="step" data-step="6">6</span>
         </div>
 
-        <!-- SKU Actions -->
-        <div id="visit-sku-section" style="display:none;">
+        <!-- Step 0: Store Selection (before starting) -->
+        <div id="visit-step-0" class="visit-step active">
           <div class="card">
-            <h3>SKU Status</h3>
-            <p class="meta" style="margin-bottom:10px;">Tap an action for each product that needs attention.</p>
-            <ul class="sku-list" id="visit-sku-list"></ul>
-          </div>
-        </div>
-
-        <!-- Photo Upload -->
-        <div id="visit-photo-section" style="display:none;">
-          <div class="card">
-            <h3>Shelf Photos</h3>
-            <label class="photo-upload-area" for="photo-input">
-              <div>Tap to take or select shelf photos (max 3)</div>
-              <input id="photo-input" type="file" accept="image/*" multiple capture="environment"
-                     style="display:none" onchange="onPhotosSelected(this)">
-            </label>
-            <div class="photo-preview" id="photo-preview-list"></div>
-          </div>
-        </div>
-
-        <!-- Notes + Submit -->
-        <div id="visit-submit-section" style="display:none;">
-          <div class="card">
+            <h3>Seleccionar Tienda</h3>
             <div class="form-group">
-              <label>Notes (optional)</label>
-              <textarea id="visit-notes" rows="2" placeholder="Any additional observations..."></textarea>
+              <select id="visit-store-select">
+                <option value="">Cargando tiendas...</option>
+              </select>
             </div>
-            <button id="btn-submit-visit" class="btn btn-primary btn-block" onclick="submitVisit()">
-              Submit Visit
+            <button class="btn btn-primary btn-block" onclick="startVisit()">
+              Iniciar Visita
             </button>
           </div>
         </div>
+
+        <!-- Step 1: Arrival Photo (Proof of Presence) -->
+        <div id="visit-step-1" class="visit-step">
+          <div class="card">
+            <h3>Paso 1: Foto de Llegada</h3>
+            <p class="meta">Tome una foto del frente de la tienda como prueba de presencia.</p>
+            <div class="photo-capture-area" id="arrival-photo-area">
+              <button class="btn btn-primary btn-block" onclick="capturePhoto('arrival_proof')">
+                📷 Tomar Foto de Llegada
+              </button>
+              <input type="file" accept="image/*" capture="environment" id="camera-arrival" style="display:none">
+              <div class="photo-preview" id="arrival-preview"></div>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step1-next" disabled style="margin-top:12px;">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Shelf BEFORE Photo -->
+        <div id="visit-step-2" class="visit-step">
+          <div class="card">
+            <h3>Paso 2: Foto ANTES</h3>
+            <p class="meta">Tome una foto de la góndola/anaquel ANTES de trabajar.</p>
+            <div class="photo-capture-area">
+              <button class="btn btn-primary btn-block" onclick="capturePhoto('shelf_before')">
+                📷 Tomar Foto de Góndola (ANTES)
+              </button>
+              <input type="file" accept="image/*" capture="environment" id="camera-before" style="display:none">
+              <div class="photo-preview" id="before-preview"></div>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step2-next" disabled style="margin-top:12px;">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Quick Condition Checks -->
+        <div id="visit-step-3" class="visit-step">
+          <div class="card">
+            <h3>Paso 3: Condición de Góndola</h3>
+
+            <div class="condition-check">
+              <label>¿Están todos los precios en góndola?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" data-field="prices" data-value="true" onclick="setCondition('prices', true, this)">Sí</button>
+                <button class="toggle-btn" data-field="prices" data-value="false" onclick="setCondition('prices', false, this)">No</button>
+              </div>
+            </div>
+
+            <div class="condition-check">
+              <label>¿Está todo el material PoP en góndola?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" data-field="pop" data-value="true" onclick="setCondition('pop', true, this)">Sí</button>
+                <button class="toggle-btn" data-field="pop" data-value="false" onclick="setCondition('pop', false, this)">No</button>
+              </div>
+            </div>
+
+            <div class="condition-check">
+              <label>¿Está limpio y presentable el producto en góndola?</label>
+              <div class="toggle-group">
+                <button class="toggle-btn" data-field="clean" data-value="true" onclick="setCondition('clean', true, this)">Sí</button>
+                <button class="toggle-btn" data-field="clean" data-value="false" onclick="setCondition('clean', false, this)">No</button>
+              </div>
+            </div>
+
+            <div class="form-group" id="condition-notes-group" style="display:none; margin-top:12px;">
+              <label>Notas (si contestó No)</label>
+              <textarea id="condition-notes" rows="2" placeholder="Explique el problema..."></textarea>
+            </div>
+
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step3-next" disabled style="margin-top:12px;">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 4: SKU Actions -->
+        <div id="visit-step-4" class="visit-step">
+          <div class="card">
+            <h3>Paso 4: Estado de SKUs</h3>
+            <p class="meta">Indique el estado de cada producto aprobado para esta tienda.</p>
+            <ul class="sku-list" id="visit-sku-list"></ul>
+            <button class="btn btn-primary btn-block" onclick="nextStep()" style="margin-top:12px;">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 5: Shelf AFTER Photo -->
+        <div id="visit-step-5" class="visit-step">
+          <div class="card">
+            <h3>Paso 5: Foto DESPUÉS</h3>
+            <p class="meta">Tome una foto de la góndola/anaquel DESPUÉS de trabajar.</p>
+            <div class="photo-capture-area">
+              <button class="btn btn-primary btn-block" onclick="capturePhoto('shelf_after')">
+                📷 Tomar Foto de Góndola (DESPUÉS)
+              </button>
+              <input type="file" accept="image/*" capture="environment" id="camera-after" style="display:none">
+              <div class="photo-preview" id="after-preview"></div>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step5-next" disabled style="margin-top:12px;">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 6: Submit -->
+        <div id="visit-step-6" class="visit-step">
+          <div class="card">
+            <h3>Paso 6: Enviar Visita</h3>
+            <div class="form-group">
+              <label>Notas adicionales (opcional)</label>
+              <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>
+            </div>
+
+            <div class="visit-summary" id="visit-summary"></div>
+
+            <button id="btn-submit-visit" class="btn btn-success btn-block" onclick="submitVisit()">
+              ✓ Enviar Visita
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
     <!-- ═══ Page: History ═══ -->
     <div id="page-history" class="page">
       <div class="container">
-        <h2 style="margin:16px 0 12px;">Visit History</h2>
+        <h2 style="margin:16px 0 12px;">Historial de Visitas</h2>
         <div id="history-list"></div>
       </div>
     </div>
@@ -111,12 +214,12 @@
     <!-- ═══ Page: Dashboard ═══ -->
     <div id="page-dashboard" class="page">
       <div class="container wide">
-        <h2 style="margin:16px 0 12px;">Executive Dashboard</h2>
+        <h2 style="margin:16px 0 12px;">Dashboard Ejecutivo</h2>
 
         <!-- Filters -->
         <div class="filters-bar">
           <select id="filter-region" onchange="refreshDashboard()">
-            <option value="">All Regions</option>
+            <option value="">Todas las Regiones</option>
           </select>
           <input type="date" id="filter-date-from" onchange="refreshDashboard()">
           <input type="date" id="filter-date-to" onchange="refreshDashboard()">
@@ -126,47 +229,47 @@
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value" id="stat-visits">-</div>
-            <div class="stat-label">Total Visits</div>
+            <div class="stat-label">Visitas</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-coverage">-</div>
-            <div class="stat-label">Store Coverage</div>
+            <div class="stat-label">Cobertura</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-refills" style="color:var(--danger)">-</div>
-            <div class="stat-label">Needs Refill</div>
+            <div class="stat-value" id="stat-gondola-llena" style="color:var(--success)">-</div>
+            <div class="stat-label">Góndola Llena</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-orders" style="color:#e37400">-</div>
-            <div class="stat-label">Needs Order</div>
+            <div class="stat-value" id="stat-se-relleno" style="color:var(--primary)">-</div>
+            <div class="stat-label">Se Rellenó</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-placed" style="color:var(--success)">-</div>
-            <div class="stat-label">Placed on Shelf</div>
+            <div class="stat-value" id="stat-orden" style="color:var(--danger)">-</div>
+            <div class="stat-label">Orden</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-photos">-</div>
-            <div class="stat-label">Photos Analyzed</div>
+            <div class="stat-label">Fotos</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-incidents-red" style="color:var(--danger)">-</div>
-            <div class="stat-label">Overdue Incidents</div>
+            <div class="stat-label">Incidentes +7d</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" id="stat-total-incidents">-</div>
-            <div class="stat-label">Total Incidents</div>
+            <div class="stat-label">Incidentes</div>
           </div>
         </div>
 
         <!-- By Store Table -->
         <div class="card">
-          <h3>Performance by Store</h3>
+          <h3>Desempeño por Tienda</h3>
           <div class="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Store</th><th>Region</th><th>Visits</th>
-                  <th>Refills</th><th>Placed</th><th>Orders</th>
+                  <th>Tienda</th><th>Región</th><th>Visitas</th>
+                  <th>Llena</th><th>Rellenó</th><th>Orden</th>
                 </tr>
               </thead>
               <tbody id="store-table-body"></tbody>
@@ -176,32 +279,43 @@
 
         <!-- Incidents Table -->
         <div class="card">
-          <h3>Unresolved Incidents</h3>
+          <h3>Incidentes Sin Resolver</h3>
           <div class="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Store</th><th>SKU</th><th>Issue</th>
-                  <th>Age</th><th>Merchandiser</th><th>Reported</th>
+                  <th>Tienda</th><th>SKU</th><th>Problema</th>
+                  <th>Días</th><th>Merchandiser</th><th>Fecha</th>
                 </tr>
               </thead>
               <tbody id="incidents-table-body"></tbody>
             </table>
           </div>
         </div>
-
-        <div id="dashboard-content"></div>
       </div>
     </div>
 
-    <!-- ═══ Page: Manage (Admin) ═══ -->
-    <div id="page-manage" class="page">
+    <!-- ═══ Page: SKU Approvals (Workflow A) ═══ -->
+    <div id="page-approvals" class="page">
       <div class="container">
-        <h2 style="margin:16px 0 12px;">Manage</h2>
-        <h3 style="margin-bottom:8px;">Stores</h3>
-        <div id="manage-stores-list"></div>
-        <h3 style="margin:16px 0 8px;">SKUs</h3>
-        <div id="manage-skus-list"></div>
+        <h2 style="margin:16px 0 12px;">SKUs Aprobados por Tienda</h2>
+        <div class="form-group">
+          <label>Seleccionar Tienda</label>
+          <select id="approval-store-select" onchange="loadStoreApprovals()">
+            <option value="">Seleccione una tienda...</option>
+          </select>
+        </div>
+
+        <div id="approval-editor" style="display:none;">
+          <div class="card">
+            <h3>SKUs Aprobados</h3>
+            <p class="meta">Marque los SKUs que están aprobados para esta tienda este trimestre.</p>
+            <ul class="sku-list" id="approval-sku-list"></ul>
+            <button class="btn btn-primary btn-block" onclick="saveApprovals()" style="margin-top:12px;">
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

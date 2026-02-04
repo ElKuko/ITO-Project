@@ -1,4 +1,10 @@
-"""Seed the database with sample data for development/demo."""
+"""Seed the database with sample data for development/demo.
+
+Updated for 6-step visit workflow with:
+- start_time/end_time instead of visited_at
+- condition checks (prices_on_gondola, pop_material_present, product_presentable)
+- new action types: gondola_llena, se_relleno, orden
+"""
 
 import sys
 import os
@@ -89,46 +95,65 @@ def seed():
     # ── Sample Store Visits ──────────────────────────────────────────
     from datetime import datetime, timedelta
 
+    # Visit 1: Completed visit with all condition checks
     visit1 = StoreVisit(
         store_id=stores[0].id, user_id=merch1.id,
-        visited_at=datetime.utcnow() - timedelta(days=2),
-        latitude=18.4571, longitude=-66.0726,
+        start_time=datetime.utcnow() - timedelta(days=2, hours=1),
+        end_time=datetime.utcnow() - timedelta(days=2),
+        status="submitted",
+        latitude=18.4571, longitude=-66.0726, gps_accuracy=10.5,
+        prices_on_gondola=True,
+        pop_material_present=True,
+        product_presentable=True,
         notes="Shelf space looks good overall. Coconut water needs restock.",
     )
     db.add(visit1)
     db.flush()
 
     db.add_all([
-        VisitSKUAction(visit_id=visit1.id, sku_id=skus[0].id, action_type="needs_refill", notes="Only 2 facings left"),
-        VisitSKUAction(visit_id=visit1.id, sku_id=skus[2].id, action_type="placed_on_shelf", notes="Restocked from backroom"),
-        VisitSKUAction(visit_id=visit1.id, sku_id=skus[4].id, action_type="needs_order", notes="Warehouse empty"),
+        VisitSKUAction(visit_id=visit1.id, sku_id=skus[0].id, action_type="se_relleno", notes="Only 2 facings left, restocked"),
+        VisitSKUAction(visit_id=visit1.id, sku_id=skus[2].id, action_type="gondola_llena", notes="Full shelf"),
+        VisitSKUAction(visit_id=visit1.id, sku_id=skus[4].id, action_type="orden", notes="Warehouse empty"),
     ])
 
+    # Visit 2: Completed visit with some issues
     visit2 = StoreVisit(
         store_id=stores[1].id, user_id=merch1.id,
-        visited_at=datetime.utcnow() - timedelta(days=10),
+        start_time=datetime.utcnow() - timedelta(days=10, hours=2),
+        end_time=datetime.utcnow() - timedelta(days=10, hours=1),
+        status="submitted",
+        prices_on_gondola=False,
+        pop_material_present=False,
+        product_presentable=True,
+        condition_notes="Missing price tags on several items. No promotional material visible.",
         notes="Several products missing from shelf.",
     )
     db.add(visit2)
     db.flush()
 
     db.add_all([
-        VisitSKUAction(visit_id=visit2.id, sku_id=skus[0].id, action_type="needs_order", notes="Not in warehouse"),
-        VisitSKUAction(visit_id=visit2.id, sku_id=skus[1].id, action_type="needs_refill"),
-        VisitSKUAction(visit_id=visit2.id, sku_id=skus[3].id, action_type="needs_order"),
+        VisitSKUAction(visit_id=visit2.id, sku_id=skus[0].id, action_type="orden", notes="Not in warehouse"),
+        VisitSKUAction(visit_id=visit2.id, sku_id=skus[1].id, action_type="se_relleno"),
+        VisitSKUAction(visit_id=visit2.id, sku_id=skus[3].id, action_type="orden"),
     ])
 
+    # Visit 3: Recent completed visit
     visit3 = StoreVisit(
         store_id=stores[3].id, user_id=merch2.id,
-        visited_at=datetime.utcnow() - timedelta(days=1),
-        latitude=18.2013, longitude=-67.1397,
+        start_time=datetime.utcnow() - timedelta(days=1, hours=1),
+        end_time=datetime.utcnow() - timedelta(days=1),
+        status="submitted",
+        latitude=18.2013, longitude=-67.1397, gps_accuracy=8.0,
+        prices_on_gondola=True,
+        pop_material_present=True,
+        product_presentable=True,
     )
     db.add(visit3)
     db.flush()
 
     db.add_all([
-        VisitSKUAction(visit_id=visit3.id, sku_id=skus[0].id, action_type="placed_on_shelf"),
-        VisitSKUAction(visit_id=visit3.id, sku_id=skus[1].id, action_type="placed_on_shelf"),
+        VisitSKUAction(visit_id=visit3.id, sku_id=skus[0].id, action_type="gondola_llena"),
+        VisitSKUAction(visit_id=visit3.id, sku_id=skus[1].id, action_type="gondola_llena"),
     ])
 
     db.commit()
