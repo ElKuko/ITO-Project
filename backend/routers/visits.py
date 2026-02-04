@@ -111,15 +111,21 @@ async def upload_photo(
     visit_id: int,
     file: UploadFile = File(...),
     photo_type: str = Form(default="shelf"),  # arrival_proof | shelf_before | shelf_after
-    latitude: float = Form(default=None),
-    longitude: float = Form(default=None),
-    gps_accuracy: float = Form(default=None),
+    latitude: str = Form(default=None),  # Accept as string, convert below (handles empty strings)
+    longitude: str = Form(default=None),
+    gps_accuracy: str = Form(default=None),
     captured_at: str = Form(default=None),  # ISO datetime string
-    run_cv: bool = Form(default=True),
+    run_cv: str = Form(default="true"),  # Accept as string for form compatibility
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a photo for the visit. Photo type determines its purpose."""
+    # Convert string form values to proper types (handles empty strings from FormData)
+    lat = float(latitude) if latitude and latitude.strip() else None
+    lng = float(longitude) if longitude and longitude.strip() else None
+    gps_acc = float(gps_accuracy) if gps_accuracy and gps_accuracy.strip() else None
+    should_run_cv = run_cv.lower() in ("true", "1", "yes") if isinstance(run_cv, str) else bool(run_cv)
+
     visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -151,7 +157,7 @@ async def upload_photo(
     # Run CV on shelf photos (before/after), not arrival proof
     cv_results = None
     cv_processed = False
-    if run_cv and photo_type in ("shelf_before", "shelf_after", "shelf"):
+    if should_run_cv and photo_type in ("shelf_before", "shelf_after", "shelf"):
         try:
             result = analyze_shelf_image(filepath)
             cv_results = json.dumps(result)
@@ -164,9 +170,9 @@ async def upload_photo(
         photo_type=photo_type,
         file_path=f"/uploads/{filename}",
         captured_at=photo_captured_at,
-        latitude=latitude,
-        longitude=longitude,
-        gps_accuracy=gps_accuracy,
+        latitude=lat,
+        longitude=lng,
+        gps_accuracy=gps_acc,
         cv_processed=cv_processed,
         cv_results=cv_results,
     )
