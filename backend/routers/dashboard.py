@@ -17,9 +17,9 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 def _apply_filters(q, date_from, date_to, region, store_id, sku_id, merchandiser_id):
     if date_from:
-        q = q.filter(StoreVisit.visited_at >= datetime.fromisoformat(date_from))
+        q = q.filter(StoreVisit.start_time >= datetime.fromisoformat(date_from))
     if date_to:
-        q = q.filter(StoreVisit.visited_at <= datetime.fromisoformat(date_to))
+        q = q.filter(StoreVisit.start_time <= datetime.fromisoformat(date_to))
     if region:
         q = q.join(Store, StoreVisit.store_id == Store.id).filter(Store.region == region)
     if store_id:
@@ -80,9 +80,9 @@ def dashboard_summary(
         "total_photos": total_photos,
         "cv_processed_photos": cv_processed_photos,
         "actions": {
-            "needs_refill": action_counts.get("needs_refill", 0),
-            "placed_on_shelf": action_counts.get("placed_on_shelf", 0),
-            "needs_order": action_counts.get("needs_order", 0),
+            "gondola_llena": action_counts.get("gondola_llena", 0),
+            "se_relleno": action_counts.get("se_relleno", 0),
+            "orden": action_counts.get("orden", 0),
         },
     }
 
@@ -100,16 +100,16 @@ def dashboard_by_store(
         Store.name,
         Store.region,
         func.count(func.distinct(StoreVisit.id)).label("visit_count"),
-        func.sum(case((VisitSKUAction.action_type == "needs_refill", 1), else_=0)).label("refill_count"),
-        func.sum(case((VisitSKUAction.action_type == "placed_on_shelf", 1), else_=0)).label("placed_count"),
-        func.sum(case((VisitSKUAction.action_type == "needs_order", 1), else_=0)).label("order_count"),
+        func.sum(case((VisitSKUAction.action_type == "gondola_llena", 1), else_=0)).label("llena_count"),
+        func.sum(case((VisitSKUAction.action_type == "se_relleno", 1), else_=0)).label("relleno_count"),
+        func.sum(case((VisitSKUAction.action_type == "orden", 1), else_=0)).label("orden_count"),
     ).outerjoin(StoreVisit, Store.id == StoreVisit.store_id
     ).outerjoin(VisitSKUAction, StoreVisit.id == VisitSKUAction.visit_id)
 
     if date_from:
-        q = q.filter(StoreVisit.visited_at >= datetime.fromisoformat(date_from))
+        q = q.filter(StoreVisit.start_time >= datetime.fromisoformat(date_from))
     if date_to:
-        q = q.filter(StoreVisit.visited_at <= datetime.fromisoformat(date_to))
+        q = q.filter(StoreVisit.start_time <= datetime.fromisoformat(date_to))
     if region:
         q = q.filter(Store.region == region)
 
@@ -121,9 +121,9 @@ def dashboard_by_store(
             "store_name": r[1],
             "region": r[2],
             "visit_count": r[3],
-            "needs_refill": r[4] or 0,
-            "placed_on_shelf": r[5] or 0,
-            "needs_order": r[6] or 0,
+            "gondola_llena": r[4] or 0,
+            "se_relleno": r[5] or 0,
+            "orden": r[6] or 0,
         }
         for r in rows
     ]
@@ -137,11 +137,11 @@ def dashboard_incidents(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """Unresolved shelf issues — SKUs that need refill or order but haven't been restocked."""
+    """Unresolved shelf issues — SKUs that need order (orden action type)."""
     cutoff = datetime.utcnow() - timedelta(days=days_threshold)
 
-    # Find SKU actions of type needs_refill or needs_order
-    # that do NOT have a subsequent placed_on_shelf for the same SKU at the same store
+    # Find SKU actions of type "orden" (needs order)
+    # These are items that need to be ordered from warehouse
     q = db.query(
         VisitSKUAction.id,
         VisitSKUAction.action_type,
@@ -150,24 +150,24 @@ def dashboard_incidents(
         StoreVisit.store_id,
         Store.name.label("store_name"),
         Store.region,
-        StoreVisit.visited_at,
+        StoreVisit.start_time,
         User.full_name.label("merchandiser_name"),
     ).join(StoreVisit, VisitSKUAction.visit_id == StoreVisit.id
     ).join(Store, StoreVisit.store_id == Store.id
     ).join(SKU, VisitSKUAction.sku_id == SKU.id
     ).join(User, StoreVisit.user_id == User.id
-    ).filter(VisitSKUAction.action_type.in_(["needs_refill", "needs_order"]))
+    ).filter(VisitSKUAction.action_type == "orden")
 
     if region:
         q = q.filter(Store.region == region)
     if store_id:
         q = q.filter(StoreVisit.store_id == store_id)
 
-    rows = q.order_by(StoreVisit.visited_at.asc()).all()
+    rows = q.order_by(StoreVisit.start_time.asc()).all()
 
     incidents = []
     for r in rows:
-        age_days = (datetime.utcnow() - r.visited_at).days
+        age_days = (datetime.utcnow() - r.start_time).days
         incidents.append({
             "action_id": r.id,
             "action_type": r.action_type,
@@ -176,7 +176,7 @@ def dashboard_incidents(
             "store_id": r.store_id,
             "store_name": r.store_name,
             "region": r.region,
-            "reported_at": r.visited_at.isoformat(),
+            "reported_at": r.start_time.isoformat(),
             "merchandiser": r.merchandiser_name,
             "age_days": age_days,
             "severity": "red" if age_days > days_threshold else "yellow" if age_days > 3 else "green",
