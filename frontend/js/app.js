@@ -55,6 +55,13 @@ function showApp() {
   document.getElementById('login-page').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('header-name').textContent = getUserName();
+
+  // Show admin nav tab for admins
+  const navAdmin = document.getElementById('nav-admin');
+  if (navAdmin && getUserRole() === 'admin') {
+    navAdmin.style.display = 'block';
+  }
+
   navigateTo('visit');
 }
 
@@ -73,6 +80,7 @@ function navigateTo(page) {
     case 'history': loadHistoryPage(); break;
     case 'dashboard': loadDashboardPage(); break;
     case 'approvals': loadApprovalsPage(); break;
+    case 'admin': loadAdminPage(); break;
   }
 }
 
@@ -610,3 +618,412 @@ async function saveApprovals() {
     toast('Error guardando: ' + err.message);
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ ADMIN CONSOLE ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+let adminData = {
+  users: [],
+  skus: [],
+  stores: [],
+};
+
+function loadAdminPage() {
+  // Show admin tab only for admin users
+  const navAdmin = document.getElementById('nav-admin');
+  if (navAdmin && getUserRole() === 'admin') {
+    navAdmin.style.display = 'block';
+  }
+
+  showAdminTab('users');
+  loadAdminUsers();
+  loadRegionFilters();
+}
+
+function showAdminTab(tab) {
+  // Update tab buttons
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-admin-tab="${tab}"]`)?.classList.add('active');
+
+  // Show corresponding panel
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`admin-tab-${tab}`)?.classList.add('active');
+
+  // Load data
+  if (tab === 'users') loadAdminUsers();
+  else if (tab === 'skus') loadAdminSkus();
+  else if (tab === 'stores') loadAdminStores();
+}
+
+// ── User Management ──────────────────────────────────────────────────────
+
+async function loadAdminUsers() {
+  const role = document.getElementById('admin-users-role')?.value || '';
+  const includeInactive = document.getElementById('admin-users-inactive')?.checked || false;
+
+  try {
+    let url = `/users/?include_inactive=${includeInactive}`;
+    if (role) url += `&role=${role}`;
+    const users = await apiGet(url);
+    adminData.users = users;
+
+    const tbody = document.getElementById('admin-users-table');
+    tbody.innerHTML = users.map(u => `
+      <tr class="${!u.is_active ? 'inactive-row' : ''}">
+        <td>${u.full_name}</td>
+        <td>${u.username}</td>
+        <td>${u.role}</td>
+        <td>${u.region || '-'}</td>
+        <td><span class="${u.is_active ? 'status-active' : 'status-inactive'}">${u.is_active ? 'Activo' : 'Inactivo'}</span></td>
+        <td class="action-btns">
+          <button class="btn-edit" onclick="editUser(${u.id})">Editar</button>
+          ${u.is_active
+            ? `<button class="btn-deactivate" onclick="toggleUserStatus(${u.id}, false)">Desactivar</button>`
+            : `<button class="btn-activate" onclick="toggleUserStatus(${u.id}, true)">Activar</button>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    toast('Error cargando usuarios');
+  }
+}
+
+function showUserModal(userId = null) {
+  const modal = document.getElementById('modal-user');
+  const title = document.getElementById('modal-user-title');
+  const hint = document.getElementById('user-pwd-hint');
+
+  document.getElementById('form-user').reset();
+  document.getElementById('user-id').value = '';
+
+  if (userId) {
+    const user = adminData.users.find(u => u.id === userId);
+    if (user) {
+      title.textContent = 'Editar Usuario';
+      hint.textContent = '(dejar en blanco para mantener)';
+      document.getElementById('user-id').value = user.id;
+      document.getElementById('user-fullname').value = user.full_name;
+      document.getElementById('user-username').value = user.username;
+      document.getElementById('user-username').disabled = true; // Can't change username
+      document.getElementById('user-role').value = user.role;
+      document.getElementById('user-region').value = user.region || '';
+    }
+  } else {
+    title.textContent = 'Nuevo Usuario';
+    hint.textContent = '(requerido)';
+    document.getElementById('user-username').disabled = false;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function editUser(userId) {
+  showUserModal(userId);
+}
+
+async function saveUser(e) {
+  e.preventDefault();
+
+  const id = document.getElementById('user-id').value;
+  const data = {
+    full_name: document.getElementById('user-fullname').value,
+    role: document.getElementById('user-role').value,
+    region: document.getElementById('user-region').value || null,
+  };
+
+  const password = document.getElementById('user-password').value;
+
+  try {
+    if (id) {
+      // Update existing user
+      if (password) data.password = password;
+      await apiPut(`/users/${id}`, data);
+      toast('Usuario actualizado');
+    } else {
+      // Create new user
+      data.username = document.getElementById('user-username').value;
+      data.password = password;
+      if (!password) {
+        toast('Contraseña requerida');
+        return;
+      }
+      await apiPost('/users/', data);
+      toast('Usuario creado');
+    }
+
+    closeModal('modal-user');
+    loadAdminUsers();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+async function toggleUserStatus(userId, activate) {
+  try {
+    if (activate) {
+      await api(`/users/${userId}/activate`, { method: 'POST' });
+      toast('Usuario activado');
+    } else {
+      await apiDelete(`/users/${userId}`);
+      toast('Usuario desactivado');
+    }
+    loadAdminUsers();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+// ── SKU Management ───────────────────────────────────────────────────────
+
+async function loadAdminSkus() {
+  const includeInactive = document.getElementById('admin-skus-inactive')?.checked || false;
+
+  try {
+    const skus = await apiGet(`/skus/?include_inactive=${includeInactive}`);
+    adminData.skus = skus;
+    renderSkuTable(skus);
+  } catch (err) {
+    toast('Error cargando SKUs');
+  }
+}
+
+function renderSkuTable(skus) {
+  const tbody = document.getElementById('admin-skus-table');
+  tbody.innerHTML = skus.map(s => `
+    <tr class="${!s.is_active ? 'inactive-row' : ''}">
+      <td>${s.name}</td>
+      <td>${s.brand}</td>
+      <td>${s.category || '-'}</td>
+      <td>${s.barcode || '-'}</td>
+      <td><span class="${s.is_active ? 'status-active' : 'status-inactive'}">${s.is_active ? 'Activo' : 'Inactivo'}</span></td>
+      <td class="action-btns">
+        <button class="btn-edit" onclick="editSku(${s.id})">Editar</button>
+        ${s.is_active
+          ? `<button class="btn-deactivate" onclick="toggleSkuStatus(${s.id}, false)">Desactivar</button>`
+          : `<button class="btn-activate" onclick="toggleSkuStatus(${s.id}, true)">Activar</button>`
+        }
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterSkuTable() {
+  const search = (document.getElementById('admin-skus-search')?.value || '').toLowerCase();
+  const filtered = adminData.skus.filter(s =>
+    s.name.toLowerCase().includes(search) ||
+    s.brand.toLowerCase().includes(search) ||
+    (s.barcode && s.barcode.includes(search))
+  );
+  renderSkuTable(filtered);
+}
+
+function showSkuModal(skuId = null) {
+  const modal = document.getElementById('modal-sku');
+  const title = document.getElementById('modal-sku-title');
+
+  document.getElementById('form-sku').reset();
+  document.getElementById('sku-id').value = '';
+  document.getElementById('sku-brand').value = 'Ito';
+
+  if (skuId) {
+    const sku = adminData.skus.find(s => s.id === skuId);
+    if (sku) {
+      title.textContent = 'Editar SKU';
+      document.getElementById('sku-id').value = sku.id;
+      document.getElementById('sku-name').value = sku.name;
+      document.getElementById('sku-brand').value = sku.brand;
+      document.getElementById('sku-category').value = sku.category || '';
+      document.getElementById('sku-barcode').value = sku.barcode || '';
+      document.getElementById('sku-image').value = sku.image_url || '';
+    }
+  } else {
+    title.textContent = 'Nuevo SKU';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function editSku(skuId) {
+  showSkuModal(skuId);
+}
+
+async function saveSku(e) {
+  e.preventDefault();
+
+  const id = document.getElementById('sku-id').value;
+  const data = {
+    name: document.getElementById('sku-name').value,
+    brand: document.getElementById('sku-brand').value,
+    category: document.getElementById('sku-category').value || null,
+    barcode: document.getElementById('sku-barcode').value || null,
+    image_url: document.getElementById('sku-image').value || null,
+  };
+
+  try {
+    if (id) {
+      await apiPut(`/skus/${id}`, data);
+      toast('SKU actualizado');
+    } else {
+      await apiPost('/skus/', data);
+      toast('SKU creado');
+    }
+
+    closeModal('modal-sku');
+    loadAdminSkus();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+async function toggleSkuStatus(skuId, activate) {
+  try {
+    if (activate) {
+      await api(`/skus/${skuId}/activate`, { method: 'POST' });
+      toast('SKU activado');
+    } else {
+      await apiDelete(`/skus/${skuId}`);
+      toast('SKU desactivado');
+    }
+    loadAdminSkus();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+// ── Store Management ─────────────────────────────────────────────────────
+
+async function loadAdminStores() {
+  const region = document.getElementById('admin-stores-region')?.value || '';
+  const includeInactive = document.getElementById('admin-stores-inactive')?.checked || false;
+
+  try {
+    let url = `/stores/?include_inactive=${includeInactive}`;
+    if (region) url += `&region=${region}`;
+    const stores = await apiGet(url);
+    adminData.stores = stores;
+
+    const tbody = document.getElementById('admin-stores-table');
+    tbody.innerHTML = stores.map(s => `
+      <tr class="${!s.is_active ? 'inactive-row' : ''}">
+        <td>${s.name}</td>
+        <td>${s.chain || '-'}</td>
+        <td>${s.region}</td>
+        <td>${s.address || '-'}</td>
+        <td><span class="${s.is_active ? 'status-active' : 'status-inactive'}">${s.is_active ? 'Activa' : 'Inactiva'}</span></td>
+        <td class="action-btns">
+          <button class="btn-edit" onclick="editStore(${s.id})">Editar</button>
+          ${s.is_active
+            ? `<button class="btn-deactivate" onclick="toggleStoreStatus(${s.id}, false)">Desactivar</button>`
+            : `<button class="btn-activate" onclick="toggleStoreStatus(${s.id}, true)">Activar</button>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    toast('Error cargando tiendas');
+  }
+}
+
+async function loadRegionFilters() {
+  try {
+    const regions = await apiGet('/dashboard/regions');
+    const sel = document.getElementById('admin-stores-region');
+    if (sel) {
+      sel.innerHTML = '<option value="">Todas las Regiones</option>' +
+        regions.map(r => `<option value="${r}">${r}</option>`).join('');
+    }
+  } catch (err) {
+    // Ignore - regions filter is optional
+  }
+}
+
+function showStoreModal(storeId = null) {
+  const modal = document.getElementById('modal-store');
+  const title = document.getElementById('modal-store-title');
+
+  document.getElementById('form-store').reset();
+  document.getElementById('store-id').value = '';
+
+  if (storeId) {
+    const store = adminData.stores.find(s => s.id === storeId);
+    if (store) {
+      title.textContent = 'Editar Tienda';
+      document.getElementById('store-id').value = store.id;
+      document.getElementById('store-name').value = store.name;
+      document.getElementById('store-chain').value = store.chain || '';
+      document.getElementById('store-region').value = store.region;
+      document.getElementById('store-address').value = store.address || '';
+      document.getElementById('store-lat').value = store.latitude || '';
+      document.getElementById('store-lng').value = store.longitude || '';
+      document.getElementById('store-notes').value = store.notes || '';
+    }
+  } else {
+    title.textContent = 'Nueva Tienda';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function editStore(storeId) {
+  showStoreModal(storeId);
+}
+
+async function saveStore(e) {
+  e.preventDefault();
+
+  const id = document.getElementById('store-id').value;
+  const data = {
+    name: document.getElementById('store-name').value,
+    chain: document.getElementById('store-chain').value || null,
+    region: document.getElementById('store-region').value,
+    address: document.getElementById('store-address').value || null,
+    latitude: document.getElementById('store-lat').value ? parseFloat(document.getElementById('store-lat').value) : null,
+    longitude: document.getElementById('store-lng').value ? parseFloat(document.getElementById('store-lng').value) : null,
+    notes: document.getElementById('store-notes').value || null,
+  };
+
+  try {
+    if (id) {
+      await apiPut(`/stores/${id}`, data);
+      toast('Tienda actualizada');
+    } else {
+      await apiPost('/stores/', data);
+      toast('Tienda creada');
+    }
+
+    closeModal('modal-store');
+    loadAdminStores();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+async function toggleStoreStatus(storeId, activate) {
+  try {
+    if (activate) {
+      await api(`/stores/${storeId}/activate`, { method: 'POST' });
+      toast('Tienda activada');
+    } else {
+      await apiDelete(`/stores/${storeId}`);
+      toast('Tienda desactivada');
+    }
+    loadAdminStores();
+  } catch (err) {
+    toast('Error: ' + err.message);
+  }
+}
+
+// ── Modal Helpers ────────────────────────────────────────────────────────
+
+function closeModal(modalId) {
+  document.getElementById(modalId).style.display = 'none';
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal')) {
+    e.target.style.display = 'none';
+  }
+});

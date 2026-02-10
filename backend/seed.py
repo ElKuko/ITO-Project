@@ -53,12 +53,12 @@ def seed():
 
     # ── Stores (supermarkets in Puerto Rico) ──────────────────────────
     stores = [
-        Store(name="Pueblo Supermarket — Condado", region="Metro", address="Av. Ashford 1234, San Juan, PR 00907", latitude=18.4571, longitude=-66.0726),
-        Store(name="Econo — Bayamón", region="Metro", address="Carr. 2 Km 11.2, Bayamón, PR 00961", latitude=18.3985, longitude=-66.1553),
-        Store(name="Selectos — Carolina", region="Metro", address="Av. 65 de Infantería, Carolina, PR 00987", latitude=18.3804, longitude=-65.9573),
-        Store(name="Ralph's Food Warehouse — Mayagüez", region="Oeste", address="Carr. 2 Km 158, Mayagüez, PR 00682", latitude=18.2013, longitude=-67.1397),
-        Store(name="Pueblo Supermarket — Ponce", region="Sur", address="Av. Las Américas, Ponce, PR 00717", latitude=18.0111, longitude=-66.6141),
-        Store(name="Econo — Caguas", region="Este", address="Carr. 1 Km 33.5, Caguas, PR 00725", latitude=18.2341, longitude=-66.0485),
+        Store(name="Pueblo Supermarket — Condado", chain="Pueblo", region="Metro", address="Av. Ashford 1234, San Juan, PR 00907", latitude=18.4571, longitude=-66.0726),
+        Store(name="Econo — Bayamón", chain="Econo", region="Metro", address="Carr. 2 Km 11.2, Bayamón, PR 00961", latitude=18.3985, longitude=-66.1553),
+        Store(name="Selectos — Carolina", chain="Selectos", region="Metro", address="Av. 65 de Infantería, Carolina, PR 00987", latitude=18.3804, longitude=-65.9573),
+        Store(name="Ralph's Food Warehouse — Mayagüez", chain="Ralph's", region="Oeste", address="Carr. 2 Km 158, Mayagüez, PR 00682", latitude=18.2013, longitude=-67.1397),
+        Store(name="Pueblo Supermarket — Ponce", chain="Pueblo", region="Sur", address="Av. Las Américas, Ponce, PR 00717", latitude=18.0111, longitude=-66.6141),
+        Store(name="Econo — Caguas", chain="Econo", region="Este", address="Carr. 1 Km 33.5, Caguas, PR 00725", latitude=18.2341, longitude=-66.0485),
     ]
     db.add_all(stores)
     db.flush()

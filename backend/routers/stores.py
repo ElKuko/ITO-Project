@@ -12,10 +12,22 @@ router = APIRouter(prefix="/api/stores", tags=["stores"])
 
 
 @router.get("/", response_model=list[StoreOut])
-def list_stores(region: str = None, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    q = db.query(Store).filter(Store.is_active == True)
+def list_stores(
+    region: str = None,
+    chain: str = None,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """List stores. Admins can include inactive stores."""
+    q = db.query(Store)
+    # Only admins can see inactive stores
+    if not include_inactive or current_user.role != "admin":
+        q = q.filter(Store.is_active == True)
     if region:
         q = q.filter(Store.region == region)
+    if chain:
+        q = q.filter(Store.chain == chain)
     return q.order_by(Store.name).all()
 
 
@@ -50,9 +62,29 @@ def update_store(store_id: int, req: StoreCreate, db: Session = Depends(get_db),
 
 @router.delete("/{store_id}")
 def delete_store(store_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Deactivate a store (soft delete to preserve historical data)."""
     store = db.query(Store).filter(Store.id == store_id).first()
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
     store.is_active = False
     db.commit()
     return {"detail": "Store deactivated"}
+
+
+@router.post("/{store_id}/activate", response_model=StoreOut)
+def activate_store(store_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Reactivate a previously deactivated store."""
+    store = db.query(Store).filter(Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    store.is_active = True
+    db.commit()
+    db.refresh(store)
+    return store
+
+
+@router.get("/chains")
+def list_chains(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Get list of unique store chains."""
+    rows = db.query(Store.chain).filter(Store.chain != None).distinct().all()
+    return [r[0] for r in rows if r[0]]

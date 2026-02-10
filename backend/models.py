@@ -17,7 +17,7 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(128), nullable=False)
     full_name = Column(String(100), nullable=False)
-    role = Column(String(20), nullable=False, default="merchandiser")  # merchandiser | admin
+    role = Column(String(20), nullable=False, default="merchandiser")  # merchandiser | supervisor | admin
     region = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -30,10 +30,12 @@ class Store(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
+    chain = Column(String(100), nullable=True)  # e.g., "Pueblo", "Econo", "Selectos"
     region = Column(String(100), nullable=False)
     address = Column(Text, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)  # Admin notes about the store
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

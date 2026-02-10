@@ -46,6 +46,7 @@
       <button data-page="history" onclick="navigateTo('history')">Historial</button>
       <button data-page="dashboard" onclick="navigateTo('dashboard')">Dashboard</button>
       <button data-page="approvals" onclick="navigateTo('approvals')">SKUs</button>
+      <button data-page="admin" id="nav-admin" onclick="navigateTo('admin')" style="display:none;">Admin</button>
     </nav>
 
     <!-- ═══ Page: New Visit (6-Step Wizard) ═══ -->
@@ -319,6 +320,228 @@
       </div>
     </div>
 
+  </div>
+
+    <!-- ═══ Page: Admin Console ═══ -->
+    <div id="page-admin" class="page">
+      <div class="container wide">
+        <h2 style="margin:16px 0 12px;">Consola de Administración</h2>
+
+        <!-- Admin Sub-tabs -->
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-admin-tab="users" onclick="showAdminTab('users')">Usuarios</button>
+          <button class="admin-tab" data-admin-tab="skus" onclick="showAdminTab('skus')">SKUs</button>
+          <button class="admin-tab" data-admin-tab="stores" onclick="showAdminTab('stores')">Tiendas</button>
+        </div>
+
+        <!-- Admin: Users Management -->
+        <div id="admin-tab-users" class="admin-panel active">
+          <div class="admin-header">
+            <h3>Gestión de Usuarios</h3>
+            <button class="btn btn-primary" onclick="showUserModal()">+ Nuevo Usuario</button>
+          </div>
+          <div class="filters-bar">
+            <select id="admin-users-role" onchange="loadAdminUsers()">
+              <option value="">Todos los Roles</option>
+              <option value="merchandiser">Merchandiser</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="admin">Admin</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="admin-users-inactive" onchange="loadAdminUsers()"> Incluir inactivos
+            </label>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th><th>Usuario</th><th>Rol</th><th>Región</th><th>Estado</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Admin: SKUs Management -->
+        <div id="admin-tab-skus" class="admin-panel">
+          <div class="admin-header">
+            <h3>Catálogo de SKUs</h3>
+            <button class="btn btn-primary" onclick="showSkuModal()">+ Nuevo SKU</button>
+          </div>
+          <div class="filters-bar">
+            <input type="text" id="admin-skus-search" placeholder="Buscar SKU..." oninput="filterSkuTable()">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="admin-skus-inactive" onchange="loadAdminSkus()"> Incluir inactivos
+            </label>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th><th>Marca</th><th>Categoría</th><th>Código</th><th>Estado</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="admin-skus-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Admin: Stores Management -->
+        <div id="admin-tab-stores" class="admin-panel">
+          <div class="admin-header">
+            <h3>Gestión de Tiendas</h3>
+            <button class="btn btn-primary" onclick="showStoreModal()">+ Nueva Tienda</button>
+          </div>
+          <div class="filters-bar">
+            <select id="admin-stores-region" onchange="loadAdminStores()">
+              <option value="">Todas las Regiones</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="admin-stores-inactive" onchange="loadAdminStores()"> Incluir inactivas
+            </label>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th><th>Cadena</th><th>Región</th><th>Dirección</th><th>Estado</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="admin-stores-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ Modals ═══ -->
+
+  <!-- User Modal -->
+  <div id="modal-user" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-user-title">Nuevo Usuario</h3>
+        <button class="modal-close" onclick="closeModal('modal-user')">&times;</button>
+      </div>
+      <form id="form-user" onsubmit="saveUser(event)">
+        <input type="hidden" id="user-id">
+        <div class="form-group">
+          <label>Nombre Completo *</label>
+          <input type="text" id="user-fullname" required>
+        </div>
+        <div class="form-group">
+          <label>Usuario *</label>
+          <input type="text" id="user-username" required>
+        </div>
+        <div class="form-group">
+          <label>Contraseña <span id="user-pwd-hint">(requerido)</span></label>
+          <input type="password" id="user-password">
+        </div>
+        <div class="form-group">
+          <label>Rol *</label>
+          <select id="user-role" required>
+            <option value="merchandiser">Merchandiser</option>
+            <option value="supervisor">Supervisor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Región</label>
+          <input type="text" id="user-region" placeholder="Ej: Metro, Oeste, Sur...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" onclick="closeModal('modal-user')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SKU Modal -->
+  <div id="modal-sku" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-sku-title">Nuevo SKU</h3>
+        <button class="modal-close" onclick="closeModal('modal-sku')">&times;</button>
+      </div>
+      <form id="form-sku" onsubmit="saveSku(event)">
+        <input type="hidden" id="sku-id">
+        <div class="form-group">
+          <label>Nombre del Producto *</label>
+          <input type="text" id="sku-name" required>
+        </div>
+        <div class="form-group">
+          <label>Marca *</label>
+          <input type="text" id="sku-brand" required value="Ito">
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <input type="text" id="sku-category" placeholder="Ej: Beverages, Dairy Alternative...">
+        </div>
+        <div class="form-group">
+          <label>Código de Barras (UPC/EAN)</label>
+          <input type="text" id="sku-barcode">
+        </div>
+        <div class="form-group">
+          <label>URL de Imagen</label>
+          <input type="url" id="sku-image" placeholder="https://...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" onclick="closeModal('modal-sku')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Store Modal -->
+  <div id="modal-store" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-store-title">Nueva Tienda</h3>
+        <button class="modal-close" onclick="closeModal('modal-store')">&times;</button>
+      </div>
+      <form id="form-store" onsubmit="saveStore(event)">
+        <input type="hidden" id="store-id">
+        <div class="form-group">
+          <label>Nombre *</label>
+          <input type="text" id="store-name" required placeholder="Ej: Pueblo Supermarket — Condado">
+        </div>
+        <div class="form-group">
+          <label>Cadena</label>
+          <input type="text" id="store-chain" placeholder="Ej: Pueblo, Econo, Selectos...">
+        </div>
+        <div class="form-group">
+          <label>Región *</label>
+          <input type="text" id="store-region" required placeholder="Ej: Metro, Oeste, Sur, Este...">
+        </div>
+        <div class="form-group">
+          <label>Dirección</label>
+          <input type="text" id="store-address">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Latitud</label>
+            <input type="number" step="any" id="store-lat">
+          </div>
+          <div class="form-group">
+            <label>Longitud</label>
+            <input type="number" step="any" id="store-lng">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <textarea id="store-notes" rows="2"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" onclick="closeModal('modal-store')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="/js/api.js"></script>

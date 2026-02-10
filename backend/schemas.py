@@ -37,27 +37,40 @@ class UserCreate(BaseModel):
     username: str
     password: str
     full_name: str
-    role: str = "merchandiser"
+    role: str = "merchandiser"  # merchandiser | supervisor | admin
     region: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    """Update user - all fields optional."""
+    full_name: Optional[str] = None
+    role: Optional[str] = None  # merchandiser | supervisor | admin
+    region: Optional[str] = None
+    password: Optional[str] = None  # If provided, will update password
+    is_active: Optional[bool] = None
 
 
 # ── Stores ────────────────────────────────────────────────────────────────
 
 class StoreCreate(BaseModel):
     name: str
+    chain: Optional[str] = None  # e.g., "Pueblo", "Econo", "Selectos"
     region: str
     address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    notes: Optional[str] = None
 
 
 class StoreOut(BaseModel):
     id: int
     name: str
+    chain: Optional[str] = None
     region: str
     address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    notes: Optional[str] = None
     is_active: bool
 
     class Config:
