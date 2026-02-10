@@ -83,6 +83,7 @@ def dashboard_summary(
             "gondola_llena": action_counts.get("gondola_llena", 0),
             "se_relleno": action_counts.get("se_relleno", 0),
             "orden": action_counts.get("orden", 0),
+            "agotado": action_counts.get("agotado", 0),
         },
     }
 
@@ -103,6 +104,7 @@ def dashboard_by_store(
         func.sum(case((VisitSKUAction.action_type == "gondola_llena", 1), else_=0)).label("llena_count"),
         func.sum(case((VisitSKUAction.action_type == "se_relleno", 1), else_=0)).label("relleno_count"),
         func.sum(case((VisitSKUAction.action_type == "orden", 1), else_=0)).label("orden_count"),
+        func.sum(case((VisitSKUAction.action_type == "agotado", 1), else_=0)).label("agotado_count"),
     ).outerjoin(StoreVisit, Store.id == StoreVisit.store_id
     ).outerjoin(VisitSKUAction, StoreVisit.id == VisitSKUAction.visit_id)
 
@@ -124,6 +126,7 @@ def dashboard_by_store(
             "gondola_llena": r[4] or 0,
             "se_relleno": r[5] or 0,
             "orden": r[6] or 0,
+            "agotado": r[7] or 0,
         }
         for r in rows
     ]
@@ -137,11 +140,11 @@ def dashboard_incidents(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """Unresolved shelf issues — SKUs that need order (orden action type)."""
+    """Unresolved shelf issues — SKUs that need order or are out of stock."""
     cutoff = datetime.utcnow() - timedelta(days=days_threshold)
 
-    # Find SKU actions of type "orden" (needs order)
-    # These are items that need to be ordered from warehouse
+    # Find SKU actions of type "orden" (needs order) or "agotado" (out of stock)
+    # These are items that need attention
     q = db.query(
         VisitSKUAction.id,
         VisitSKUAction.action_type,
@@ -156,7 +159,7 @@ def dashboard_incidents(
     ).join(Store, StoreVisit.store_id == Store.id
     ).join(SKU, VisitSKUAction.sku_id == SKU.id
     ).join(User, StoreVisit.user_id == User.id
-    ).filter(VisitSKUAction.action_type == "orden")
+    ).filter(VisitSKUAction.action_type.in_(["orden", "agotado"]))
 
     if region:
         q = q.filter(Store.region == region)

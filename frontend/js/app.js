@@ -298,10 +298,11 @@ async function loadSKUList() {
       skuList.innerHTML = approvals.map(a => `
         <li class="sku-item" data-sku-id="${a.sku.id}">
           <span class="sku-name">${a.sku.name} <span class="meta">(${a.sku.brand})</span></span>
-          <div class="action-chips">
-            <span class="chip chip-llena" onclick="toggleAction(${a.sku.id},'gondola_llena',this)">Llena</span>
-            <span class="chip chip-relleno" onclick="toggleAction(${a.sku.id},'se_relleno',this)">Rellenó</span>
-            <span class="chip chip-orden" onclick="toggleAction(${a.sku.id},'orden',this)">Orden</span>
+          <div class="action-chips" id="chips-${a.sku.id}">
+            <span class="chip chip-llena" data-action="gondola_llena" onclick="toggleAction(${a.sku.id},'gondola_llena',this)">Llena</span>
+            <span class="chip chip-relleno" data-action="se_relleno" onclick="toggleAction(${a.sku.id},'se_relleno',this)">Rellenó</span>
+            <span class="chip chip-orden" data-action="orden" onclick="toggleAction(${a.sku.id},'orden',this)">Orden</span>
+            <span class="chip chip-agotado" data-action="agotado" onclick="toggleAction(${a.sku.id},'agotado',this)">Agotado</span>
           </div>
         </li>
       `).join('');
@@ -311,17 +312,80 @@ async function loadSKUList() {
   }
 }
 
+/**
+ * Toggle SKU action with multi-select and business rules:
+ * Rule 1: Llena, Rellenó, Orden can be combined freely
+ * Rule 2: Agotado disables Llena/Rellenó, only allows Orden
+ */
 function toggleAction(skuId, action, el) {
   const key = `${skuId}`;
 
-  if (visitState.skuActions[key]?.action_type === action) {
-    delete visitState.skuActions[key];
-    el.classList.remove('selected');
-  } else {
-    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
-    visitState.skuActions[key] = { sku_id: skuId, action_type: action };
-    el.classList.add('selected');
+  // Initialize actions set for this SKU if needed
+  if (!visitState.skuActions[key]) {
+    visitState.skuActions[key] = new Set();
   }
+
+  const actions = visitState.skuActions[key];
+  const chipsContainer = document.getElementById(`chips-${skuId}`);
+
+  if (action === 'agotado') {
+    if (actions.has('agotado')) {
+      // Deselecting Agotado - remove and re-enable Llena/Rellenó
+      actions.delete('agotado');
+      el.classList.remove('selected');
+      enableChips(chipsContainer, ['gondola_llena', 'se_relleno']);
+    } else {
+      // Selecting Agotado - disable Llena/Rellenó
+      actions.add('agotado');
+      el.classList.add('selected');
+      // Remove and disable Llena/Rellenó
+      actions.delete('gondola_llena');
+      actions.delete('se_relleno');
+      disableChips(chipsContainer, ['gondola_llena', 'se_relleno']);
+    }
+  } else if (action === 'gondola_llena' || action === 'se_relleno') {
+    // Can't select if Agotado is active
+    if (actions.has('agotado')) return;
+    // Toggle
+    if (actions.has(action)) {
+      actions.delete(action);
+      el.classList.remove('selected');
+    } else {
+      actions.add(action);
+      el.classList.add('selected');
+    }
+  } else if (action === 'orden') {
+    // Orden can always be toggled
+    if (actions.has(action)) {
+      actions.delete(action);
+      el.classList.remove('selected');
+    } else {
+      actions.add(action);
+      el.classList.add('selected');
+    }
+  }
+
+  // Clean up empty sets
+  if (actions.size === 0) {
+    delete visitState.skuActions[key];
+  }
+}
+
+function enableChips(container, actionTypes) {
+  actionTypes.forEach(action => {
+    const chip = container.querySelector(`[data-action="${action}"]`);
+    if (chip) chip.classList.remove('disabled');
+  });
+}
+
+function disableChips(container, actionTypes) {
+  actionTypes.forEach(action => {
+    const chip = container.querySelector(`[data-action="${action}"]`);
+    if (chip) {
+      chip.classList.remove('selected');
+      chip.classList.add('disabled');
+    }
+  });
 }
 
 // ── Step 6: Summary & Submit ────────────────────────────────────────────
@@ -329,9 +393,12 @@ function toggleAction(skuId, action, el) {
 function showVisitSummary() {
   visitState.conditionNotes = document.getElementById('condition-notes').value;
 
-  const actionCounts = { gondola_llena: 0, se_relleno: 0, orden: 0 };
-  Object.values(visitState.skuActions).forEach(a => {
-    if (actionCounts[a.action_type] !== undefined) actionCounts[a.action_type]++;
+  // Count actions from Sets (multi-select)
+  const actionCounts = { gondola_llena: 0, se_relleno: 0, orden: 0, agotado: 0 };
+  Object.values(visitState.skuActions).forEach(actionsSet => {
+    actionsSet.forEach(action => {
+      if (actionCounts[action] !== undefined) actionCounts[action]++;
+    });
   });
 
   const summaryEl = document.getElementById('visit-summary');
@@ -341,6 +408,7 @@ function showVisitSummary() {
     <div class="summary-item"><span>Góndola Llena:</span><span>${actionCounts.gondola_llena}</span></div>
     <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
     <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden}</span></div>
+    <div class="summary-item"><span>Agotado:</span><span>${actionCounts.agotado}</span></div>
     <div class="summary-item"><span>Precios OK:</span><span>${visitState.conditions.prices ? 'Sí' : 'No'}</span></div>
     <div class="summary-item"><span>PoP OK:</span><span>${visitState.conditions.pop ? 'Sí' : 'No'}</span></div>
     <div class="summary-item"><span>Presentable:</span><span>${visitState.conditions.clean ? 'Sí' : 'No'}</span></div>
@@ -353,7 +421,15 @@ async function submitVisit() {
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
-    const actions = Object.values(visitState.skuActions);
+    // Convert Set-based actions to array of action objects
+    // Each SKU can have multiple actions now
+    const actions = [];
+    Object.entries(visitState.skuActions).forEach(([skuId, actionsSet]) => {
+      actionsSet.forEach(actionType => {
+        actions.push({ sku_id: parseInt(skuId), action_type: actionType });
+      });
+    });
+
     const notes = document.getElementById('visit-notes').value;
 
     await apiPut(`/visits/${visitState.visitId}/complete`, {
@@ -418,6 +494,7 @@ async function showVisitDetail(visitId) {
       'gondola_llena': 'Góndola Llena',
       'se_relleno': 'Se Rellenó',
       'orden': 'Orden',
+      'agotado': 'Agotado',
       'unknown': 'Desconocido',
     };
 
@@ -440,7 +517,11 @@ async function showVisitDetail(visitId) {
     const actionsHtml = (v.sku_actions || []).map(a => {
       const label = actionLabels[a.action_type] || a.action_type;
       const skuName = a.sku ? a.sku.name : `SKU #${a.sku_id}`;
-      const badgeClass = a.action_type === 'orden' ? 'red' : a.action_type === 'se_relleno' ? 'green' : 'yellow';
+      let badgeClass = 'yellow';
+      if (a.action_type === 'orden') badgeClass = 'yellow';
+      else if (a.action_type === 'agotado') badgeClass = 'red';
+      else if (a.action_type === 'se_relleno') badgeClass = 'green';
+      else if (a.action_type === 'gondola_llena') badgeClass = 'green';
       return `<div><span class="badge badge-${badgeClass}">${label}</span> ${skuName}</div>`;
     }).join('');
 
@@ -503,16 +584,17 @@ async function refreshDashboard() {
     document.getElementById('stat-visits').textContent = summary.total_visits;
     document.getElementById('stat-coverage').textContent = `${(summary.coverage_rate * 100).toFixed(0)}%`;
 
-    // New action types
+    // Action type stats
     const gondolaLlena = document.getElementById('stat-gondola-llena');
     const seRelleno = document.getElementById('stat-se-relleno');
     const orden = document.getElementById('stat-orden');
+    const agotado = document.getElementById('stat-agotado');
 
     if (gondolaLlena) gondolaLlena.textContent = summary.actions?.gondola_llena || 0;
     if (seRelleno) seRelleno.textContent = summary.actions?.se_relleno || 0;
     if (orden) orden.textContent = summary.actions?.orden || 0;
+    if (agotado) agotado.textContent = summary.actions?.agotado || 0;
 
-    document.getElementById('stat-photos').textContent = summary.cv_processed_photos || summary.total_photos || 0;
     document.getElementById('stat-incidents-red').textContent = incidents.red_incidents;
     document.getElementById('stat-total-incidents').textContent = incidents.total_incidents;
 
@@ -523,9 +605,10 @@ async function refreshDashboard() {
         <td>${s.store_name}</td>
         <td>${s.region}</td>
         <td>${s.visit_count}</td>
-        <td>${s.gondola_llena || s.needs_refill || 0}</td>
-        <td>${s.se_relleno || s.placed_on_shelf || 0}</td>
-        <td>${s.orden || s.needs_order || 0}</td>
+        <td>${s.gondola_llena || 0}</td>
+        <td>${s.se_relleno || 0}</td>
+        <td>${s.orden || 0}</td>
+        <td>${s.agotado || 0}</td>
       </tr>
     `).join('');
 
