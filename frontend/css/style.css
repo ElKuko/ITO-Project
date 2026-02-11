@@ -785,3 +785,184 @@ tr.inactive-row {
   opacity: 0.6;
   background: #f9f9f9;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═══ Bulk Toolbar & Selectable SKU List (Workflow v2) ═════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Bulk Actions Toolbar ──────────────────────────────────────────────── */
+.bulk-toolbar {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-info {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.bulk-info #selected-count {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Pending Warning ───────────────────────────────────────────────────── */
+.pending-warning {
+  background: #fff3e0;
+  border: 1px solid #ffb74d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e65100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pending-warning .warning-icon {
+  font-size: 16px;
+}
+
+/* ── Selectable SKU List ───────────────────────────────────────────────── */
+.sku-list-selectable .sku-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+  align-items: flex-start;
+}
+
+.sku-item .sku-checkbox {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.sku-item .sku-info {
+  flex: 1;
+  min-width: 150px;
+}
+
+.sku-item .sku-info .sku-name {
+  font-size: 14px;
+  font-weight: 500;
+  display: block;
+}
+
+.sku-item .sku-info .sku-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sku-item.selected {
+  background: rgba(26,115,232,0.08);
+  margin: 0 -12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+/* ── SKU Action Chips (in row) ─────────────────────────────────────────── */
+.sku-item .action-chips {
+  width: 100%;
+  padding-left: 30px;
+  margin-top: 4px;
+}
+
+/* ── Gondola Groups Summary ────────────────────────────────────────────── */
+.gondola-groups-summary {
+  margin-top: 16px;
+}
+
+.gondola-group-card {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.gondola-group-card.pending {
+  border-left: 4px solid var(--warning);
+}
+
+.gondola-group-card.complete {
+  border-left: 4px solid var(--success);
+}
+
+.gondola-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.gondola-group-header .group-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gondola-group-header .group-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.gondola-group-header .group-status.pending {
+  background: #fef7e0;
+  color: #e37400;
+}
+
+.gondola-group-header .group-status.complete {
+  background: #e6f4ea;
+  color: var(--success);
+}
+
+.gondola-group-skus {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.gondola-group-photos {
+  display: flex;
+  gap: 8px;
+}
+
+.gondola-group-photos img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.gondola-group-photos .photo-placeholder {
+  width: 60px;
+  height: 60px;
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+}

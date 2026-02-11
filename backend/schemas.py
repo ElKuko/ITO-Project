@@ -148,23 +148,35 @@ class ApprovalAuditOut(BaseModel):
 
 class PhotoUploadMeta(BaseModel):
     """Metadata sent with photo upload."""
-    photo_type: str  # arrival_proof | shelf_before | shelf_after
+    photo_type: str  # arrival_proof | gondola_before | gondola_after
+    gondola_group_id: Optional[str] = None  # UUID linking before/after photos
+    sku_ids: list[int] = []  # SKUs this photo represents
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     gps_accuracy: Optional[float] = None
     captured_at: Optional[datetime] = None
 
 
+class PhotoSKULinkOut(BaseModel):
+    sku_id: int
+    sku: Optional[SKUOut] = None
+
+    class Config:
+        from_attributes = True
+
+
 class VisitPhotoOut(BaseModel):
     id: int
     photo_type: str
     file_path: str
+    gondola_group_id: Optional[str] = None
     captured_at: datetime
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     gps_accuracy: Optional[float] = None
     cv_processed: bool
     cv_results: Optional[str] = None
+    sku_links: list[PhotoSKULinkOut] = []
 
     class Config:
         from_attributes = True

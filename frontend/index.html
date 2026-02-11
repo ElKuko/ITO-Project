@@ -49,18 +49,16 @@
       <button data-page="admin" id="nav-admin" onclick="navigateTo('admin')" style="display:none;">Admin</button>
     </nav>
 
-    <!-- ═══ Page: New Visit (6-Step Wizard) ═══ -->
+    <!-- ═══ Page: New Visit (4-Step Wizard) ═══ -->
     <div id="page-visit" class="page active">
       <div class="container">
 
-        <!-- Step Indicator -->
+        <!-- Step Indicator (4 steps) -->
         <div class="step-indicator" id="step-indicator">
           <span class="step active" data-step="1">1</span>
           <span class="step" data-step="2">2</span>
           <span class="step" data-step="3">3</span>
           <span class="step" data-step="4">4</span>
-          <span class="step" data-step="5">5</span>
-          <span class="step" data-step="6">6</span>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -96,19 +94,47 @@
           </div>
         </div>
 
-        <!-- Step 2: Shelf BEFORE Photo -->
+        <!-- Step 2: Unified SKU & Gondola Interaction -->
         <div id="visit-step-2" class="visit-step">
           <div class="card">
-            <h3>Paso 2: Foto ANTES</h3>
-            <p class="meta">Tome una foto de la góndola/anaquel ANTES de trabajar.</p>
-            <div class="photo-capture-area">
-              <button class="btn btn-primary btn-block" onclick="capturePhoto('shelf_before')">
-                📷 Tomar Foto de Góndola (ANTES)
-              </button>
-              <input type="file" accept="image/*" capture="environment" id="camera-before" style="display:none">
-              <div class="photo-preview" id="before-preview"></div>
+            <h3>Paso 2: SKUs y Góndolas</h3>
+            <p class="meta">Seleccione SKUs y tome fotos de antes/después por grupo de góndola.</p>
+
+            <!-- Bulk Actions Toolbar -->
+            <div class="bulk-toolbar" id="bulk-toolbar">
+              <div class="bulk-info">
+                <span id="selected-count">0</span> SKU(s) seleccionados
+              </div>
+              <div class="bulk-actions">
+                <button class="btn btn-sm" onclick="captureGondolaBefore()" id="btn-gondola-before" disabled>
+                  📷 Foto ANTES
+                </button>
+                <button class="btn btn-sm" onclick="captureGondolaAfter()" id="btn-gondola-after" disabled>
+                  📷 Foto DESPUÉS
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection()" id="btn-clear-selection" disabled>
+                  Limpiar
+                </button>
+              </div>
             </div>
-            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step2-next" disabled style="margin-top:12px;">
+
+            <!-- Pending After Photos Warning -->
+            <div class="pending-warning" id="pending-warning" style="display:none;">
+              <span class="warning-icon">⚠️</span>
+              <span id="pending-count">0</span> grupo(s) pendiente(s) de foto DESPUÉS
+            </div>
+
+            <!-- Hidden file inputs for gondola photos -->
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after" style="display:none">
+
+            <!-- SKU List with Checkboxes -->
+            <ul class="sku-list sku-list-selectable" id="visit-sku-list"></ul>
+
+            <!-- Gondola Groups Summary -->
+            <div class="gondola-groups-summary" id="gondola-groups-summary"></div>
+
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step2-next" style="margin-top:12px;">
               Siguiente →
             </button>
           </div>
@@ -154,40 +180,10 @@
           </div>
         </div>
 
-        <!-- Step 4: SKU Actions -->
+        <!-- Step 4: Submit -->
         <div id="visit-step-4" class="visit-step">
           <div class="card">
-            <h3>Paso 4: Estado de SKUs</h3>
-            <p class="meta">Indique el estado de cada producto aprobado para esta tienda.</p>
-            <ul class="sku-list" id="visit-sku-list"></ul>
-            <button class="btn btn-primary btn-block" onclick="nextStep()" style="margin-top:12px;">
-              Siguiente →
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 5: Shelf AFTER Photo -->
-        <div id="visit-step-5" class="visit-step">
-          <div class="card">
-            <h3>Paso 5: Foto DESPUÉS</h3>
-            <p class="meta">Tome una foto de la góndola/anaquel DESPUÉS de trabajar.</p>
-            <div class="photo-capture-area">
-              <button class="btn btn-primary btn-block" onclick="capturePhoto('shelf_after')">
-                📷 Tomar Foto de Góndola (DESPUÉS)
-              </button>
-              <input type="file" accept="image/*" capture="environment" id="camera-after" style="display:none">
-              <div class="photo-preview" id="after-preview"></div>
-            </div>
-            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step5-next" disabled style="margin-top:12px;">
-              Siguiente →
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 6: Submit -->
-        <div id="visit-step-6" class="visit-step">
-          <div class="card">
-            <h3>Paso 6: Enviar Visita</h3>
+            <h3>Paso 4: Enviar Visita</h3>
             <div class="form-group">
               <label>Notas adicionales (opcional)</label>
               <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>

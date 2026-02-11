@@ -1,6 +1,6 @@
 /**
  * Ito Merchandising App — Main application controller.
- * 6-Step Visit Workflow.
+ * 4-Step Visit Workflow (v2).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,7 +85,7 @@ function navigateTo(page) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// ═══ STORE VISIT — 6-Step Workflow ═══════════════════════════════════════
+// ═══ STORE VISIT — 4-Step Workflow (v2) ═══════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════
 
 let visitState = {
@@ -94,10 +94,12 @@ let visitState = {
   storeId: null,
   storeName: '',
   approvedSkus: [],
-  skuActions: {},
+  skuActions: {},            // { skuId: Set of actions }
+  selectedSkus: new Set(),   // Currently selected SKU IDs for bulk actions
+  gondolaGroups: [],         // Array of { groupId, skuIds, beforePhoto, afterPhoto }
   conditions: { prices: null, pop: null, clean: null },
   conditionNotes: '',
-  photos: { arrival: null, before: null, after: null },
+  photos: { arrival: null },
   gps: { lat: null, lng: null, accuracy: null },
 };
 
@@ -109,9 +111,11 @@ function resetVisitState() {
     storeName: '',
     approvedSkus: [],
     skuActions: {},
+    selectedSkus: new Set(),
+    gondolaGroups: [],
     conditions: { prices: null, pop: null, clean: null },
     conditionNotes: '',
-    photos: { arrival: null, before: null, after: null },
+    photos: { arrival: null },
     gps: { lat: null, lng: null, accuracy: null },
   };
 }
@@ -129,11 +133,9 @@ async function loadVisitPage() {
     toast('Error cargando tiendas');
   }
 
-  // Clear all previews
-  ['arrival', 'before', 'after'].forEach(type => {
-    const preview = document.getElementById(`${type}-preview`);
-    if (preview) preview.innerHTML = '';
-  });
+  // Clear arrival preview
+  const arrivalPreview = document.getElementById('arrival-preview');
+  if (arrivalPreview) arrivalPreview.innerHTML = '';
 
   // Reset condition buttons
   document.querySelectorAll('.toggle-btn').forEach(btn => {
@@ -143,11 +145,18 @@ async function loadVisitPage() {
   document.getElementById('condition-notes').value = '';
   document.getElementById('visit-notes').value = '';
 
-  // Disable next buttons
-  ['btn-step1-next', 'btn-step2-next', 'btn-step3-next', 'btn-step5-next'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.disabled = true;
-  });
+  // Reset bulk toolbar
+  updateBulkToolbar();
+  updatePendingWarning();
+  updateGondolaGroupsSummary();
+
+  // Disable step 1 next button
+  const btn1 = document.getElementById('btn-step1-next');
+  if (btn1) btn1.disabled = true;
+
+  // Disable step 3 next button
+  const btn3 = document.getElementById('btn-step3-next');
+  if (btn3) btn3.disabled = true;
 }
 
 function showStep(stepNum) {
@@ -160,7 +169,7 @@ function showStep(stepNum) {
   const stepEl = document.getElementById(`visit-step-${stepNum}`);
   if (stepEl) stepEl.classList.add('active');
 
-  // Update step indicator
+  // Update step indicator (4 steps)
   document.querySelectorAll('.step-indicator .step').forEach(el => {
     const s = parseInt(el.dataset.step);
     el.classList.remove('active', 'completed');
@@ -169,8 +178,8 @@ function showStep(stepNum) {
   });
 
   // Load step-specific data
-  if (stepNum === 4) loadSKUList();
-  if (stepNum === 6) showVisitSummary();
+  if (stepNum === 2) loadSKUList();
+  if (stepNum === 4) showVisitSummary();
 }
 
 function nextStep() {
@@ -217,50 +226,156 @@ async function startVisit() {
 // ── Photo Capture ───────────────────────────────────────────────────────
 
 function capturePhoto(photoType) {
-  const inputMap = {
-    'arrival_proof': 'camera-arrival',
-    'shelf_before': 'camera-before',
-    'shelf_after': 'camera-after',
-  };
-  const input = document.getElementById(inputMap[photoType]);
+  const input = document.getElementById('camera-arrival');
   input.dataset.photoType = photoType;
-  input.onchange = (e) => onPhotoSelected(e.target, photoType);
+  input.onchange = (e) => onArrivalPhotoSelected(e.target);
   input.click();
 }
 
-async function onPhotoSelected(input, photoType) {
+async function onArrivalPhotoSelected(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // Store locally
-  const keyMap = { 'arrival_proof': 'arrival', 'shelf_before': 'before', 'shelf_after': 'after' };
-  visitState.photos[keyMap[photoType]] = file;
+  visitState.photos.arrival = file;
 
   // Show preview
-  const previewMap = { 'arrival_proof': 'arrival-preview', 'shelf_before': 'before-preview', 'shelf_after': 'after-preview' };
-  const preview = document.getElementById(previewMap[photoType]);
+  const preview = document.getElementById('arrival-preview');
   preview.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
 
   // Upload to server
   try {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('photo_type', photoType);
+    formData.append('photo_type', 'arrival_proof');
     formData.append('latitude', visitState.gps.lat || '');
     formData.append('longitude', visitState.gps.lng || '');
     formData.append('gps_accuracy', visitState.gps.accuracy || '');
     formData.append('captured_at', new Date().toISOString());
-    formData.append('run_cv', photoType !== 'arrival_proof' ? 'true' : 'false');
+    formData.append('run_cv', 'false');
 
     await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
     toast('Foto guardada');
 
     // Enable next button
-    const btnMap = { 'arrival_proof': 'btn-step1-next', 'shelf_before': 'btn-step2-next', 'shelf_after': 'btn-step5-next' };
-    const btn = document.getElementById(btnMap[photoType]);
-    if (btn) btn.disabled = false;
+    document.getElementById('btn-step1-next').disabled = false;
   } catch (err) {
     toast('Error subiendo foto: ' + err.message);
+  }
+}
+
+// ── Gondola Photo Capture (Before/After) ────────────────────────────────
+
+function captureGondolaBefore() {
+  if (visitState.selectedSkus.size === 0) {
+    toast('Seleccione SKUs primero');
+    return;
+  }
+  const input = document.getElementById('camera-gondola-before');
+  input.onchange = (e) => onGondolaBeforeSelected(e.target);
+  input.click();
+}
+
+async function onGondolaBeforeSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Generate a new gondola group ID
+  const groupId = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+
+  // Get selected SKU IDs
+  const skuIds = Array.from(visitState.selectedSkus);
+
+  // Create local gondola group record
+  const group = {
+    groupId: groupId,
+    skuIds: [...skuIds],
+    beforePhoto: URL.createObjectURL(file),
+    afterPhoto: null,
+  };
+  visitState.gondolaGroups.push(group);
+
+  // Upload to server
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo_type', 'gondola_before');
+    formData.append('gondola_group_id', groupId);
+    formData.append('sku_ids', skuIds.join(','));
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+    formData.append('run_cv', 'true');
+
+    await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+    toast('Foto ANTES guardada');
+
+    // Clear selection after taking before photo
+    clearSkuSelection();
+
+    // Update UI
+    updatePendingWarning();
+    updateGondolaGroupsSummary();
+  } catch (err) {
+    toast('Error subiendo foto: ' + err.message);
+    // Remove the group on error
+    visitState.gondolaGroups.pop();
+  }
+}
+
+function captureGondolaAfter() {
+  // Find groups that need after photos
+  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+  if (pendingGroups.length === 0) {
+    toast('No hay fotos ANTES pendientes');
+    return;
+  }
+
+  // For simplicity, take after photo for the first pending group
+  // (Could show a picker if multiple pending)
+  const targetGroup = pendingGroups[0];
+
+  const input = document.getElementById('camera-gondola-after');
+  input.dataset.groupId = targetGroup.groupId;
+  input.onchange = (e) => onGondolaAfterSelected(e.target, targetGroup.groupId);
+  input.click();
+}
+
+async function onGondolaAfterSelected(input, groupId) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Find the group
+  const group = visitState.gondolaGroups.find(g => g.groupId === groupId);
+  if (!group) return;
+
+  group.afterPhoto = URL.createObjectURL(file);
+
+  // Upload to server
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo_type', 'gondola_after');
+    formData.append('gondola_group_id', groupId);
+    formData.append('sku_ids', group.skuIds.join(','));
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+    formData.append('run_cv', 'true');
+
+    await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+    toast('Foto DESPUÉS guardada');
+
+    // Update UI
+    updatePendingWarning();
+    updateGondolaGroupsSummary();
+  } catch (err) {
+    toast('Error subiendo foto: ' + err.message);
+    group.afterPhoto = null;
   }
 }
 
@@ -284,7 +399,7 @@ function setCondition(field, value, btn) {
   document.getElementById('btn-step3-next').disabled = !allAnswered;
 }
 
-// ── Step 4: SKU Actions ─────────────────────────────────────────────────
+// ── Step 2: SKU List with Checkboxes ────────────────────────────────────
 
 async function loadSKUList() {
   try {
@@ -296,8 +411,13 @@ async function loadSKUList() {
       skuList.innerHTML = '<p class="meta">No hay SKUs aprobados para esta tienda.</p>';
     } else {
       skuList.innerHTML = approvals.map(a => `
-        <li class="sku-item" data-sku-id="${a.sku.id}">
-          <span class="sku-name">${a.sku.name} <span class="meta">(${a.sku.brand})</span></span>
+        <li class="sku-item" data-sku-id="${a.sku.id}" id="sku-item-${a.sku.id}">
+          <input type="checkbox" class="sku-checkbox" id="sku-check-${a.sku.id}"
+                 onchange="toggleSkuSelection(${a.sku.id}, this.checked)">
+          <div class="sku-info">
+            <span class="sku-name">${a.sku.name}</span>
+            <span class="sku-meta">${a.sku.brand}${a.sku.category ? ' · ' + a.sku.category : ''}</span>
+          </div>
           <div class="action-chips" id="chips-${a.sku.id}">
             <span class="chip chip-llena" data-action="gondola_llena" onclick="toggleAction(${a.sku.id},'gondola_llena',this)">Llena</span>
             <span class="chip chip-relleno" data-action="se_relleno" onclick="toggleAction(${a.sku.id},'se_relleno',this)">Rellenó</span>
@@ -307,9 +427,98 @@ async function loadSKUList() {
         </li>
       `).join('');
     }
+
+    // Reset selection state
+    visitState.selectedSkus.clear();
+    updateBulkToolbar();
+    updatePendingWarning();
+    updateGondolaGroupsSummary();
   } catch (err) {
     toast('Error cargando SKUs');
   }
+}
+
+// ── SKU Selection for Bulk Actions ──────────────────────────────────────
+
+function toggleSkuSelection(skuId, selected) {
+  if (selected) {
+    visitState.selectedSkus.add(skuId);
+    document.getElementById(`sku-item-${skuId}`)?.classList.add('selected');
+  } else {
+    visitState.selectedSkus.delete(skuId);
+    document.getElementById(`sku-item-${skuId}`)?.classList.remove('selected');
+  }
+  updateBulkToolbar();
+}
+
+function clearSkuSelection() {
+  visitState.selectedSkus.forEach(skuId => {
+    const checkbox = document.getElementById(`sku-check-${skuId}`);
+    if (checkbox) checkbox.checked = false;
+    document.getElementById(`sku-item-${skuId}`)?.classList.remove('selected');
+  });
+  visitState.selectedSkus.clear();
+  updateBulkToolbar();
+}
+
+function updateBulkToolbar() {
+  const count = visitState.selectedSkus.size;
+  document.getElementById('selected-count').textContent = count;
+
+  // Enable/disable bulk action buttons
+  const hasSelection = count > 0;
+  document.getElementById('btn-gondola-before').disabled = !hasSelection;
+  document.getElementById('btn-clear-selection').disabled = !hasSelection;
+
+  // After photo button enabled only if there are pending groups
+  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+  document.getElementById('btn-gondola-after').disabled = pendingGroups.length === 0;
+}
+
+function updatePendingWarning() {
+  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+  const warningEl = document.getElementById('pending-warning');
+  const countEl = document.getElementById('pending-count');
+
+  if (pendingGroups.length > 0) {
+    countEl.textContent = pendingGroups.length;
+    warningEl.style.display = 'flex';
+  } else {
+    warningEl.style.display = 'none';
+  }
+}
+
+function updateGondolaGroupsSummary() {
+  const container = document.getElementById('gondola-groups-summary');
+  if (visitState.gondolaGroups.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = '<h4 style="margin-bottom:8px;font-size:14px;">Grupos de Góndola</h4>' +
+    visitState.gondolaGroups.map((group, idx) => {
+      const isPending = !group.afterPhoto;
+      const skuNames = group.skuIds.map(id => {
+        const sku = visitState.approvedSkus.find(s => s.id === id);
+        return sku ? sku.name : `SKU #${id}`;
+      }).slice(0, 3).join(', ') + (group.skuIds.length > 3 ? ` (+${group.skuIds.length - 3})` : '');
+
+      return `
+        <div class="gondola-group-card ${isPending ? 'pending' : 'complete'}">
+          <div class="gondola-group-header">
+            <span class="group-label">Grupo ${idx + 1}</span>
+            <span class="group-status ${isPending ? 'pending' : 'complete'}">
+              ${isPending ? 'Pendiente DESPUÉS' : 'Completo'}
+            </span>
+          </div>
+          <div class="gondola-group-skus">${skuNames}</div>
+          <div class="gondola-group-photos">
+            ${group.beforePhoto ? `<img src="${group.beforePhoto}" alt="Antes">` : '<div class="photo-placeholder">ANTES</div>'}
+            ${group.afterPhoto ? `<img src="${group.afterPhoto}" alt="Después">` : '<div class="photo-placeholder">DESPUÉS</div>'}
+          </div>
+        </div>
+      `;
+    }).join('');
 }
 
 /**
@@ -388,7 +597,7 @@ function disableChips(container, actionTypes) {
   });
 }
 
-// ── Step 6: Summary & Submit ────────────────────────────────────────────
+// ── Step 4: Summary & Submit ────────────────────────────────────────────
 
 function showVisitSummary() {
   visitState.conditionNotes = document.getElementById('condition-notes').value;
@@ -401,10 +610,18 @@ function showVisitSummary() {
     });
   });
 
+  // Count photos: 1 arrival + gondola groups (before + after)
+  const arrivalCount = visitState.photos.arrival ? 1 : 0;
+  const gondolaBeforeCount = visitState.gondolaGroups.filter(g => g.beforePhoto).length;
+  const gondolaAfterCount = visitState.gondolaGroups.filter(g => g.afterPhoto).length;
+  const totalPhotos = arrivalCount + gondolaBeforeCount + gondolaAfterCount;
+  const pendingAfter = gondolaBeforeCount - gondolaAfterCount;
+
   const summaryEl = document.getElementById('visit-summary');
   summaryEl.innerHTML = `
     <div class="summary-item"><span>Tienda:</span><span>${visitState.storeName}</span></div>
-    <div class="summary-item"><span>Fotos:</span><span>${Object.values(visitState.photos).filter(p => p).length} de 3</span></div>
+    <div class="summary-item"><span>Fotos:</span><span>${totalPhotos} (${arrivalCount} llegada, ${gondolaBeforeCount} antes, ${gondolaAfterCount} después)</span></div>
+    <div class="summary-item"><span>Grupos Góndola:</span><span>${visitState.gondolaGroups.length}${pendingAfter > 0 ? ` (${pendingAfter} pendiente)` : ''}</span></div>
     <div class="summary-item"><span>Góndola Llena:</span><span>${actionCounts.gondola_llena}</span></div>
     <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
     <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden}</span></div>

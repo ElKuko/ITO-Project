@@ -1,12 +1,13 @@
 """Store visit submission and management endpoints.
 
-New 6-step workflow:
-1. Start Visit (POST /start) - creates visit, uploads arrival photo
-2. Before Photo (POST /{id}/photos with type=shelf_before)
+4-Step Workflow (v2):
+1. Start Visit (POST /start) - select store, arrival photo
+2. SKUs & Gondolas (POST /{id}/photos) - unified screen with:
+   - SKU checkboxes for multi-select
+   - Bulk photo actions (before/after) linked to SKU groups via gondola_group_id
+   - SKU status actions (Llena, Rellenó, Orden, Agotado)
 3. Condition Checks (PUT /{id}/conditions)
-4. SKU Actions - added on complete
-5. After Photo (POST /{id}/photos with type=shelf_after)
-6. Submit/Complete (PUT /{id}/complete)
+4. Submit/Complete (PUT /{id}/complete)
 """
 
 import json
@@ -18,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import StoreVisit, VisitSKUAction, VisitPhoto, Store, SKU, User
+from ..models import StoreVisit, VisitSKUAction, VisitPhoto, PhotoSKULink, Store, SKU, User
 from ..schemas import (
     StoreVisitOut, VisitPhotoOut, VisitStartRequest, VisitStartResponse,
     VisitCompleteRequest, VisitConditionChecks
@@ -104,27 +105,38 @@ def start_visit(
     )
 
 
-# ── Step 2 & 5: Photo Upload ─────────────────────────────────────────────
+# ── Photo Upload with Gondola Grouping ───────────────────────────────────
 
 @router.post("/{visit_id}/photos", response_model=VisitPhotoOut)
 async def upload_photo(
     visit_id: int,
     file: UploadFile = File(...),
-    photo_type: str = Form(default="shelf"),  # arrival_proof | shelf_before | shelf_after
-    latitude: str = Form(default=None),  # Accept as string, convert below (handles empty strings)
+    photo_type: str = Form(default="shelf"),  # arrival_proof | gondola_before | gondola_after
+    gondola_group_id: str = Form(default=None),  # UUID linking before/after photos
+    sku_ids: str = Form(default=""),  # Comma-separated SKU IDs this photo represents
+    latitude: str = Form(default=None),
     longitude: str = Form(default=None),
     gps_accuracy: str = Form(default=None),
-    captured_at: str = Form(default=None),  # ISO datetime string
-    run_cv: str = Form(default="true"),  # Accept as string for form compatibility
+    captured_at: str = Form(default=None),
+    run_cv: str = Form(default="true"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a photo for the visit. Photo type determines its purpose."""
-    # Convert string form values to proper types (handles empty strings from FormData)
+    """Upload a photo for the visit with optional gondola grouping and SKU linking."""
+    # Convert string form values to proper types
     lat = float(latitude) if latitude and latitude.strip() else None
     lng = float(longitude) if longitude and longitude.strip() else None
     gps_acc = float(gps_accuracy) if gps_accuracy and gps_accuracy.strip() else None
     should_run_cv = run_cv.lower() in ("true", "1", "yes") if isinstance(run_cv, str) else bool(run_cv)
+    group_id = gondola_group_id if gondola_group_id and gondola_group_id.strip() else None
+
+    # Parse SKU IDs from comma-separated string
+    linked_sku_ids = []
+    if sku_ids and sku_ids.strip():
+        try:
+            linked_sku_ids = [int(s.strip()) for s in sku_ids.split(",") if s.strip()]
+        except ValueError:
+            pass
 
     visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
     if not visit:
@@ -133,7 +145,7 @@ async def upload_photo(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate photo type
-    valid_types = ("arrival_proof", "shelf_before", "shelf_after", "shelf")
+    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf")
     if photo_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid photo_type. Must be one of: {valid_types}")
 
@@ -154,21 +166,22 @@ async def upload_photo(
         except ValueError:
             pass
 
-    # Run CV on shelf photos (before/after), not arrival proof
+    # Run CV on gondola photos
     cv_results = None
     cv_processed = False
-    if should_run_cv and photo_type in ("shelf_before", "shelf_after", "shelf"):
+    if should_run_cv and photo_type in ("gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf"):
         try:
             result = analyze_shelf_image(filepath)
             cv_results = json.dumps(result)
             cv_processed = True
         except Exception:
-            pass  # CV failure should not block photo upload
+            pass
 
     photo = VisitPhoto(
         visit_id=visit_id,
         photo_type=photo_type,
         file_path=f"/uploads/{filename}",
+        gondola_group_id=group_id,
         captured_at=photo_captured_at,
         latitude=lat,
         longitude=lng,
@@ -177,12 +190,70 @@ async def upload_photo(
         cv_results=cv_results,
     )
     db.add(photo)
+    db.flush()  # Get the photo.id
+
+    # Create SKU links for this photo
+    for sku_id in linked_sku_ids:
+        link = PhotoSKULink(photo_id=photo.id, sku_id=sku_id)
+        db.add(link)
+
     db.commit()
     db.refresh(photo)
     return photo
 
 
-# ── Step 3: Condition Checks ─────────────────────────────────────────────
+@router.get("/{visit_id}/gondola-groups")
+def get_gondola_groups(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get gondola photo groups for a visit - shows which groups need after photos."""
+    visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    if current_user.role == "merchandiser" and visit.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get all gondola photos grouped by gondola_group_id
+    photos = db.query(VisitPhoto).filter(
+        VisitPhoto.visit_id == visit_id,
+        VisitPhoto.gondola_group_id != None
+    ).all()
+
+    groups = {}
+    for photo in photos:
+        gid = photo.gondola_group_id
+        if gid not in groups:
+            groups[gid] = {
+                "gondola_group_id": gid,
+                "before_photo": None,
+                "after_photo": None,
+                "sku_ids": [],
+            }
+
+        if photo.photo_type in ("gondola_before", "shelf_before"):
+            groups[gid]["before_photo"] = {
+                "id": photo.id,
+                "file_path": photo.file_path,
+                "captured_at": photo.captured_at.isoformat() if photo.captured_at else None,
+            }
+            # Get SKU IDs from this photo
+            groups[gid]["sku_ids"] = [link.sku_id for link in photo.sku_links]
+        elif photo.photo_type in ("gondola_after", "shelf_after"):
+            groups[gid]["after_photo"] = {
+                "id": photo.id,
+                "file_path": photo.file_path,
+                "captured_at": photo.captured_at.isoformat() if photo.captured_at else None,
+            }
+
+    return {
+        "groups": list(groups.values()),
+        "pending_after_count": sum(1 for g in groups.values() if g["before_photo"] and not g["after_photo"]),
+    }
+
+
+# ── Condition Checks ─────────────────────────────────────────────────────
 
 @router.put("/{visit_id}/conditions")
 def update_condition_checks(
@@ -241,7 +312,7 @@ def complete_visit(
     # Clear existing SKU actions and add new ones
     db.query(VisitSKUAction).filter(VisitSKUAction.visit_id == visit_id).delete()
 
-    valid_actions = ("gondola_llena", "se_relleno", "orden", "unknown")
+    valid_actions = ("gondola_llena", "se_relleno", "orden", "agotado", "unknown")
     for action in req.sku_actions:
         if not db.query(SKU).filter(SKU.id == action.sku_id).first():
             raise HTTPException(status_code=404, detail=f"SKU {action.sku_id} not found")

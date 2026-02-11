@@ -146,9 +146,13 @@ class VisitPhoto(Base):
     id = Column(Integer, primary_key=True, index=True)
     visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
 
-    # Photo type: arrival_proof | shelf_before | shelf_after
+    # Photo type: arrival_proof | gondola_before | gondola_after
     photo_type = Column(String(30), nullable=False, default="shelf")
     file_path = Column(String(500), nullable=False)
+
+    # Gondola grouping - links before/after photos for the same gondola
+    # Client generates a UUID when taking before photo, reuses for after photo
+    gondola_group_id = Column(String(36), nullable=True, index=True)
 
     # Metadata captured at photo time
     captured_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -161,3 +165,16 @@ class VisitPhoto(Base):
     cv_results = Column(Text, nullable=True)  # JSON string
 
     visit = relationship("StoreVisit", back_populates="photos")
+    sku_links = relationship("PhotoSKULink", back_populates="photo", cascade="all, delete-orphan")
+
+
+class PhotoSKULink(Base):
+    """Links photos to the SKUs they represent (for gondola before/after photos)."""
+    __tablename__ = "photo_sku_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    photo_id = Column(Integer, ForeignKey("visit_photos.id"), nullable=False)
+    sku_id = Column(Integer, ForeignKey("skus.id"), nullable=False)
+
+    photo = relationship("VisitPhoto", back_populates="sku_links")
+    sku = relationship("SKU")
