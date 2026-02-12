@@ -95,6 +95,7 @@ let visitState = {
   storeName: '',
   approvedSkus: [],
   skuActions: {},            // { skuId: Set of actions }
+  ordenQuantities: {},       // { skuId: quantity } for orden actions
   selectedSkus: new Set(),   // Currently selected SKU IDs for bulk actions
   gondolaGroups: [],         // Array of { groupId, skuIds, beforePhoto, afterPhoto }
   conditions: { prices: null, pop: null, clean: null },
@@ -111,6 +112,7 @@ function resetVisitState() {
     storeName: '',
     approvedSkus: [],
     skuActions: {},
+    ordenQuantities: {},
     selectedSkus: new Set(),
     gondolaGroups: [],
     conditions: { prices: null, pop: null, clean: null },
@@ -597,14 +599,9 @@ function toggleAction(skuId, action, el) {
       el.classList.add('selected');
     }
   } else if (action === 'orden') {
-    // Orden can always be toggled
-    if (actions.has(action)) {
-      actions.delete(action);
-      el.classList.remove('selected');
-    } else {
-      actions.add(action);
-      el.classList.add('selected');
-    }
+    // Orden shows a quantity picker modal
+    showOrdenQtyModal(skuId);
+    return; // Don't do the cleanup below, modal handles it
   }
 
   // Clean up empty sets
@@ -630,6 +627,58 @@ function disableChips(container, actionTypes) {
   });
 }
 
+// ── Orden Quantity Modal ─────────────────────────────────────────────────
+
+function showOrdenQtyModal(skuId) {
+  const sku = visitState.approvedSkus.find(s => s.id === skuId);
+  const skuName = sku ? sku.name : `SKU #${skuId}`;
+
+  document.getElementById('orden-sku-id').value = skuId;
+  document.getElementById('orden-sku-name').textContent = skuName;
+
+  // Set current quantity if exists, otherwise default to 1
+  const currentQty = visitState.ordenQuantities[skuId] || 0;
+  document.getElementById('orden-qty-select').value = currentQty > 0 ? currentQty : 1;
+
+  document.getElementById('modal-orden-qty').style.display = 'flex';
+}
+
+function confirmOrdenQty() {
+  const skuId = parseInt(document.getElementById('orden-sku-id').value);
+  const qty = parseInt(document.getElementById('orden-qty-select').value);
+
+  const key = `${skuId}`;
+  const chipsContainer = document.getElementById(`chips-${skuId}`);
+  const ordenChip = chipsContainer.querySelector('[data-action="orden"]');
+
+  // Initialize actions set if needed
+  if (!visitState.skuActions[key]) {
+    visitState.skuActions[key] = new Set();
+  }
+  const actions = visitState.skuActions[key];
+
+  if (qty === 0) {
+    // Remove orden action
+    actions.delete('orden');
+    delete visitState.ordenQuantities[skuId];
+    ordenChip.classList.remove('selected', 'has-qty');
+    ordenChip.innerHTML = 'Orden';
+  } else {
+    // Set orden action with quantity
+    actions.add('orden');
+    visitState.ordenQuantities[skuId] = qty;
+    ordenChip.classList.add('selected', 'has-qty');
+    ordenChip.innerHTML = `Orden <span class="chip-qty-badge">${qty}</span>`;
+  }
+
+  // Clean up empty sets
+  if (actions.size === 0) {
+    delete visitState.skuActions[key];
+  }
+
+  closeModal('modal-orden-qty');
+}
+
 // ── Step 4: Summary & Submit ────────────────────────────────────────────
 
 function showVisitSummary() {
@@ -642,6 +691,9 @@ function showVisitSummary() {
       if (actionCounts[action] !== undefined) actionCounts[action]++;
     });
   });
+
+  // Calculate total boxes ordered
+  const totalBoxesOrdered = Object.values(visitState.ordenQuantities).reduce((sum, qty) => sum + qty, 0);
 
   // Count photos: 1 arrival + gondola groups (before + after)
   const arrivalCount = visitState.photos.arrival ? 1 : 0;
@@ -657,7 +709,7 @@ function showVisitSummary() {
     <div class="summary-item"><span>Grupos Góndola:</span><span>${visitState.gondolaGroups.length}${pendingAfter > 0 ? ` (${pendingAfter} pendiente)` : ''}</span></div>
     <div class="summary-item"><span>Góndola Llena:</span><span>${actionCounts.gondola_llena}</span></div>
     <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
-    <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden}</span></div>
+    <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden} SKU(s)${totalBoxesOrdered > 0 ? ` — ${totalBoxesOrdered} cajas` : ''}</span></div>
     <div class="summary-item"><span>Agotado:</span><span>${actionCounts.agotado}</span></div>
     <div class="summary-item"><span>Precios OK:</span><span>${visitState.conditions.prices ? 'Sí' : 'No'}</span></div>
     <div class="summary-item"><span>PoP OK:</span><span>${visitState.conditions.pop ? 'Sí' : 'No'}</span></div>
@@ -673,10 +725,15 @@ async function submitVisit() {
   try {
     // Convert Set-based actions to array of action objects
     // Each SKU can have multiple actions now
+    // For 'orden' actions, include the quantity
     const actions = [];
     Object.entries(visitState.skuActions).forEach(([skuId, actionsSet]) => {
       actionsSet.forEach(actionType => {
-        actions.push({ sku_id: parseInt(skuId), action_type: actionType });
+        const action = { sku_id: parseInt(skuId), action_type: actionType };
+        if (actionType === 'orden' && visitState.ordenQuantities[skuId]) {
+          action.quantity = visitState.ordenQuantities[skuId];
+        }
+        actions.push(action);
       });
     });
 
