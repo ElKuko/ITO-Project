@@ -56,11 +56,16 @@ function showApp() {
   document.getElementById('app').style.display = 'block';
   document.getElementById('header-name').textContent = getUserName();
 
-  // Show admin nav tab for admins
+  const isAdmin = getUserRole() === 'admin';
+
+  // Show admin-only tabs (Historial, Dashboard, Admin)
+  const navHistory = document.getElementById('nav-history');
+  const navDashboard = document.getElementById('nav-dashboard');
   const navAdmin = document.getElementById('nav-admin');
-  if (navAdmin && getUserRole() === 'admin') {
-    navAdmin.style.display = 'block';
-  }
+
+  if (navHistory) navHistory.style.display = isAdmin ? 'block' : 'none';
+  if (navDashboard) navDashboard.style.display = isAdmin ? 'block' : 'none';
+  if (navAdmin) navAdmin.style.display = isAdmin ? 'block' : 'none';
 
   navigateTo('visit');
 }
