@@ -10,11 +10,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from .config import SECRET_KEY, TOKEN_EXPIRY_SECONDS
 from .database import get_db
 from .models import User
 
-SECRET_KEY = "ito-mvp-secret-change-in-production"
-TOKEN_EXPIRY = 86400  # 24 hours
+TOKEN_EXPIRY = TOKEN_EXPIRY_SECONDS
 
 security = HTTPBearer(auto_error=False)
 
