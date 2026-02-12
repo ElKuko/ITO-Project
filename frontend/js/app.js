@@ -188,6 +188,19 @@ function nextStep() {
   showStep(visitState.step + 1);
 }
 
+function validateStep2AndNext() {
+  // Check if there are any gondola groups with missing after photos
+  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+
+  if (pendingGroups.length > 0) {
+    toast(`Faltan ${pendingGroups.length} foto(s) DESPUÉS. Complete todos los grupos antes de continuar.`);
+    return;
+  }
+
+  // All groups complete (or no groups created), proceed to next step
+  nextStep();
+}
+
 // ── Step 0 → 1: Start Visit ─────────────────────────────────────────────
 
 async function startVisit() {
