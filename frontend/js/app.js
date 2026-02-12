@@ -328,7 +328,7 @@ async function onGondolaBeforeSelected(input) {
     formData.append('longitude', visitState.gps.lng || '');
     formData.append('gps_accuracy', visitState.gps.accuracy || '');
     formData.append('captured_at', new Date().toISOString());
-    formData.append('run_cv', 'true');
+    formData.append('run_cv', 'false');  // Disabled for MVP
 
     await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
     toast('Foto ANTES guardada');
@@ -418,7 +418,7 @@ async function onGondolaAfterSelected(input, groupId) {
     formData.append('longitude', visitState.gps.lng || '');
     formData.append('gps_accuracy', visitState.gps.accuracy || '');
     formData.append('captured_at', new Date().toISOString());
-    formData.append('run_cv', 'true');
+    formData.append('run_cv', 'false');  // Disabled for MVP
 
     await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
     toast('Foto DESPUÉS guardada');

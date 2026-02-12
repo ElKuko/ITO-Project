@@ -118,7 +118,7 @@ async def upload_photo(
     longitude: str = Form(default=None),
     gps_accuracy: str = Form(default=None),
     captured_at: str = Form(default=None),
-    run_cv: str = Form(default="true"),
+    run_cv: str = Form(default="false"),  # Disabled for MVP - enable when ML pipeline is ready
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
