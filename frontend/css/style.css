@@ -966,3 +966,63 @@ tr.inactive-row {
   color: var(--text-secondary);
   text-align: center;
 }
+
+/* ── Gondola Picker Modal ─────────────────────────────────────────────── */
+
+.modal-gondola-picker {
+  max-width: 400px;
+}
+
+.gondola-picker-body {
+  padding: 16px 20px 20px;
+}
+
+.gondola-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.gondola-picker-item {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.gondola-picker-item:hover {
+  border-color: var(--primary);
+  background: #f0f7ff;
+}
+
+.gondola-picker-item:active {
+  transform: scale(0.98);
+}
+
+.gondola-picker-item .picker-thumbnail {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: var(--border);
+}
+
+.gondola-picker-item .picker-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.gondola-picker-item .picker-skus {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

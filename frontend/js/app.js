@@ -334,13 +334,46 @@ function captureGondolaAfter() {
     return;
   }
 
-  // For simplicity, take after photo for the first pending group
-  // (Could show a picker if multiple pending)
-  const targetGroup = pendingGroups[0];
+  // If only one pending group, take photo directly
+  if (pendingGroups.length === 1) {
+    triggerAfterPhotoCapture(pendingGroups[0].groupId);
+    return;
+  }
 
+  // Multiple pending groups: show picker
+  showGondolaPicker(pendingGroups);
+}
+
+function showGondolaPicker(pendingGroups) {
+  const grid = document.getElementById('gondola-picker-grid');
+
+  grid.innerHTML = pendingGroups.map((group, idx) => {
+    const skuNames = group.skuIds.map(id => {
+      const sku = visitState.approvedSkus.find(s => s.id === id);
+      return sku ? sku.name : `SKU #${id}`;
+    }).slice(0, 2).join(', ') + (group.skuIds.length > 2 ? ` (+${group.skuIds.length - 2})` : '');
+
+    return `
+      <div class="gondola-picker-item" onclick="selectGondolaForAfter('${group.groupId}')">
+        <img class="picker-thumbnail" src="${group.beforePhoto}" alt="Antes">
+        <div class="picker-label">Grupo ${visitState.gondolaGroups.indexOf(group) + 1}</div>
+        <div class="picker-skus">${skuNames}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('modal-gondola-picker').style.display = 'flex';
+}
+
+function selectGondolaForAfter(groupId) {
+  closeModal('modal-gondola-picker');
+  triggerAfterPhotoCapture(groupId);
+}
+
+function triggerAfterPhotoCapture(groupId) {
   const input = document.getElementById('camera-gondola-after');
-  input.dataset.groupId = targetGroup.groupId;
-  input.onchange = (e) => onGondolaAfterSelected(e.target, targetGroup.groupId);
+  input.dataset.groupId = groupId;
+  input.onchange = (e) => onGondolaAfterSelected(e.target, groupId);
   input.click();
 }
 
