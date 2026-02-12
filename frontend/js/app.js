@@ -895,10 +895,9 @@ async function refreshDashboard() {
   const qs = params.length > 0 ? '?' + params.join('&') : '';
 
   try {
-    const [summary, byStore, incidents] = await Promise.all([
+    const [summary, byStore] = await Promise.all([
       apiGet(`/dashboard/summary${qs}`),
       apiGet(`/dashboard/by-store${qs}`),
-      apiGet(`/dashboard/incidents${qs}`),
     ]);
 
     document.getElementById('stat-visits').textContent = summary.total_visits;
@@ -915,9 +914,6 @@ async function refreshDashboard() {
     if (orden) orden.textContent = summary.actions?.orden || 0;
     if (agotado) agotado.textContent = summary.actions?.agotado || 0;
 
-    document.getElementById('stat-incidents-red').textContent = incidents.red_incidents;
-    document.getElementById('stat-total-incidents').textContent = incidents.total_incidents;
-
     // By-store table
     const tableBody = document.getElementById('store-table-body');
     tableBody.innerHTML = byStore.map(s => `
@@ -929,19 +925,6 @@ async function refreshDashboard() {
         <td>${s.se_relleno || 0}</td>
         <td>${s.orden || 0}</td>
         <td>${s.agotado || 0}</td>
-      </tr>
-    `).join('');
-
-    // Incidents table
-    const incBody = document.getElementById('incidents-table-body');
-    incBody.innerHTML = incidents.incidents.map(i => `
-      <tr>
-        <td>${i.store_name}</td>
-        <td>${i.sku_name}</td>
-        <td>${i.action_type.replace(/_/g, ' ')}</td>
-        <td><span class="badge badge-${i.severity}">${i.age_days}d</span></td>
-        <td>${i.merchandiser}</td>
-        <td>${new Date(i.reported_at).toLocaleDateString()}</td>
       </tr>
     `).join('');
 
