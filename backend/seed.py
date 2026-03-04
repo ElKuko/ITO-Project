@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.database import engine, SessionLocal, Base
-from backend.models import User, Store, SKU, StoreSKUApproval, StoreVisit, VisitSKUAction
+from backend.models import User, Store, SKU, StoreSKUApproval, StoreVisit, VisitSKUAction, Route, RouteStop
 from backend.auth import hash_password
 
 
@@ -61,6 +61,27 @@ def seed():
         Store(name="Econo — Caguas", chain="Econo", region="Este", address="Carr. 1 Km 33.5, Caguas, PR 00725", latitude=18.2341, longitude=-66.0485),
     ]
     db.add_all(stores)
+    db.flush()
+
+    # ── Routes and Route Stops ─────────────────────────────────────────
+    # Create a General route and link ALL stores to it so visits show in "Por Ruta"
+    general_route = Route(
+        name="General",
+        merchandiser_id=merch1.id,
+        is_active=True,
+    )
+    db.add(general_route)
+    db.flush()
+
+    # Create route stops for ALL stores
+    for idx, store in enumerate(stores):
+        route_stop = RouteStop(
+            route_id=general_route.id,
+            store_id=store.id,
+            day="Lunes",
+            visit_order=idx + 1,
+        )
+        db.add(route_stop)
     db.flush()
 
     # ── SKUs (Ito brand products) ─────────────────────────────────────
@@ -162,6 +183,7 @@ def seed():
     print("Database seeded successfully!")
     print("  Users: admin/admin123 (president), merch1/merch123, merch2/merch123")
     print(f"  Stores: {len(stores)}")
+    print(f"  Routes: 1 (General)")
     print(f"  SKUs: {len(skus)}")
     print(f"  Approvals: {len(approvals)}")
     print(f"  Sample visits: 3")
