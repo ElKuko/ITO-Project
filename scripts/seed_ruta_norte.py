@@ -2,6 +2,7 @@
 
 from backend.database import SessionLocal
 from backend.models import User, Store, Route, RouteStop
+from backend.auth import hash_password
 
 # Chain extraction patterns
 CHAIN_PATTERNS = [
@@ -130,10 +131,9 @@ def seed_ruta_norte():
     # 1. Create or get merchandiser
     merchandiser = db.query(User).filter(User.full_name == "Michael Rivera").first()
     if not merchandiser:
-        from werkzeug.security import generate_password_hash
         merchandiser = User(
             username="mrivera",
-            password_hash=generate_password_hash("temp123"),
+            password_hash=hash_password("temp123"),
             full_name="Michael Rivera",
             role="merchandiser",
             region="Norte",
