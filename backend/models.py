@@ -23,6 +23,21 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     visits = relationship("StoreVisit", back_populates="user")
+    route = relationship("Route", back_populates="merchandiser", uselist=False)
+
+
+class Route(Base):
+    """A weekly route assigned to a merchandiser."""
+    __tablename__ = "routes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)  # e.g., "Norte", "Sur", "Metro"
+    merchandiser_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    merchandiser = relationship("User", back_populates="route")
+    stops = relationship("RouteStop", back_populates="route", cascade="all, delete-orphan")
 
 
 class Store(Base):
@@ -31,7 +46,8 @@ class Store(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     chain = Column(String(100), nullable=True)  # e.g., "Pueblo", "Econo", "Selectos"
-    region = Column(String(100), nullable=False)
+    pueblo = Column(String(100), nullable=True)  # Town: Vega Baja, Arecibo, etc.
+    region = Column(String(100), nullable=False)  # Broader region: Norte, Sur, Metro
     address = Column(Text, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
@@ -41,6 +57,7 @@ class Store(Base):
 
     approvals = relationship("StoreSKUApproval", back_populates="store")
     visits = relationship("StoreVisit", back_populates="store")
+    route_stops = relationship("RouteStop", back_populates="store")
 
 
 class SKU(Base):
@@ -178,3 +195,17 @@ class PhotoSKULink(Base):
 
     photo = relationship("VisitPhoto", back_populates="sku_links")
     sku = relationship("SKU")
+
+
+class RouteStop(Base):
+    """A store stop within a weekly route."""
+    __tablename__ = "route_stops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_id = Column(Integer, ForeignKey("routes.id"), nullable=False)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    day = Column(String(20), nullable=False)  # Lunes, Martes, Miércoles, Jueves, Viernes
+    visit_order = Column(Integer, nullable=False)  # Order to visit on that day
+
+    route = relationship("Route", back_populates="stops")
+    store = relationship("Store", back_populates="route_stops")
