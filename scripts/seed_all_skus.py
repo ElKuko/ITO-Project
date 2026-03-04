@@ -2,6 +2,7 @@
 
 from scripts.seed_skus_refrigerados import seed_refrigerados
 from scripts.seed_skus_congelados import seed_congelados
+from scripts.seed_skus_secos import seed_secos
 
 
 def seed_all():
@@ -9,11 +10,14 @@ def seed_all():
     print("SEEDING ALL ITO SKUS")
     print("=" * 50)
 
-    print("\n[1/2] Productos Refrigerados...")
+    print("\n[1/3] Productos Refrigerados...")
     seed_refrigerados()
 
-    print("\n[2/2] Productos Congelados...")
+    print("\n[2/3] Productos Congelados...")
     seed_congelados()
+
+    print("\n[3/3] Productos Secos...")
+    seed_secos()
 
     print("\n" + "=" * 50)
     print("ALL DONE!")
