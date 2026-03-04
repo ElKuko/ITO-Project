@@ -1096,3 +1096,202 @@ tr.inactive-row {
   justify-content: center;
   padding: 0 4px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═══ Route History Page (Admin) ════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Route Tabs ────────────────────────────────────────────────────────────── */
+.route-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.route-tab {
+  flex: 0 0 auto;
+  min-width: 140px;
+  padding: 14px 20px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.route-tab:hover {
+  border-color: var(--primary);
+  background: #f0f7ff;
+}
+
+.route-tab.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+}
+
+.route-tab .route-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.route-tab .route-meta {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.route-tab.active .route-meta {
+  opacity: 0.9;
+}
+
+/* ── Route Queue Panel ───────────────────────────────────────────────────── */
+.route-queue-panel {
+  display: none;
+}
+
+.route-queue-panel.active {
+  display: block;
+}
+
+.route-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.route-queue-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.route-queue-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.route-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.route-stat .stat-value {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.route-stat.stat-llena .stat-value { color: var(--success); }
+.route-stat.stat-relleno .stat-value { color: var(--primary); }
+.route-stat.stat-orden .stat-value { color: var(--danger); }
+.route-stat.stat-agotado .stat-value { color: #7c3aed; }
+
+/* ── Visit Cards in Route Queue ──────────────────────────────────────────── */
+.route-visit-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.route-visit-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+.route-visit-card .visit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.route-visit-card .store-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.route-visit-card .visit-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.route-visit-card .visit-status.submitted {
+  background: #e6f4ea;
+  color: var(--success);
+}
+
+.route-visit-card .visit-status.in_progress {
+  background: #fef7e0;
+  color: #e37400;
+}
+
+.route-visit-card .visit-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.route-visit-card .visit-actions-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.route-visit-card .action-stat {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.route-visit-card .action-stat .action-count {
+  font-weight: 700;
+}
+
+.route-visit-card .action-stat.llena .action-count { color: var(--success); }
+.route-visit-card .action-stat.relleno .action-count { color: var(--primary); }
+.route-visit-card .action-stat.orden .action-count { color: var(--danger); }
+.route-visit-card .action-stat.agotado .action-count { color: #7c3aed; }
+
+/* ── Empty State ──────────────────────────────────────────────────────────── */
+.route-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.route-empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.route-empty-state p {
+  font-size: 14px;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .route-tabs {
+    flex-wrap: wrap;
+  }
+
+  .route-tab {
+    min-width: 160px;
+  }
+}

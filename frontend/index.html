@@ -44,6 +44,7 @@
     <nav class="nav-tabs">
       <button data-page="visit" class="active" onclick="navigateTo('visit')">Nueva Visita</button>
       <button data-page="history" id="nav-history" onclick="navigateTo('history')" style="display:none;">Historial</button>
+      <button data-page="route-history" id="nav-route-history" onclick="navigateTo('route-history')" style="display:none;">Por Ruta</button>
       <button data-page="dashboard" id="nav-dashboard" onclick="navigateTo('dashboard')" style="display:none;">Dashboard</button>
       <button data-page="approvals" onclick="navigateTo('approvals')">SKUs</button>
       <button data-page="admin" id="nav-admin" onclick="navigateTo('admin')" style="display:none;">Admin</button>
@@ -205,6 +206,24 @@
       <div class="container">
         <h2 style="margin:16px 0 12px;">Historial de Visitas</h2>
         <div id="history-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Page: Route History (Admin only) ═══ -->
+    <div id="page-route-history" class="page">
+      <div class="container wide">
+        <h2 style="margin:16px 0 12px;">Historial por Ruta</h2>
+        <p class="meta" style="margin-bottom:16px;">Vea el historial de visitas organizado por cada ruta asignada.</p>
+
+        <!-- Route Tabs -->
+        <div class="route-tabs" id="route-tabs">
+          <p class="meta">Cargando rutas...</p>
+        </div>
+
+        <!-- Route Queue Panels -->
+        <div id="route-queues-container">
+          <!-- Will be populated dynamically with route-specific queues -->
+        </div>
       </div>
     </div>
 

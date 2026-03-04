@@ -58,12 +58,14 @@ function showApp() {
 
   const isAdmin = getUserRole() === 'admin';
 
-  // Show admin-only tabs (Historial, Dashboard, Admin)
+  // Show admin-only tabs (Historial, Por Ruta, Dashboard, Admin)
   const navHistory = document.getElementById('nav-history');
+  const navRouteHistory = document.getElementById('nav-route-history');
   const navDashboard = document.getElementById('nav-dashboard');
   const navAdmin = document.getElementById('nav-admin');
 
   if (navHistory) navHistory.style.display = isAdmin ? 'block' : 'none';
+  if (navRouteHistory) navRouteHistory.style.display = isAdmin ? 'block' : 'none';
   if (navDashboard) navDashboard.style.display = isAdmin ? 'block' : 'none';
   if (navAdmin) navAdmin.style.display = isAdmin ? 'block' : 'none';
 
@@ -83,6 +85,7 @@ function navigateTo(page) {
   switch (page) {
     case 'visit': loadVisitPage(); break;
     case 'history': loadHistoryPage(); break;
+    case 'route-history': loadRouteHistoryPage(); break;
     case 'dashboard': loadDashboardPage(); break;
     case 'approvals': loadApprovalsPage(); break;
     case 'admin': loadAdminPage(); break;
@@ -870,6 +873,176 @@ async function showVisitDetail(visitId) {
   } catch (err) {
     toast('Error cargando detalles');
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ ROUTE HISTORY PAGE (Admin only) ══════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+let routeHistoryState = {
+  routes: [],
+  activeRouteId: null,
+  routeVisits: {},  // { routeId: visits[] }
+  routeSummaries: {}, // { routeId: summary }
+};
+
+async function loadRouteHistoryPage() {
+  const tabsContainer = document.getElementById('route-tabs');
+  const queuesContainer = document.getElementById('route-queues-container');
+
+  tabsContainer.innerHTML = '<p class="meta">Cargando rutas...</p>';
+  queuesContainer.innerHTML = '';
+
+  try {
+    const routes = await apiGet('/routes/');
+    routeHistoryState.routes = routes;
+
+    if (routes.length === 0) {
+      tabsContainer.innerHTML = '<p class="meta">No hay rutas configuradas.</p>';
+      return;
+    }
+
+    // Render route tabs
+    tabsContainer.innerHTML = routes.map((r, idx) => `
+      <div class="route-tab ${idx === 0 ? 'active' : ''}" data-route-id="${r.id}" onclick="selectRoute(${r.id})">
+        <div class="route-name">${r.name}</div>
+        <div class="route-meta">${r.store_count} tiendas</div>
+      </div>
+    `).join('');
+
+    // Create queue panels for each route
+    queuesContainer.innerHTML = routes.map((r, idx) => `
+      <div id="route-queue-${r.id}" class="route-queue-panel ${idx === 0 ? 'active' : ''}">
+        <div class="route-queue-header">
+          <h3>Ruta ${r.name}</h3>
+          <div class="route-queue-stats" id="route-stats-${r.id}">
+            <span class="meta">Cargando...</span>
+          </div>
+        </div>
+        <div id="route-visits-${r.id}">
+          <p class="meta">Cargando visitas...</p>
+        </div>
+      </div>
+    `).join('');
+
+    // Load data for the first route
+    routeHistoryState.activeRouteId = routes[0].id;
+    await loadRouteData(routes[0].id);
+
+  } catch (err) {
+    tabsContainer.innerHTML = '<p class="meta" style="color:var(--danger);">Error cargando rutas.</p>';
+    console.error('Error loading routes:', err);
+  }
+}
+
+async function selectRoute(routeId) {
+  // Update tab states
+  document.querySelectorAll('.route-tab').forEach(tab => {
+    tab.classList.toggle('active', parseInt(tab.dataset.routeId) === routeId);
+  });
+
+  // Update panel states
+  document.querySelectorAll('.route-queue-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+  const panel = document.getElementById(`route-queue-${routeId}`);
+  if (panel) panel.classList.add('active');
+
+  routeHistoryState.activeRouteId = routeId;
+
+  // Load data if not already loaded
+  if (!routeHistoryState.routeVisits[routeId]) {
+    await loadRouteData(routeId);
+  }
+}
+
+async function loadRouteData(routeId) {
+  try {
+    // Load visits and summary in parallel
+    const [visitsData, summaryData] = await Promise.all([
+      apiGet(`/routes/${routeId}/visits?limit=30`),
+      apiGet(`/routes/${routeId}/summary`),
+    ]);
+
+    routeHistoryState.routeVisits[routeId] = visitsData.visits;
+    routeHistoryState.routeSummaries[routeId] = summaryData;
+
+    // Render stats
+    renderRouteStats(routeId, summaryData);
+
+    // Render visits
+    renderRouteVisits(routeId, visitsData.visits);
+
+  } catch (err) {
+    console.error(`Error loading route ${routeId} data:`, err);
+    document.getElementById(`route-visits-${routeId}`).innerHTML =
+      '<p class="meta" style="color:var(--danger);">Error cargando visitas.</p>';
+  }
+}
+
+function renderRouteStats(routeId, summary) {
+  const statsEl = document.getElementById(`route-stats-${routeId}`);
+  if (!statsEl) return;
+
+  const actions = summary.actions || {};
+  statsEl.innerHTML = `
+    <div class="route-stat stat-llena">
+      <span class="stat-value">${actions.gondola_llena || 0}</span>
+      <span>Llena</span>
+    </div>
+    <div class="route-stat stat-relleno">
+      <span class="stat-value">${actions.se_relleno || 0}</span>
+      <span>Rellenó</span>
+    </div>
+    <div class="route-stat stat-orden">
+      <span class="stat-value">${actions.orden || 0}</span>
+      <span>Orden</span>
+    </div>
+    <div class="route-stat stat-agotado">
+      <span class="stat-value">${actions.agotado || 0}</span>
+      <span>Agotado</span>
+    </div>
+  `;
+}
+
+function renderRouteVisits(routeId, visits) {
+  const container = document.getElementById(`route-visits-${routeId}`);
+  if (!container) return;
+
+  if (!visits || visits.length === 0) {
+    container.innerHTML = `
+      <div class="route-empty-state">
+        <div class="empty-icon">📋</div>
+        <p>No hay visitas registradas para esta ruta.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = visits.map(v => {
+    const date = v.start_time ? new Date(v.start_time).toLocaleString() : 'Sin fecha';
+    const actions = v.actions_summary || {};
+
+    return `
+      <div class="route-visit-card" onclick="showVisitDetail(${v.id})">
+        <div class="visit-header">
+          <div>
+            <div class="store-name">${v.store_name || 'Tienda desconocida'}</div>
+            ${v.store_pueblo ? `<div class="visit-meta">${v.store_pueblo}</div>` : ''}
+          </div>
+          <span class="visit-status ${v.status}">${v.status === 'submitted' ? 'Enviada' : 'En progreso'}</span>
+        </div>
+        <div class="visit-meta">${date} · ${v.user_name || 'Usuario'}</div>
+        <div class="visit-meta">${v.photo_count} foto(s) · ${v.action_count} SKU(s)</div>
+        <div class="visit-actions-summary">
+          ${actions.gondola_llena ? `<div class="action-stat llena"><span class="action-count">${actions.gondola_llena}</span> Llena</div>` : ''}
+          ${actions.se_relleno ? `<div class="action-stat relleno"><span class="action-count">${actions.se_relleno}</span> Rellenó</div>` : ''}
+          ${actions.orden ? `<div class="action-stat orden"><span class="action-count">${actions.orden}</span> Orden</div>` : ''}
+          ${actions.agotado ? `<div class="action-stat agotado"><span class="action-count">${actions.agotado}</span> Agotado</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
