@@ -39,18 +39,20 @@ def seed_refrigerados():
 
     created = 0
     skipped = 0
+    seen_barcodes = set()
 
     for p in PRODUCTOS_REFRIGERADOS:
         # Create full product name with size
         full_name = f"{p['name']} {p['size']}"
         barcode = p['upc'].replace("-", "")  # Remove dashes from UPC
 
-        # Check if SKU already exists by barcode
-        existing = db.query(SKU).filter(SKU.barcode == barcode).first()
-        if existing:
+        # Check if SKU already exists by barcode (in DB or current batch)
+        if barcode in seen_barcodes or db.query(SKU).filter(SKU.barcode == barcode).first():
             print(f"  Skipped (exists): {full_name}")
             skipped += 1
             continue
+
+        seen_barcodes.add(barcode)
 
         sku = SKU(
             name=full_name,
