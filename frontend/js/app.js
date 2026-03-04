@@ -58,13 +58,11 @@ function showApp() {
 
   const isAdmin = getUserRole() === 'admin';
 
-  // Show admin-only tabs (Historial, Por Ruta, Dashboard, Admin)
-  const navHistory = document.getElementById('nav-history');
+  // Show admin-only tabs (Por Ruta, Dashboard, Admin)
   const navRouteHistory = document.getElementById('nav-route-history');
   const navDashboard = document.getElementById('nav-dashboard');
   const navAdmin = document.getElementById('nav-admin');
 
-  if (navHistory) navHistory.style.display = isAdmin ? 'block' : 'none';
   if (navRouteHistory) navRouteHistory.style.display = isAdmin ? 'block' : 'none';
   if (navDashboard) navDashboard.style.display = isAdmin ? 'block' : 'none';
   if (navAdmin) navAdmin.style.display = isAdmin ? 'block' : 'none';
@@ -84,7 +82,6 @@ function navigateTo(page) {
 
   switch (page) {
     case 'visit': loadVisitPage(); break;
-    case 'history': loadHistoryPage(); break;
     case 'route-history': loadRouteHistoryPage(); break;
     case 'dashboard': loadDashboardPage(); break;
     case 'approvals': loadApprovalsPage(); break;
