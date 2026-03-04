@@ -47,19 +47,20 @@ def seed_congelados():
 
     created = 0
     skipped = 0
+    seen_barcodes = set()
 
     for p in PRODUCTOS_CONGELADOS:
         # Create full product name with size
         full_name = f"{p['name']} {p['size']}"
         barcode = p['upc'].replace("-", "")  # Remove dashes from UPC
 
-        # Use Ballester code as unique identifier since some UPCs are shared
-        # Check if SKU already exists by name (includes size) to avoid duplicates
-        existing = db.query(SKU).filter(SKU.name == full_name, SKU.category == "Productos Congelados").first()
-        if existing:
+        # Check by barcode (in DB or current batch) to avoid UNIQUE constraint failures
+        if barcode in seen_barcodes or db.query(SKU).filter(SKU.barcode == barcode).first():
             print(f"  Skipped (exists): {full_name}")
             skipped += 1
             continue
+
+        seen_barcodes.add(barcode)
 
         sku = SKU(
             name=full_name,
