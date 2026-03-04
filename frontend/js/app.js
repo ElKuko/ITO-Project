@@ -823,21 +823,63 @@ async function showVisitDetail(visitId) {
       'unknown': 'Desconocido',
     };
 
-    let photosHtml = '';
-    for (const photo of (v.photos || [])) {
-      let cvHtml = '';
-      if (photo.cv_processed && photo.cv_results) {
-        const cv = JSON.parse(photo.cv_results);
-        cvHtml = `<div class="meta" style="margin-top:4px;">Void: ${(cv.void_space_score * 100).toFixed(1)}% · ${cv.void_regions.length} vacíos · ${cv.detected_products.length} productos</div>`;
+    // Separate arrival photos from gondola photos
+    const arrivalPhotos = (v.photos || []).filter(p => p.photo_type === 'arrival_proof');
+    const gondolaPhotos = (v.photos || []).filter(p => p.photo_type !== 'arrival_proof');
+
+    // Group gondola photos by gondola_group_id
+    const gondolaGroups = {};
+    for (const photo of gondolaPhotos) {
+      const groupId = photo.gondola_group_id || 'ungrouped';
+      if (!gondolaGroups[groupId]) {
+        gondolaGroups[groupId] = { before: null, after: null };
       }
-      const typeLabel = { 'arrival_proof': 'Llegada', 'shelf_before': 'Antes', 'shelf_after': 'Después' }[photo.photo_type] || photo.photo_type;
-      photosHtml += `
-        <div style="margin-top:12px;">
-          <div class="meta">${typeLabel}</div>
+      if (photo.photo_type === 'gondola_before') {
+        gondolaGroups[groupId].before = photo;
+      } else if (photo.photo_type === 'gondola_after') {
+        gondolaGroups[groupId].after = photo;
+      }
+    }
+
+    // Build arrival photos HTML
+    let arrivalHtml = '';
+    for (const photo of arrivalPhotos) {
+      arrivalHtml += `
+        <div class="photo-single" style="margin-top:12px;">
+          <div class="meta">Foto de Llegada</div>
           <img src="${photo.file_path}" style="max-width:100%;border-radius:8px;">
-          ${cvHtml}
         </div>`;
     }
+
+    // Build side-by-side gondola groups HTML
+    let gondolaHtml = '';
+    const groupIds = Object.keys(gondolaGroups).filter(id => id !== 'ungrouped');
+    if (groupIds.length > 0) {
+      gondolaHtml = '<div class="gondola-compare-section" style="margin-top:16px;"><strong>Fotos de Góndola</strong></div>';
+      groupIds.forEach((groupId, idx) => {
+        const group = gondolaGroups[groupId];
+        gondolaHtml += `
+          <div class="photo-compare-group" style="margin-top:12px;">
+            <div class="compare-header meta">Grupo ${idx + 1}</div>
+            <div class="photo-compare-row">
+              <div class="photo-compare-col">
+                <div class="compare-label">ANTES</div>
+                ${group.before
+                  ? `<img src="${group.before.file_path}" class="compare-img">`
+                  : '<div class="compare-placeholder">Sin foto</div>'}
+              </div>
+              <div class="photo-compare-col">
+                <div class="compare-label">DESPUÉS</div>
+                ${group.after
+                  ? `<img src="${group.after.file_path}" class="compare-img">`
+                  : '<div class="compare-placeholder">Sin foto</div>'}
+              </div>
+            </div>
+          </div>`;
+      });
+    }
+
+    const photosHtml = arrivalHtml + gondolaHtml;
 
     const actionsHtml = (v.sku_actions || []).map(a => {
       const label = actionLabels[a.action_type] || a.action_type;
@@ -850,9 +892,11 @@ async function showVisitDetail(visitId) {
       return `<div><span class="badge badge-${badgeClass}">${label}</span> ${skuName}</div>`;
     }).join('');
 
-    document.getElementById('history-list').innerHTML = `
+    // Show visit detail in a modal-like overlay or replace the current route queue content
+    const detailContainer = document.getElementById('visit-detail-container') || createVisitDetailContainer();
+    detailContainer.innerHTML = `
       <div class="card">
-        <button class="btn btn-outline btn-sm" onclick="loadHistoryPage()" style="margin-bottom:12px;">← Atrás</button>
+        <button class="btn btn-outline btn-sm" onclick="closeVisitDetail()" style="margin-bottom:12px;">← Atrás</button>
         <h3>${storeName}</h3>
         <div class="meta">${date} · ${userName}</div>
         ${v.latitude ? `<div class="meta">GPS: ${v.latitude.toFixed(5)}, ${v.longitude.toFixed(5)}</div>` : ''}
@@ -867,8 +911,25 @@ async function showVisitDetail(visitId) {
         ${photosHtml}
       </div>
     `;
+    detailContainer.style.display = 'block';
   } catch (err) {
     toast('Error cargando detalles');
+  }
+}
+
+function createVisitDetailContainer() {
+  const container = document.createElement('div');
+  container.id = 'visit-detail-container';
+  container.className = 'visit-detail-overlay';
+  document.getElementById('page-route-history').appendChild(container);
+  return container;
+}
+
+function closeVisitDetail() {
+  const container = document.getElementById('visit-detail-container');
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
   }
 }
 

@@ -1295,3 +1295,81 @@ tr.inactive-row {
     min-width: 160px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═══ Photo Compare (Before/After Side-by-Side) ═════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+.gondola-compare-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.photo-compare-group {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.photo-compare-group .compare-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.photo-compare-row {
+  display: flex;
+  gap: 8px;
+}
+
+.photo-compare-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.photo-compare-col .compare-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.photo-compare-col .compare-img {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.photo-compare-col .compare-placeholder {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Visit Detail Overlay ─────────────────────────────────────────────────── */
+.visit-detail-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg);
+  z-index: 200;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.visit-detail-overlay .card {
+  max-width: 800px;
+  margin: 0 auto;
+}
