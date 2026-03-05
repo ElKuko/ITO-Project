@@ -1506,6 +1506,7 @@ let notificationState = {
   notifications: [],  // All notifications
   unreadCounts: {},   // { routeId: count }
   routes: [],         // Route list for display
+  isLoading: false,   // Guard against concurrent loads
 };
 
 /**
@@ -1658,9 +1659,12 @@ function handleSyncNotifications(data) {
     }
   });
 
-  // Re-render all panels
-  renderAllNotificationPanels();
-  updateUnreadBadges();
+  // Only re-render if user is on the route-history page
+  const pageEl = document.getElementById('page-route-history');
+  if (pageEl && pageEl.classList.contains('active')) {
+    renderAllNotificationPanels();
+    updateUnreadBadges();
+  }
 }
 
 function showNotificationToast(notification) {
@@ -1710,6 +1714,13 @@ async function loadNotificationPanels() {
   const grid = document.getElementById('route-notification-grid');
   if (!grid) return;
 
+  // Prevent concurrent loads - abort if already loading
+  if (notificationState.isLoading) {
+    console.log('loadNotificationPanels already in progress, skipping');
+    return;
+  }
+  notificationState.isLoading = true;
+
   grid.innerHTML = '<p class="meta">Cargando rutas...</p>';
 
   try {
@@ -1718,6 +1729,14 @@ async function loadNotificationPanels() {
       apiGet('/routes/'),
       apiGet('/notifications/counts'),
     ]);
+
+    // Guard: check if we're still on the route-history page
+    const pageEl = document.getElementById('page-route-history');
+    if (!pageEl || !pageEl.classList.contains('active')) {
+      console.log('User navigated away during load, aborting');
+      notificationState.isLoading = false;
+      return;
+    }
 
     notificationState.routes = routes;
 
@@ -1759,6 +1778,8 @@ async function loadNotificationPanels() {
   } catch (err) {
     console.error('Error loading notification panels:', err);
     grid.innerHTML = '<p class="meta" style="color:var(--danger);">Error cargando notificaciones.</p>';
+  } finally {
+    notificationState.isLoading = false;
   }
 }
 
@@ -1775,10 +1796,19 @@ async function loadAllRouteNotifications() {
     renderAllNotificationPanels();
   } catch (err) {
     console.error('Error loading notifications:', err);
+    // Re-render panels with empty state rather than leaving "Cargando..."
+    notificationState.notifications = [];
+    renderAllNotificationPanels();
   }
 }
 
 function renderAllNotificationPanels() {
+  // Safety check: don't render if routes array is empty
+  if (!notificationState.routes || notificationState.routes.length === 0) {
+    console.warn('No routes available for rendering notification panels');
+    return;
+  }
+
   // Group notifications by route
   const byRoute = {};
 
@@ -1797,7 +1827,11 @@ function renderAllNotificationPanels() {
 
 function renderNotificationList(routeId, notifications) {
   const listEl = document.getElementById(`notification-list-${routeId}`);
-  if (!listEl) return;
+  if (!listEl) {
+    // DOM element not found - may occur during rapid tab switching
+    console.warn(`notification-list-${routeId} not found, skipping render`);
+    return;
+  }
 
   if (notifications.length === 0) {
     listEl.innerHTML = '<p class="meta notification-empty">Sin notificaciones nuevas</p>';
