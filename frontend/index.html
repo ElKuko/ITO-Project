@@ -43,6 +43,7 @@
     <!-- Nav Tabs -->
     <nav class="nav-tabs">
       <button data-page="visit" class="active" onclick="navigateTo('visit')">Nueva Visita</button>
+      <button data-page="chat" id="nav-chat" onclick="navigateTo('chat')" style="display:none;">Chat</button>
       <button data-page="route-history" id="nav-route-history" onclick="navigateTo('route-history')" style="display:none;">Por Ruta</button>
       <button data-page="dashboard" id="nav-dashboard" onclick="navigateTo('dashboard')" style="display:none;">Dashboard</button>
       <button data-page="approvals" onclick="navigateTo('approvals')">SKUs</button>
@@ -197,6 +198,44 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ═══ Page: Chat (Merchandiser) ═══ -->
+    <div id="page-chat" class="page">
+      <div class="container">
+        <div class="chat-page-header">
+          <h2>Chat con Supervisor</h2>
+          <span class="chat-ws-status" id="merch-chat-ws-status">Conectando...</span>
+        </div>
+
+        <div class="chat-panel chat-panel-fullpage" id="merch-chat-panel">
+          <div class="chat-messages" id="merch-chat-messages">
+            <div class="chat-empty-state">
+              <p>No hay mensajes aún</p>
+              <p class="meta">Los mensajes del supervisor aparecerán aquí</p>
+            </div>
+          </div>
+          <div class="chat-composer" id="merch-chat-composer">
+            <!-- Tagged reference preview (when tagging an image) -->
+            <div class="chat-reference-preview" id="merch-chat-reference-preview" style="display:none;">
+              <div class="reference-card">
+                <img class="reference-thumbnail" id="merch-reference-thumbnail" src="" alt="">
+                <div class="reference-info">
+                  <span class="reference-store" id="merch-reference-store"></span>
+                  <span class="reference-meta" id="merch-reference-meta"></span>
+                </div>
+                <button class="reference-remove" onclick="removeMerchTaggedReference()" title="Eliminar referencia">&times;</button>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <textarea id="merch-chat-input" placeholder="Escribe un mensaje..." rows="1"></textarea>
+              <button class="btn btn-primary chat-send-btn" onclick="sendMerchChatMessage()" id="merch-chat-send-btn">
+                Enviar
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

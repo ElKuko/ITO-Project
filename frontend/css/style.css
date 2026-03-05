@@ -2031,3 +2031,52 @@ tr.inactive-row {
     max-height: 400px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═══ MERCHANDISER CHAT PAGE ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+.chat-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-page-header h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.chat-panel-fullpage {
+  height: calc(100vh - 200px);
+  min-height: 400px;
+  max-height: 600px;
+}
+
+.chat-panel-fullpage .chat-messages {
+  flex: 1;
+}
+
+/* Unread badge on chat tab */
+.nav-tabs button[data-page="chat"] {
+  position: relative;
+}
+
+.chat-unread-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}

@@ -62,10 +62,14 @@ function showApp() {
   const navRouteHistory = document.getElementById('nav-route-history');
   const navDashboard = document.getElementById('nav-dashboard');
   const navAdmin = document.getElementById('nav-admin');
+  const navChat = document.getElementById('nav-chat');
 
   if (navRouteHistory) navRouteHistory.style.display = isAdmin ? 'block' : 'none';
   if (navDashboard) navDashboard.style.display = isAdmin ? 'block' : 'none';
   if (navAdmin) navAdmin.style.display = isAdmin ? 'block' : 'none';
+
+  // Show chat tab for merchandisers (admins have chat in Por Ruta)
+  if (navChat) navChat.style.display = !isAdmin ? 'block' : 'none';
 
   navigateTo('visit');
 }
@@ -82,6 +86,7 @@ function navigateTo(page) {
 
   switch (page) {
     case 'visit': loadVisitPage(); break;
+    case 'chat': loadMerchandiserChatPage(); break;
     case 'route-history': loadRouteHistoryPage(); break;
     case 'dashboard': loadDashboardPage(); break;
     case 'approvals': loadApprovalsPage(); break;
@@ -2514,4 +2519,402 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ MERCHANDISER CHAT ════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Merchandiser chat state (separate from admin chat)
+ */
+let merchChatState = {
+  ws: null,
+  connected: false,
+  routeId: null,
+  messages: [],
+  lastMessageId: null,
+  taggedReference: null,
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 5,
+};
+
+/**
+ * Load merchandiser chat page
+ */
+async function loadMerchandiserChatPage() {
+  if (getUserRole() === 'admin') return;
+
+  // Find the merchandiser's assigned route
+  try {
+    const routes = await apiGet('/routes/');
+    const myRoute = routes.find(r => r.merchandiser_id === getUserId());
+
+    if (!myRoute) {
+      const container = document.getElementById('merch-chat-messages');
+      if (container) {
+        container.innerHTML = `
+          <div class="chat-empty-state">
+            <p>No tienes una ruta asignada</p>
+            <p class="meta">Contacta a tu supervisor para ser asignado a una ruta</p>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    merchChatState.routeId = myRoute.id;
+
+    // Update header
+    const header = document.querySelector('.chat-page-header h2');
+    if (header) header.textContent = `Chat - Ruta ${myRoute.name}`;
+
+    // Load existing messages
+    await loadMerchChatMessages(myRoute.id);
+
+    // Connect WebSocket
+    initMerchChatWebSocket(myRoute.id);
+
+    // Setup input handlers
+    setupMerchChatInput();
+
+  } catch (e) {
+    console.error('Error loading merchandiser chat:', e);
+  }
+}
+
+/**
+ * Initialize merchandiser chat WebSocket
+ */
+function initMerchChatWebSocket(routeId) {
+  if (merchChatState.ws && merchChatState.connected && merchChatState.routeId === routeId) return;
+
+  if (merchChatState.ws && merchChatState.routeId !== routeId) {
+    closeMerchChatWebSocket();
+  }
+
+  merchChatState.routeId = routeId;
+
+  const token = getToken();
+  if (!token) return;
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  let wsUrl = `${protocol}//${host}/api/chat/ws/${routeId}?token=${token}`;
+
+  if (merchChatState.lastMessageId) {
+    wsUrl += `&last_message_id=${merchChatState.lastMessageId}`;
+  }
+
+  try {
+    merchChatState.ws = new WebSocket(wsUrl);
+
+    merchChatState.ws.onopen = () => {
+      merchChatState.connected = true;
+      merchChatState.reconnectAttempts = 0;
+      updateMerchChatWsStatus('connected', 'Conectado');
+    };
+
+    merchChatState.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleMerchChatMessage(msg);
+      } catch (e) {
+        console.error('Error parsing merch chat message:', e);
+      }
+    };
+
+    merchChatState.ws.onclose = (event) => {
+      merchChatState.connected = false;
+      updateMerchChatWsStatus('disconnected', 'Desconectado');
+
+      // Auto-reconnect
+      if (event.code !== 1000 && merchChatState.reconnectAttempts < merchChatState.maxReconnectAttempts) {
+        const delay = Math.min(1000 * Math.pow(2, merchChatState.reconnectAttempts), 30000);
+        merchChatState.reconnectAttempts++;
+        setTimeout(() => {
+          if (document.getElementById('page-chat')?.classList.contains('active')) {
+            initMerchChatWebSocket(routeId);
+          }
+        }, delay);
+      }
+    };
+
+    merchChatState.ws.onerror = () => {
+      updateMerchChatWsStatus('error', 'Error');
+    };
+
+  } catch (e) {
+    console.error('Failed to create merch chat WebSocket:', e);
+  }
+}
+
+function closeMerchChatWebSocket() {
+  if (merchChatState.ws) {
+    merchChatState.ws.close(1000, 'User navigated away');
+    merchChatState.ws = null;
+  }
+  merchChatState.connected = false;
+}
+
+function updateMerchChatWsStatus(status, text) {
+  const statusEl = document.getElementById('merch-chat-ws-status');
+  if (statusEl) {
+    statusEl.textContent = text;
+    statusEl.className = 'chat-ws-status ' + status;
+  }
+}
+
+/**
+ * Handle incoming merchandiser chat messages
+ */
+function handleMerchChatMessage(msg) {
+  switch (msg.type) {
+    case 'connected':
+      console.log('Merch chat connected:', msg.data);
+      break;
+
+    case 'chat_message':
+      handleIncomingMerchChatMessage(msg.data);
+      break;
+
+    case 'chat_sync':
+      if (msg.data.messages && msg.data.messages.length > 0) {
+        msg.data.messages.forEach(m => {
+          if (!merchChatState.messages.find(existing => existing.id === m.id)) {
+            merchChatState.messages.push(m);
+          }
+        });
+        merchChatState.messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        renderMerchChatMessages();
+      }
+      break;
+
+    case 'pong':
+      break;
+  }
+}
+
+function handleIncomingMerchChatMessage(message) {
+  merchChatState.messages.push(message);
+  merchChatState.lastMessageId = message.id;
+  renderNewMerchChatMessage(message);
+
+  // Mark as read if from other user
+  const currentUserId = getUserId();
+  if (message.sender_user_id !== currentUserId) {
+    markMerchChatMessagesRead([message.id]);
+  }
+}
+
+/**
+ * Load chat messages for merchandiser's route
+ */
+async function loadMerchChatMessages(routeId) {
+  try {
+    const messages = await apiGet(`/chat/routes/${routeId}/messages?limit=50`);
+    merchChatState.messages = messages.reverse();
+    if (messages.length > 0) {
+      merchChatState.lastMessageId = Math.max(...messages.map(m => m.id));
+    }
+    renderMerchChatMessages();
+  } catch (e) {
+    console.error('Error loading merch chat messages:', e);
+  }
+}
+
+/**
+ * Render all merchandiser chat messages
+ */
+function renderMerchChatMessages() {
+  const container = document.getElementById('merch-chat-messages');
+  if (!container) return;
+
+  const currentUserId = getUserId();
+
+  if (merchChatState.messages.length === 0) {
+    container.innerHTML = `
+      <div class="chat-empty-state">
+        <p>No hay mensajes aún</p>
+        <p class="meta">Los mensajes del supervisor aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+  let lastDate = null;
+
+  merchChatState.messages.forEach(msg => {
+    const msgDate = new Date(msg.created_at).toLocaleDateString();
+    if (msgDate !== lastDate) {
+      html += `<div class="chat-date-separator"><span>${msgDate}</span></div>`;
+      lastDate = msgDate;
+    }
+    html += renderMerchChatMessage(msg, currentUserId);
+  });
+
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+function renderMerchChatMessage(msg, currentUserId) {
+  const isSent = msg.sender_user_id === currentUserId;
+  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  let referenceHtml = '';
+  if (msg.message_type === 'TAGGED_REFERENCE' && msg.ref_photo_url) {
+    referenceHtml = `
+      <div class="chat-message-reference" onclick="navigateToTaggedPhotoMerch(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
+        <div class="reference-preview-row">
+          <img class="reference-preview-thumbnail" src="${msg.ref_photo_url}" alt="Reference">
+          <div class="reference-preview-info">
+            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
+            <span class="reference-preview-meta">${msg.ref_photo_type || 'Photo'}</span>
+            <span class="reference-preview-badge">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="chat-message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
+      ${!isSent ? `<div class="chat-message-sender">${msg.sender_name || 'Supervisor'}</div>` : ''}
+      <div class="chat-message-bubble">
+        ${referenceHtml}
+        ${escapeHtml(msg.text)}
+      </div>
+      <div class="chat-message-meta">${time}</div>
+    </div>
+  `;
+}
+
+function renderNewMerchChatMessage(msg) {
+  const container = document.getElementById('merch-chat-messages');
+  if (!container) return;
+
+  const emptyState = container.querySelector('.chat-empty-state');
+  if (emptyState) emptyState.remove();
+
+  const currentUserId = getUserId();
+  const html = renderMerchChatMessage(msg, currentUserId);
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  container.appendChild(wrapper.firstElementChild);
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Send merchandiser chat message
+ */
+async function sendMerchChatMessage() {
+  const input = document.getElementById('merch-chat-input');
+  const text = input?.value?.trim();
+
+  if (!text) return;
+  if (!merchChatState.routeId) {
+    toast('No hay ruta asignada');
+    return;
+  }
+
+  const messageData = {
+    route_id: merchChatState.routeId,
+    text: text,
+    message_type: merchChatState.taggedReference ? 'TAGGED_REFERENCE' : 'TEXT',
+  };
+
+  if (merchChatState.taggedReference) {
+    messageData.reference = merchChatState.taggedReference;
+  }
+
+  if (merchChatState.ws && merchChatState.connected) {
+    merchChatState.ws.send(JSON.stringify({
+      type: 'send_message',
+      data: messageData
+    }));
+    input.value = '';
+    clearMerchTaggedReference();
+  } else {
+    try {
+      const response = await apiPost(`/chat/routes/${merchChatState.routeId}/messages`, messageData);
+      input.value = '';
+      clearMerchTaggedReference();
+      handleIncomingMerchChatMessage(response);
+    } catch (e) {
+      toast('Error al enviar mensaje');
+    }
+  }
+}
+
+function markMerchChatMessagesRead(messageIds) {
+  if (!merchChatState.routeId || messageIds.length === 0) return;
+
+  if (merchChatState.ws && merchChatState.connected) {
+    merchChatState.ws.send(JSON.stringify({
+      type: 'mark_read',
+      data: { message_ids: messageIds }
+    }));
+  }
+}
+
+// ── Merchandiser Tagged Reference ─────────────────────────────────────────
+
+function setMerchTaggedReference(reference) {
+  merchChatState.taggedReference = reference;
+
+  const previewEl = document.getElementById('merch-chat-reference-preview');
+  const thumbnailEl = document.getElementById('merch-reference-thumbnail');
+  const storeEl = document.getElementById('merch-reference-store');
+  const metaEl = document.getElementById('merch-reference-meta');
+
+  if (previewEl && thumbnailEl && storeEl && metaEl) {
+    thumbnailEl.src = reference.photo_url || '';
+    storeEl.textContent = reference.store_name || 'Tienda';
+    metaEl.textContent = `${reference.photo_type === 'BEFORE' ? 'Foto Antes' : 'Foto Después'}`;
+    previewEl.style.display = 'block';
+  }
+
+  const input = document.getElementById('merch-chat-input');
+  if (input) input.focus();
+}
+
+function removeMerchTaggedReference() {
+  clearMerchTaggedReference();
+}
+
+function clearMerchTaggedReference() {
+  merchChatState.taggedReference = null;
+  const previewEl = document.getElementById('merch-chat-reference-preview');
+  if (previewEl) previewEl.style.display = 'none';
+}
+
+function navigateToTaggedPhotoMerch(visitId, gondolaGroupId, photoType) {
+  // For merchandisers, we could show a simple photo modal or navigate to history
+  toast('Ver foto en detalles de visita');
+}
+
+/**
+ * Setup merchandiser chat input handlers
+ */
+function setupMerchChatInput() {
+  const input = document.getElementById('merch-chat-input');
+  if (!input) return;
+
+  // Remove existing listeners by cloning
+  const newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+
+  newInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMerchChatMessage();
+    }
+  });
+
+  newInput.addEventListener('input', () => {
+    newInput.style.height = 'auto';
+    newInput.style.height = Math.min(newInput.scrollHeight, 100) + 'px';
+  });
 }
