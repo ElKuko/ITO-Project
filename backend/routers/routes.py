@@ -11,6 +11,30 @@ from ..auth import get_current_user
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
 
+@router.get("/my-route")
+def get_my_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get the route assigned to the current merchandiser."""
+    route = db.query(Route).options(
+        joinedload(Route.stops).joinedload(RouteStop.store),
+    ).filter(
+        Route.merchandiser_id == current_user.id,
+        Route.is_active == True
+    ).first()
+
+    if not route:
+        return None
+
+    return {
+        "id": route.id,
+        "name": route.name,
+        "merchandiser_id": route.merchandiser_id,
+        "store_count": len(route.stops),
+    }
+
+
 @router.get("/")
 def list_routes(
     db: Session = Depends(get_db),

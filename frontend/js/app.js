@@ -2547,8 +2547,7 @@ async function loadMerchandiserChatPage() {
 
   // Find the merchandiser's assigned route
   try {
-    const routes = await apiGet('/routes/');
-    const myRoute = routes.find(r => r.merchandiser_id === getUserId());
+    const myRoute = await apiGet('/routes/my-route');
 
     if (!myRoute) {
       const container = document.getElementById('merch-chat-messages');
@@ -2560,6 +2559,7 @@ async function loadMerchandiserChatPage() {
           </div>
         `;
       }
+      updateMerchChatWsStatus('', 'Sin ruta');
       return;
     }
 
