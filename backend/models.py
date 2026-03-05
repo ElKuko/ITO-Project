@@ -256,3 +256,40 @@ class Notification(Base):
     store = relationship("Store")
     merchandiser = relationship("User", foreign_keys=[merchandiser_id])
     acknowledger = relationship("User", foreign_keys=[acknowledged_by])
+
+
+class ChatMessage(Base):
+    """Route chat messages between admin and merchandiser."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_id = Column(Integer, ForeignKey("routes.id"), nullable=False, index=True)
+    sender_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Message type: TEXT | TAGGED_REFERENCE
+    message_type = Column(String(30), nullable=False, default="TEXT")
+    text = Column(Text, nullable=False)
+
+    # Tagged reference fields (nullable, used when message_type is TAGGED_REFERENCE)
+    ref_visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=True)
+    ref_store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
+    ref_store_name = Column(String(200), nullable=True)
+    ref_photo_id = Column(Integer, ForeignKey("visit_photos.id"), nullable=True)
+    ref_photo_type = Column(String(30), nullable=True)  # BEFORE | AFTER
+    ref_gondola_group_id = Column(String(36), nullable=True)
+    ref_photo_url = Column(String(500), nullable=True)  # thumbnail URL
+    ref_captured_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Read status (for the recipient)
+    is_read = Column(Boolean, default=False)
+    read_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    route = relationship("Route")
+    sender = relationship("User", foreign_keys=[sender_user_id])
+    ref_visit = relationship("StoreVisit")
+    ref_store = relationship("Store")
+    ref_photo = relationship("VisitPhoto")

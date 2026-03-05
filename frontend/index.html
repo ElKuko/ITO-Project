@@ -206,7 +206,7 @@
         <!-- Real-time Notifications Header -->
         <div class="notifications-header" id="notifications-header">
           <div class="notifications-title">
-            <h2 style="margin:0;">Notificaciones en Tiempo Real</h2>
+            <h2 style="margin:0;">Por Ruta - Norte</h2>
             <span class="ws-status" id="ws-status">Conectando...</span>
           </div>
           <div class="notifications-actions">
@@ -215,9 +215,49 @@
           </div>
         </div>
 
-        <!-- Route Notification Panels (4 routes grid) -->
-        <div class="route-notification-grid" id="route-notification-grid">
-          <p class="meta">Cargando rutas...</p>
+        <!-- Split View: Queue + Chat -->
+        <div class="route-split-view" id="route-split-view">
+          <!-- Left: Notification Queue -->
+          <div class="route-queue-column">
+            <div class="route-notification-grid" id="route-notification-grid">
+              <p class="meta">Cargando rutas...</p>
+            </div>
+          </div>
+
+          <!-- Right: Chat Panel -->
+          <div class="route-chat-column" id="route-chat-column">
+            <div class="chat-panel" id="chat-panel">
+              <div class="chat-panel-header">
+                <span class="chat-panel-title">Chat - Ruta Norte</span>
+                <span class="chat-ws-status" id="chat-ws-status">Desconectado</span>
+              </div>
+              <div class="chat-messages" id="chat-messages">
+                <div class="chat-empty-state">
+                  <p>No hay mensajes aún</p>
+                  <p class="meta">Los mensajes aparecerán aquí en tiempo real</p>
+                </div>
+              </div>
+              <div class="chat-composer" id="chat-composer">
+                <!-- Tagged reference preview (when tagging an image) -->
+                <div class="chat-reference-preview" id="chat-reference-preview" style="display:none;">
+                  <div class="reference-card">
+                    <img class="reference-thumbnail" id="reference-thumbnail" src="" alt="">
+                    <div class="reference-info">
+                      <span class="reference-store" id="reference-store"></span>
+                      <span class="reference-meta" id="reference-meta"></span>
+                    </div>
+                    <button class="reference-remove" onclick="removeTaggedReference()" title="Eliminar referencia">&times;</button>
+                  </div>
+                </div>
+                <div class="chat-input-row">
+                  <textarea id="chat-input" placeholder="Escribe un mensaje..." rows="1"></textarea>
+                  <button class="btn btn-primary chat-send-btn" onclick="sendChatMessage()" id="chat-send-btn">
+                    Enviar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>

@@ -18,16 +18,29 @@ class ConnectedClient:
     last_event_id: Optional[int] = None  # For sync on reconnect
 
 
+@dataclass
+class ChatClient:
+    """Represents a connected chat WebSocket client."""
+    websocket: WebSocket
+    user_id: int
+    role: str
+    route_id: int
+    connected_at: datetime = field(default_factory=datetime.utcnow)
+
+
 class ConnectionManager:
-    """Manages WebSocket connections for real-time notifications."""
+    """Manages WebSocket connections for real-time notifications and chat."""
 
     def __init__(self):
-        # Map of user_id -> ConnectedClient
+        # Map of user_id -> ConnectedClient (notifications)
         self.active_connections: Dict[int, ConnectedClient] = {}
         # Index by route for efficient broadcasting
         self._route_subscribers: Dict[int, Set[int]] = {}  # route_id -> set of user_ids
         # Admins who see all routes
         self._admin_connections: Set[int] = set()  # user_ids of admins
+
+        # Chat connections: route_id -> {user_id -> ChatClient}
+        self._chat_connections: Dict[int, Dict[int, ChatClient]] = {}
 
     async def connect(
         self,
@@ -190,6 +203,107 @@ class ConnectionManager:
     def is_connected(self, user_id: int) -> bool:
         """Check if a user is connected."""
         return user_id in self.active_connections
+
+    # ── Chat Connection Methods ──────────────────────────────────────────────
+
+    async def connect_chat(
+        self,
+        websocket: WebSocket,
+        user_id: int,
+        role: str,
+        route_id: int,
+    ) -> ChatClient:
+        """Accept a new chat WebSocket connection for a specific route."""
+        await websocket.accept()
+
+        # Initialize route chat connections if needed
+        if route_id not in self._chat_connections:
+            self._chat_connections[route_id] = {}
+
+        # Disconnect existing chat connection for this user on this route
+        if user_id in self._chat_connections[route_id]:
+            await self.disconnect_chat(user_id, route_id)
+
+        client = ChatClient(
+            websocket=websocket,
+            user_id=user_id,
+            role=role,
+            route_id=route_id,
+        )
+        self._chat_connections[route_id][user_id] = client
+
+        return client
+
+    async def disconnect_chat(self, user_id: int, route_id: int):
+        """Remove a chat WebSocket connection."""
+        if route_id not in self._chat_connections:
+            return
+
+        if user_id not in self._chat_connections[route_id]:
+            return
+
+        client = self._chat_connections[route_id][user_id]
+
+        # Close the websocket if still open
+        try:
+            await client.websocket.close()
+        except Exception:
+            pass  # Already closed
+
+        del self._chat_connections[route_id][user_id]
+
+        # Clean up empty route dict
+        if not self._chat_connections[route_id]:
+            del self._chat_connections[route_id]
+
+    async def send_chat_message(self, user_id: int, route_id: int, message: dict):
+        """Send a chat message to a specific user on a route."""
+        if route_id not in self._chat_connections:
+            return False
+
+        if user_id not in self._chat_connections[route_id]:
+            return False
+
+        client = self._chat_connections[route_id][user_id]
+        try:
+            await client.websocket.send_json({
+                "type": "chat_message",
+                "data": message
+            })
+            return True
+        except Exception:
+            # Connection broken, clean up
+            await self.disconnect_chat(user_id, route_id)
+            return False
+
+    async def broadcast_chat_to_route(self, route_id: int, message: dict):
+        """Broadcast a chat message to all users connected to a route's chat."""
+        if route_id not in self._chat_connections:
+            return 0
+
+        sent_count = 0
+        failed_users = []
+
+        for user_id in list(self._chat_connections[route_id].keys()):
+            success = await self.send_chat_message(user_id, route_id, message)
+            if success:
+                sent_count += 1
+            else:
+                failed_users.append(user_id)
+
+        return sent_count
+
+    def get_chat_connection_count(self, route_id: int) -> int:
+        """Get number of users connected to a route's chat."""
+        if route_id not in self._chat_connections:
+            return 0
+        return len(self._chat_connections[route_id])
+
+    def is_chat_connected(self, user_id: int, route_id: int) -> bool:
+        """Check if a user is connected to a route's chat."""
+        if route_id not in self._chat_connections:
+            return False
+        return user_id in self._chat_connections[route_id]
 
 
 # Global connection manager instance

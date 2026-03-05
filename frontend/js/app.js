@@ -808,11 +808,12 @@ async function loadHistoryPage() {
   }
 }
 
-async function showVisitDetail(visitId) {
+async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoType = null) {
   try {
     const v = await apiGet(`/visits/${visitId}`);
     const date = new Date(v.start_time).toLocaleString();
     const storeName = v.store ? v.store.name : `Tienda #${v.store_id}`;
+    const storeId = v.store_id;
     const userName = v.user ? v.user.full_name : `Usuario #${v.user_id}`;
 
     const actionLabels = {
@@ -858,20 +859,44 @@ async function showVisitDetail(visitId) {
       gondolaHtml = '<div class="gondola-compare-section" style="margin-top:16px;"><strong>Fotos de Góndola</strong></div>';
       groupIds.forEach((groupId, idx) => {
         const group = gondolaGroups[groupId];
+        const isHighlighted = highlightGroupId === groupId;
+
+        // Build comment button for before photo
+        const beforeCommentBtn = group.before ? `
+          <button class="photo-action-btn" onclick="event.stopPropagation(); commentOnImage(
+            ${visitId}, ${storeId}, '${storeName.replace(/'/g, "\\'")}',
+            ${group.before.id}, 'BEFORE', '${groupId}',
+            '${group.before.file_path}', '${group.before.captured_at || ''}'
+          )">
+            <span>💬</span> Comentar
+          </button>
+        ` : '';
+
+        // Build comment button for after photo
+        const afterCommentBtn = group.after ? `
+          <button class="photo-action-btn" onclick="event.stopPropagation(); commentOnImage(
+            ${visitId}, ${storeId}, '${storeName.replace(/'/g, "\\'")}',
+            ${group.after.id}, 'AFTER', '${groupId}',
+            '${group.after.file_path}', '${group.after.captured_at || ''}'
+          )">
+            <span>💬</span> Comentar
+          </button>
+        ` : '';
+
         gondolaHtml += `
-          <div class="photo-compare-group" style="margin-top:12px;">
+          <div class="photo-compare-group ${isHighlighted ? 'highlighted' : ''}" style="margin-top:12px;" data-group-id="${groupId}">
             <div class="compare-header meta">Grupo ${idx + 1}</div>
             <div class="photo-compare-row">
-              <div class="photo-compare-col">
+              <div class="photo-compare-col ${isHighlighted && highlightPhotoType === 'BEFORE' ? 'photo-highlighted' : ''}">
                 <div class="compare-label">ANTES</div>
                 ${group.before
-                  ? `<img src="${group.before.file_path}" class="compare-img">`
+                  ? `<img src="${group.before.file_path}" class="compare-img">${beforeCommentBtn}`
                   : '<div class="compare-placeholder">Sin foto</div>'}
               </div>
-              <div class="photo-compare-col">
+              <div class="photo-compare-col ${isHighlighted && highlightPhotoType === 'AFTER' ? 'photo-highlighted' : ''}">
                 <div class="compare-label">DESPUÉS</div>
                 ${group.after
-                  ? `<img src="${group.after.file_path}" class="compare-img">`
+                  ? `<img src="${group.after.file_path}" class="compare-img">${afterCommentBtn}`
                   : '<div class="compare-placeholder">Sin foto</div>'}
               </div>
             </div>
@@ -912,6 +937,16 @@ async function showVisitDetail(visitId) {
       </div>
     `;
     detailContainer.style.display = 'block';
+
+    // Scroll to highlighted group if navigating from chat
+    if (highlightGroupId) {
+      setTimeout(() => {
+        const highlightedGroup = detailContainer.querySelector(`[data-group-id="${highlightGroupId}"]`);
+        if (highlightedGroup) {
+          highlightedGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
   } catch (err) {
     toast('Error cargando detalles');
   }
@@ -1772,8 +1807,11 @@ async function loadNotificationPanels() {
     // Update badges
     updateUnreadBadges();
 
-    // Initialize WebSocket
+    // Initialize WebSocket for notifications
     initNotificationWebSocket();
+
+    // Initialize route chat
+    initRouteChat();
 
   } catch (err) {
     console.error('Error loading notification panels:', err);
@@ -1999,4 +2037,481 @@ function formatTimeAgo(date) {
   if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`;
   if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
   return date.toLocaleDateString();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ ROUTE CHAT (Real-time messaging) ═════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Chat state management for route chat panel
+ */
+let chatState = {
+  ws: null,
+  connected: false,
+  routeId: null,  // Current route ID (Norte)
+  messages: [],
+  lastMessageId: null,
+  taggedReference: null,  // Reference to attach to next message
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 5,
+};
+
+/**
+ * Initialize chat WebSocket when user navigates to Por Ruta page
+ */
+function initChatWebSocket(routeId) {
+  if (getUserRole() !== 'admin') return;
+  if (chatState.ws && chatState.connected && chatState.routeId === routeId) return;
+
+  // Disconnect previous if different route
+  if (chatState.ws && chatState.routeId !== routeId) {
+    closeChatWebSocket();
+  }
+
+  chatState.routeId = routeId;
+
+  const token = getToken();
+  if (!token) return;
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  let wsUrl = `${protocol}//${host}/api/chat/ws/${routeId}?token=${token}`;
+
+  if (chatState.lastMessageId) {
+    wsUrl += `&last_message_id=${chatState.lastMessageId}`;
+  }
+
+  try {
+    chatState.ws = new WebSocket(wsUrl);
+
+    chatState.ws.onopen = () => {
+      chatState.connected = true;
+      chatState.reconnectAttempts = 0;
+      updateChatWsStatus('connected', 'Conectado');
+      console.log(`Chat WebSocket connected for route ${routeId}`);
+    };
+
+    chatState.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleChatWebSocketMessage(msg);
+      } catch (e) {
+        console.error('Error parsing chat WebSocket message:', e);
+      }
+    };
+
+    chatState.ws.onclose = (event) => {
+      chatState.connected = false;
+      updateChatWsStatus('disconnected', 'Desconectado');
+      console.log('Chat WebSocket closed:', event.code, event.reason);
+
+      // Auto-reconnect if not intentional close
+      if (event.code !== 1000 && chatState.reconnectAttempts < chatState.maxReconnectAttempts) {
+        const delay = Math.min(1000 * Math.pow(2, chatState.reconnectAttempts), 30000);
+        chatState.reconnectAttempts++;
+        setTimeout(() => {
+          if (document.getElementById('page-route-history')?.classList.contains('active')) {
+            initChatWebSocket(routeId);
+          }
+        }, delay);
+      }
+    };
+
+    chatState.ws.onerror = (error) => {
+      console.error('Chat WebSocket error:', error);
+      updateChatWsStatus('error', 'Error');
+    };
+
+  } catch (e) {
+    console.error('Failed to create chat WebSocket:', e);
+  }
+}
+
+function closeChatWebSocket() {
+  if (chatState.ws) {
+    chatState.ws.close(1000, 'User navigated away');
+    chatState.ws = null;
+  }
+  chatState.connected = false;
+}
+
+function updateChatWsStatus(status, text) {
+  const statusEl = document.getElementById('chat-ws-status');
+  if (statusEl) {
+    statusEl.textContent = text;
+    statusEl.className = 'chat-ws-status ' + status;
+  }
+}
+
+/**
+ * Handle incoming WebSocket messages
+ */
+function handleChatWebSocketMessage(msg) {
+  switch (msg.type) {
+    case 'connected':
+      console.log('Chat connected:', msg.data);
+      break;
+
+    case 'chat_message':
+      handleIncomingChatMessage(msg.data);
+      break;
+
+    case 'chat_sync':
+      // Sync missed messages on reconnect
+      if (msg.data.messages && msg.data.messages.length > 0) {
+        msg.data.messages.forEach(m => {
+          if (!chatState.messages.find(existing => existing.id === m.id)) {
+            chatState.messages.push(m);
+          }
+        });
+        chatState.messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        renderChatMessages();
+      }
+      break;
+
+    case 'pong':
+      // Keepalive response
+      break;
+
+    default:
+      console.log('Unknown chat message type:', msg.type);
+  }
+}
+
+/**
+ * Handle incoming chat message
+ */
+function handleIncomingChatMessage(message) {
+  // Add to state
+  chatState.messages.push(message);
+  chatState.lastMessageId = message.id;
+
+  // Render the new message
+  renderNewChatMessage(message);
+
+  // Mark as read if from other user
+  const currentUserId = getUserId();
+  if (message.sender_user_id !== currentUserId) {
+    markChatMessagesRead([message.id]);
+  }
+}
+
+/**
+ * Load chat messages for current route
+ */
+async function loadChatMessages(routeId) {
+  try {
+    const messages = await apiGet(`/chat/routes/${routeId}/messages?limit=50`);
+    chatState.messages = messages.reverse();  // API returns newest first
+    if (messages.length > 0) {
+      chatState.lastMessageId = Math.max(...messages.map(m => m.id));
+    }
+    renderChatMessages();
+  } catch (e) {
+    console.error('Error loading chat messages:', e);
+  }
+}
+
+/**
+ * Render all chat messages
+ */
+function renderChatMessages() {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  const currentUserId = getUserId();
+
+  if (chatState.messages.length === 0) {
+    container.innerHTML = `
+      <div class="chat-empty-state">
+        <p>No hay mensajes aún</p>
+        <p class="meta">Los mensajes aparecerán aquí en tiempo real</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+  let lastDate = null;
+
+  chatState.messages.forEach(msg => {
+    const msgDate = new Date(msg.created_at).toLocaleDateString();
+    if (msgDate !== lastDate) {
+      html += `<div class="chat-date-separator"><span>${msgDate}</span></div>`;
+      lastDate = msgDate;
+    }
+    html += renderChatMessage(msg, currentUserId);
+  });
+
+  container.innerHTML = html;
+
+  // Scroll to bottom
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Render a single chat message
+ */
+function renderChatMessage(msg, currentUserId) {
+  const isSent = msg.sender_user_id === currentUserId;
+  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  let referenceHtml = '';
+  if (msg.message_type === 'TAGGED_REFERENCE' && msg.ref_photo_url) {
+    referenceHtml = `
+      <div class="chat-message-reference" onclick="navigateToTaggedPhoto(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
+        <div class="reference-preview-row">
+          <img class="reference-preview-thumbnail" src="${msg.ref_photo_url}" alt="Reference">
+          <div class="reference-preview-info">
+            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
+            <span class="reference-preview-meta">${msg.ref_photo_type || 'Photo'}</span>
+            <span class="reference-preview-badge">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="chat-message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
+      ${!isSent ? `<div class="chat-message-sender">${msg.sender_name || 'Usuario'}</div>` : ''}
+      <div class="chat-message-bubble">
+        ${referenceHtml}
+        ${escapeHtml(msg.text)}
+      </div>
+      <div class="chat-message-meta">${time}</div>
+    </div>
+  `;
+}
+
+/**
+ * Render a new message (append to list)
+ */
+function renderNewChatMessage(msg) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  // Remove empty state if present
+  const emptyState = container.querySelector('.chat-empty-state');
+  if (emptyState) emptyState.remove();
+
+  const currentUserId = getUserId();
+  const html = renderChatMessage(msg, currentUserId);
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  const newEl = wrapper.firstElementChild;
+
+  container.appendChild(newEl);
+
+  // Scroll to bottom
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Send a chat message
+ */
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input?.value?.trim();
+
+  if (!text) return;
+  if (!chatState.routeId) {
+    toast('No hay ruta seleccionada');
+    return;
+  }
+
+  const messageData = {
+    route_id: chatState.routeId,
+    text: text,
+    message_type: chatState.taggedReference ? 'TAGGED_REFERENCE' : 'TEXT',
+  };
+
+  if (chatState.taggedReference) {
+    messageData.reference = chatState.taggedReference;
+  }
+
+  // Send via WebSocket if connected, otherwise via REST
+  if (chatState.ws && chatState.connected) {
+    chatState.ws.send(JSON.stringify({
+      type: 'send_message',
+      data: messageData
+    }));
+    // Clear input immediately (message will appear via WebSocket)
+    input.value = '';
+    clearTaggedReference();
+  } else {
+    // Fallback to REST API
+    try {
+      const response = await apiPost(`/chat/routes/${chatState.routeId}/messages`, messageData);
+      input.value = '';
+      clearTaggedReference();
+      // Manually add message to state and render
+      handleIncomingChatMessage(response);
+    } catch (e) {
+      toast('Error al enviar mensaje');
+    }
+  }
+}
+
+/**
+ * Mark messages as read
+ */
+async function markChatMessagesRead(messageIds) {
+  if (!chatState.routeId || messageIds.length === 0) return;
+
+  if (chatState.ws && chatState.connected) {
+    chatState.ws.send(JSON.stringify({
+      type: 'mark_read',
+      data: { message_ids: messageIds }
+    }));
+  } else {
+    try {
+      await apiPost(`/chat/routes/${chatState.routeId}/messages/mark-read`, {
+        message_ids: messageIds
+      });
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+}
+
+// ── Tagged Reference (Image Tagging) ──────────────────────────────────────
+
+/**
+ * Set a tagged reference to attach to the next message
+ * Called from the Visit Detail view when user clicks "Comentar en chat"
+ */
+function setTaggedReference(reference) {
+  chatState.taggedReference = reference;
+
+  // Show reference preview in composer
+  const previewEl = document.getElementById('chat-reference-preview');
+  const thumbnailEl = document.getElementById('reference-thumbnail');
+  const storeEl = document.getElementById('reference-store');
+  const metaEl = document.getElementById('reference-meta');
+
+  if (previewEl && thumbnailEl && storeEl && metaEl) {
+    thumbnailEl.src = reference.photo_url || '';
+    storeEl.textContent = reference.store_name || 'Tienda';
+    metaEl.textContent = `${reference.photo_type === 'BEFORE' ? 'Foto Antes' : 'Foto Después'}`;
+    previewEl.style.display = 'block';
+  }
+
+  // Focus on chat input
+  const input = document.getElementById('chat-input');
+  if (input) input.focus();
+}
+
+/**
+ * Remove the tagged reference from the composer
+ */
+function removeTaggedReference() {
+  clearTaggedReference();
+}
+
+function clearTaggedReference() {
+  chatState.taggedReference = null;
+  const previewEl = document.getElementById('chat-reference-preview');
+  if (previewEl) previewEl.style.display = 'none';
+}
+
+/**
+ * Navigate to a tagged photo in visit detail
+ */
+function navigateToTaggedPhoto(visitId, gondolaGroupId, photoType) {
+  // Show visit detail and scroll to the specific photo
+  showVisitDetail(visitId, gondolaGroupId, photoType);
+}
+
+/**
+ * Called from Visit Detail when user clicks "Comentar en chat" on an image
+ */
+function commentOnImage(visitId, storeId, storeName, photoId, photoType, gondolaGroupId, photoUrl, capturedAt) {
+  const reference = {
+    visit_id: visitId,
+    store_id: storeId,
+    store_name: storeName,
+    photo_id: photoId,
+    photo_type: photoType,
+    gondola_group_id: gondolaGroupId,
+    photo_url: photoUrl,
+    captured_at: capturedAt,
+  };
+
+  setTaggedReference(reference);
+
+  // Navigate back to Por Ruta page
+  navigateTo('route-history');
+
+  toast('Referencia agregada. Escribe tu mensaje.');
+}
+
+// ── Chat Initialization ───────────────────────────────────────────────────
+
+/**
+ * Initialize chat when loading route history page
+ */
+function initRouteChat() {
+  // Find Norte route ID from notification state
+  const norteRoute = notificationState.routes?.find(r => r.name === 'Norte');
+  if (!norteRoute) {
+    console.log('Norte route not found, cannot initialize chat');
+    return;
+  }
+
+  chatState.routeId = norteRoute.id;
+
+  // Load existing messages
+  loadChatMessages(norteRoute.id);
+
+  // Connect WebSocket
+  initChatWebSocket(norteRoute.id);
+
+  // Setup input handling
+  setupChatInput();
+}
+
+/**
+ * Setup chat input event handlers
+ */
+function setupChatInput() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+
+  // Send on Enter (but not Shift+Enter)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+
+  // Auto-resize textarea
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+  });
+}
+
+/**
+ * Utility: Get current user ID from auth
+ */
+function getUserId() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+    return auth.user_id;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Utility: Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }

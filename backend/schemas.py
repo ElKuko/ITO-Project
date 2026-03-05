@@ -381,3 +381,57 @@ class WebSocketMessage(BaseModel):
     """Message format for WebSocket communication."""
     type: str  # notification | sync | ack | error
     data: Optional[dict] = None
+
+
+# ── Route Chat ───────────────────────────────────────────────────────────
+
+class TaggedReference(BaseModel):
+    """Reference to a specific visit photo for tagged messages."""
+    visit_id: int
+    store_id: int
+    store_name: str
+    photo_id: int
+    photo_type: str  # BEFORE | AFTER
+    gondola_group_id: Optional[str] = None
+    photo_url: Optional[str] = None
+    captured_at: Optional[datetime] = None
+
+
+class ChatMessageCreate(BaseModel):
+    """Create a new chat message."""
+    route_id: int
+    text: str
+    message_type: str = "TEXT"  # TEXT | TAGGED_REFERENCE
+    reference: Optional[TaggedReference] = None
+
+
+class ChatMessageOut(BaseModel):
+    """Chat message response."""
+    id: int
+    route_id: int
+    sender_user_id: int
+    sender_name: Optional[str] = None
+    sender_role: Optional[str] = None
+    message_type: str
+    text: str
+
+    # Reference fields (for TAGGED_REFERENCE)
+    ref_visit_id: Optional[int] = None
+    ref_store_id: Optional[int] = None
+    ref_store_name: Optional[str] = None
+    ref_photo_id: Optional[int] = None
+    ref_photo_type: Optional[str] = None
+    ref_gondola_group_id: Optional[str] = None
+    ref_photo_url: Optional[str] = None
+    ref_captured_at: Optional[datetime] = None
+
+    created_at: datetime
+    is_read: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageMarkRead(BaseModel):
+    """Mark chat messages as read."""
+    message_ids: list[int]
