@@ -1784,9 +1784,9 @@ async function loadNotificationPanels() {
 }
 
 async function loadAllRouteNotifications() {
-  // Load recent notifications
+  // Load recent notifications (both read and unread to preserve history)
   try {
-    const notifications = await apiGet('/notifications/?limit=100&is_read=false');
+    const notifications = await apiGet('/notifications/?limit=100');
     notificationState.notifications = notifications;
 
     if (notifications.length > 0) {
