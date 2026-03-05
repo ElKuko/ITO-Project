@@ -209,3 +209,50 @@ class RouteStop(Base):
 
     route = relationship("Route", back_populates="stops")
     store = relationship("Store", back_populates="route_stops")
+
+
+class Notification(Base):
+    """Real-time notifications for visit events."""
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Event type: visit_completed | photos_submitted | visit_started | issue_flagged
+    event_type = Column(String(30), nullable=False)
+
+    # Route association (for filtering by route panel)
+    route_id = Column(Integer, ForeignKey("routes.id"), nullable=True)
+    route_name = Column(String(100), nullable=True)  # Denormalized for quick display
+
+    # Visit reference
+    visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
+
+    # Store info (denormalized for quick display)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    store_name = Column(String(200), nullable=False)
+
+    # Merchandiser info (denormalized)
+    merchandiser_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    merchandiser_name = Column(String(100), nullable=False)
+
+    # Summary data (JSON string)
+    # e.g., {"photo_groups_complete": 5, "photo_groups_total": 5, "sku_actions": 12}
+    summary_data = Column(Text, nullable=True)
+
+    # Timestamps
+    event_time = Column(DateTime, nullable=False)  # When the event occurred
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Notification states
+    is_read = Column(Boolean, default=False)  # Has been seen
+    read_at = Column(DateTime, nullable=True)
+    is_acknowledged = Column(Boolean, default=False)  # Admin marked as reviewed
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    route = relationship("Route")
+    visit = relationship("StoreVisit")
+    store = relationship("Store")
+    merchandiser = relationship("User", foreign_keys=[merchandiser_id])
+    acknowledger = relationship("User", foreign_keys=[acknowledged_by])

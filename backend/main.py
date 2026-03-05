@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database import engine, Base
-from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes
+from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes, notifications
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
@@ -35,6 +35,7 @@ app.include_router(visits.router)
 app.include_router(dashboard.router)
 app.include_router(users.router)
 app.include_router(routes.router)
+app.include_router(notifications.router)
 
 @app.get("/api/health")
 def health_check():

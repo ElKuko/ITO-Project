@@ -945,6 +945,11 @@ let routeHistoryState = {
 };
 
 async function loadRouteHistoryPage() {
+  // Load notification panels for admins
+  if (getUserRole() === 'admin') {
+    loadNotificationPanels();
+  }
+
   const tabsContainer = document.getElementById('route-tabs');
   const queuesContainer = document.getElementById('route-queues-container');
 
@@ -1649,3 +1654,502 @@ document.addEventListener('click', (e) => {
     e.target.style.display = 'none';
   }
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ REAL-TIME NOTIFICATIONS (WebSocket) ══════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+let notificationState = {
+  ws: null,
+  connected: false,
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 10,
+  reconnectDelay: 2000,
+  lastEventId: null,
+  notifications: [],  // All notifications
+  unreadCounts: {},   // { routeId: count }
+  routes: [],         // Route list for display
+};
+
+/**
+ * Initialize WebSocket connection for real-time notifications.
+ * Called when admin navigates to route-history page.
+ */
+function initNotificationWebSocket() {
+  if (getUserRole() !== 'admin') return;
+  if (notificationState.ws && notificationState.connected) return;
+
+  const token = getToken();
+  if (!token) return;
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  let wsUrl = `${protocol}//${host}/api/notifications/ws?token=${token}`;
+
+  if (notificationState.lastEventId) {
+    wsUrl += `&last_event_id=${notificationState.lastEventId}`;
+  }
+
+  try {
+    notificationState.ws = new WebSocket(wsUrl);
+
+    notificationState.ws.onopen = () => {
+      notificationState.connected = true;
+      notificationState.reconnectAttempts = 0;
+      updateWsStatus('connected');
+      console.log('WebSocket connected for notifications');
+    };
+
+    notificationState.ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        handleWebSocketMessage(message);
+      } catch (e) {
+        console.error('Error parsing WebSocket message:', e);
+      }
+    };
+
+    notificationState.ws.onclose = (event) => {
+      notificationState.connected = false;
+      updateWsStatus('disconnected');
+      console.log('WebSocket disconnected:', event.code, event.reason);
+
+      // Attempt reconnection
+      if (notificationState.reconnectAttempts < notificationState.maxReconnectAttempts) {
+        const delay = notificationState.reconnectDelay * Math.pow(1.5, notificationState.reconnectAttempts);
+        notificationState.reconnectAttempts++;
+        console.log(`Reconnecting in ${delay}ms (attempt ${notificationState.reconnectAttempts})`);
+        setTimeout(initNotificationWebSocket, delay);
+      }
+    };
+
+    notificationState.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      updateWsStatus('error');
+    };
+
+  } catch (e) {
+    console.error('Failed to create WebSocket:', e);
+    updateWsStatus('error');
+  }
+}
+
+function closeNotificationWebSocket() {
+  if (notificationState.ws) {
+    notificationState.ws.close();
+    notificationState.ws = null;
+    notificationState.connected = false;
+  }
+}
+
+function updateWsStatus(status) {
+  const statusEl = document.getElementById('ws-status');
+  if (!statusEl) return;
+
+  switch (status) {
+    case 'connected':
+      statusEl.textContent = '● Conectado';
+      statusEl.className = 'ws-status connected';
+      break;
+    case 'disconnected':
+      statusEl.textContent = '○ Desconectado';
+      statusEl.className = 'ws-status disconnected';
+      break;
+    case 'error':
+      statusEl.textContent = '✕ Error';
+      statusEl.className = 'ws-status error';
+      break;
+    default:
+      statusEl.textContent = '◌ Conectando...';
+      statusEl.className = 'ws-status connecting';
+  }
+}
+
+function handleWebSocketMessage(message) {
+  switch (message.type) {
+    case 'connected':
+      console.log('WebSocket auth confirmed:', message.data);
+      break;
+
+    case 'notification':
+      handleNewNotification(message.data);
+      break;
+
+    case 'sync':
+      handleSyncNotifications(message.data);
+      break;
+
+    case 'pong':
+      // Keepalive response
+      break;
+
+    case 'error':
+      console.error('WebSocket error from server:', message.data?.message);
+      break;
+  }
+}
+
+function handleNewNotification(notification) {
+  // Add to local state
+  notificationState.notifications.unshift(notification);
+  notificationState.lastEventId = notification.id;
+
+  // Update unread count for route
+  const routeId = notification.route_id || 'unassigned';
+  notificationState.unreadCounts[routeId] = (notificationState.unreadCounts[routeId] || 0) + 1;
+
+  // Update UI
+  renderNotificationInPanel(notification);
+  updateUnreadBadges();
+
+  // Show toast and play sound
+  showNotificationToast(notification);
+  playNotificationSound();
+}
+
+function handleSyncNotifications(data) {
+  const notifications = data.notifications || [];
+  console.log(`Syncing ${notifications.length} missed notifications`);
+
+  // Add to local state (oldest first to maintain order)
+  notifications.reverse().forEach(n => {
+    if (!notificationState.notifications.find(existing => existing.id === n.id)) {
+      notificationState.notifications.unshift(n);
+      if (n.id > (notificationState.lastEventId || 0)) {
+        notificationState.lastEventId = n.id;
+      }
+    }
+  });
+
+  // Re-render all panels
+  renderAllNotificationPanels();
+  updateUnreadBadges();
+}
+
+function showNotificationToast(notification) {
+  const summary = notification.summary_data ? JSON.parse(notification.summary_data) : {};
+  const msg = `✓ ${notification.merchandiser_name} completó visita en ${notification.store_name}`;
+
+  // Create enhanced toast
+  const el = document.createElement('div');
+  el.className = 'toast notification-toast';
+  el.innerHTML = `
+    <div class="toast-icon">📋</div>
+    <div class="toast-content">
+      <div class="toast-title">Nueva Visita Completada</div>
+      <div class="toast-body">${notification.store_name}</div>
+      <div class="toast-meta">${notification.merchandiser_name} · ${notification.route_name || 'Sin ruta'}</div>
+    </div>
+  `;
+  el.onclick = () => {
+    el.remove();
+    showVisitDetail(notification.visit_id);
+  };
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+function playNotificationSound() {
+  // Simple beep using Web Audio API
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gain.gain.value = 0.1;
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  } catch (e) {
+    // Audio not supported
+  }
+}
+
+// ── Notification Panel Rendering ──────────────────────────────────────────
+
+async function loadNotificationPanels() {
+  const grid = document.getElementById('route-notification-grid');
+  if (!grid) return;
+
+  grid.innerHTML = '<p class="meta">Cargando rutas...</p>';
+
+  try {
+    // Load routes and notification counts
+    const [routes, countsData] = await Promise.all([
+      apiGet('/routes/'),
+      apiGet('/notifications/counts'),
+    ]);
+
+    notificationState.routes = routes;
+
+    // Store unread counts
+    countsData.by_route?.forEach(rc => {
+      notificationState.unreadCounts[rc.route_id || 'unassigned'] = rc.unread_count;
+    });
+
+    // Render grid with 4 route panels
+    grid.innerHTML = routes.map(r => `
+      <div class="notification-panel" id="notification-panel-${r.id}">
+        <div class="notification-panel-header">
+          <div class="panel-route-name">${r.name}</div>
+          <span class="notification-badge" id="badge-${r.id}" style="display:none;">0</span>
+        </div>
+        <div class="notification-panel-actions">
+          <button class="btn btn-xs" onclick="markRouteNotificationsRead(${r.id})">Marcar leídas</button>
+        </div>
+        <div class="notification-list" id="notification-list-${r.id}">
+          <p class="meta">Cargando...</p>
+        </div>
+      </div>
+    `).join('');
+
+    // Add "Sin Ruta" panel
+    grid.innerHTML += `
+      <div class="notification-panel" id="notification-panel-unassigned">
+        <div class="notification-panel-header">
+          <div class="panel-route-name">Sin Ruta</div>
+          <span class="notification-badge" id="badge-unassigned" style="display:none;">0</span>
+        </div>
+        <div class="notification-panel-actions">
+          <button class="btn btn-xs" onclick="markRouteNotificationsRead(null)">Marcar leídas</button>
+        </div>
+        <div class="notification-list" id="notification-list-unassigned">
+          <p class="meta">Cargando...</p>
+        </div>
+      </div>
+    `;
+
+    // Load notifications for each route
+    await loadAllRouteNotifications();
+
+    // Update badges
+    updateUnreadBadges();
+
+    // Initialize WebSocket
+    initNotificationWebSocket();
+
+  } catch (err) {
+    console.error('Error loading notification panels:', err);
+    grid.innerHTML = '<p class="meta" style="color:var(--danger);">Error cargando notificaciones.</p>';
+  }
+}
+
+async function loadAllRouteNotifications() {
+  // Load recent notifications
+  try {
+    const notifications = await apiGet('/notifications/?limit=100&is_read=false');
+    notificationState.notifications = notifications;
+
+    if (notifications.length > 0) {
+      notificationState.lastEventId = Math.max(...notifications.map(n => n.id));
+    }
+
+    renderAllNotificationPanels();
+  } catch (err) {
+    console.error('Error loading notifications:', err);
+  }
+}
+
+function renderAllNotificationPanels() {
+  // Group notifications by route
+  const byRoute = {};
+
+  notificationState.notifications.forEach(n => {
+    const key = n.route_id || 'unassigned';
+    if (!byRoute[key]) byRoute[key] = [];
+    byRoute[key].push(n);
+  });
+
+  // Render each route's notifications
+  notificationState.routes.forEach(r => {
+    const notifications = byRoute[r.id] || [];
+    renderNotificationList(r.id, notifications);
+  });
+
+  // Render unassigned
+  renderNotificationList('unassigned', byRoute['unassigned'] || []);
+}
+
+function renderNotificationList(routeId, notifications) {
+  const listEl = document.getElementById(`notification-list-${routeId}`);
+  if (!listEl) return;
+
+  if (notifications.length === 0) {
+    listEl.innerHTML = '<p class="meta notification-empty">Sin notificaciones nuevas</p>';
+    return;
+  }
+
+  listEl.innerHTML = notifications.slice(0, 20).map(n => renderNotificationItem(n)).join('');
+}
+
+function renderNotificationItem(n) {
+  const summary = n.summary_data ? JSON.parse(n.summary_data) : {};
+  const time = n.event_time ? formatTimeAgo(new Date(n.event_time)) : '';
+  const isNew = !n.is_read;
+
+  return `
+    <div class="notification-item ${isNew ? 'unread' : ''}" data-notification-id="${n.id}" onclick="viewNotification(${n.id}, ${n.visit_id})">
+      <div class="notification-item-header">
+        <span class="notification-store">${n.store_name}</span>
+        <span class="notification-time">${time}</span>
+      </div>
+      <div class="notification-merchandiser">${n.merchandiser_name}</div>
+      <div class="notification-summary">
+        ${summary.photo_count ? `📷 ${summary.photo_count}` : ''}
+        ${summary.sku_actions_count ? `· 📦 ${summary.sku_actions_count} SKUs` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderNotificationInPanel(notification) {
+  const routeId = notification.route_id || 'unassigned';
+  const listEl = document.getElementById(`notification-list-${routeId}`);
+  if (!listEl) return;
+
+  // Remove empty message if present
+  const emptyMsg = listEl.querySelector('.notification-empty');
+  if (emptyMsg) emptyMsg.remove();
+
+  // Insert at top with animation
+  const html = renderNotificationItem(notification);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  const newItem = wrapper.firstElementChild;
+  newItem.classList.add('notification-new');
+
+  listEl.insertBefore(newItem, listEl.firstChild);
+
+  // Remove animation class after animation
+  setTimeout(() => newItem.classList.remove('notification-new'), 500);
+}
+
+function updateUnreadBadges() {
+  let totalUnread = 0;
+
+  // Update each route badge
+  notificationState.routes.forEach(r => {
+    const count = notificationState.unreadCounts[r.id] || 0;
+    totalUnread += count;
+    const badge = document.getElementById(`badge-${r.id}`);
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+  });
+
+  // Update unassigned badge
+  const unassignedCount = notificationState.unreadCounts['unassigned'] || 0;
+  totalUnread += unassignedCount;
+  const unassignedBadge = document.getElementById('badge-unassigned');
+  if (unassignedBadge) {
+    unassignedBadge.textContent = unassignedCount;
+    unassignedBadge.style.display = unassignedCount > 0 ? 'inline-flex' : 'none';
+  }
+
+  // Update total badge
+  const totalBadge = document.getElementById('total-unread-badge');
+  const markAllBtn = document.getElementById('btn-mark-all-read');
+  if (totalBadge) {
+    totalBadge.textContent = `${totalUnread} nueva${totalUnread !== 1 ? 's' : ''}`;
+    totalBadge.style.display = totalUnread > 0 ? 'inline-flex' : 'none';
+  }
+  if (markAllBtn) {
+    markAllBtn.style.display = totalUnread > 0 ? 'inline-block' : 'none';
+  }
+}
+
+// ── Notification Actions ──────────────────────────────────────────────────
+
+async function viewNotification(notificationId, visitId) {
+  // Mark as read
+  try {
+    await apiPost('/notifications/mark-read', { notification_ids: [notificationId] });
+
+    // Update local state
+    const notification = notificationState.notifications.find(n => n.id === notificationId);
+    if (notification && !notification.is_read) {
+      notification.is_read = true;
+      const routeId = notification.route_id || 'unassigned';
+      notificationState.unreadCounts[routeId] = Math.max(0, (notificationState.unreadCounts[routeId] || 0) - 1);
+      updateUnreadBadges();
+
+      // Update UI
+      const item = document.querySelector(`[data-notification-id="${notificationId}"]`);
+      if (item) item.classList.remove('unread');
+    }
+  } catch (e) {
+    // Continue even if mark-read fails
+  }
+
+  // Show visit detail
+  showVisitDetail(visitId);
+}
+
+async function markRouteNotificationsRead(routeId) {
+  try {
+    const url = routeId !== null
+      ? `/notifications/mark-all-read?route_id=${routeId}`
+      : '/notifications/mark-all-read';
+    await apiPost(url, {});
+
+    // Update local state
+    const key = routeId || 'unassigned';
+    notificationState.notifications.forEach(n => {
+      if ((n.route_id || 'unassigned') === key) {
+        n.is_read = true;
+      }
+    });
+    notificationState.unreadCounts[key] = 0;
+
+    // Update UI
+    const listEl = document.getElementById(`notification-list-${key}`);
+    if (listEl) {
+      listEl.querySelectorAll('.notification-item').forEach(el => {
+        el.classList.remove('unread');
+      });
+    }
+
+    updateUnreadBadges();
+    toast('Notificaciones marcadas como leídas');
+  } catch (e) {
+    toast('Error al marcar notificaciones');
+  }
+}
+
+async function markAllNotificationsRead() {
+  try {
+    await apiPost('/notifications/mark-all-read', {});
+
+    // Update local state
+    notificationState.notifications.forEach(n => n.is_read = true);
+    Object.keys(notificationState.unreadCounts).forEach(k => {
+      notificationState.unreadCounts[k] = 0;
+    });
+
+    // Update UI
+    document.querySelectorAll('.notification-item').forEach(el => {
+      el.classList.remove('unread');
+    });
+
+    updateUnreadBadges();
+    toast('Todas las notificaciones marcadas como leídas');
+  } catch (e) {
+    toast('Error al marcar notificaciones');
+  }
+}
+
+// ── Utility Functions ─────────────────────────────────────────────────────
+
+function formatTimeAgo(date) {
+  const now = new Date();
+  const diff = Math.floor((now - date) / 1000);
+
+  if (diff < 60) return 'ahora';
+  if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
+  return date.toLocaleDateString();
+}

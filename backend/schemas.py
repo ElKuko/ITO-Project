@@ -307,3 +307,77 @@ class DashboardFilters(BaseModel):
     store_id: Optional[int] = None
     sku_id: Optional[int] = None
     merchandiser_id: Optional[int] = None
+
+
+# ── Notifications ─────────────────────────────────────────────────────────
+
+class NotificationOut(BaseModel):
+    """Notification response for admin console."""
+    id: int
+    event_type: str  # visit_completed | photos_submitted | visit_started | issue_flagged
+    route_id: Optional[int] = None
+    route_name: Optional[str] = None
+    visit_id: int
+    store_id: int
+    store_name: str
+    merchandiser_id: int
+    merchandiser_name: str
+    summary_data: Optional[str] = None  # JSON string with counts
+    event_time: datetime
+    created_at: datetime
+    is_read: bool
+    read_at: Optional[datetime] = None
+    is_acknowledged: bool
+    acknowledged_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationCreate(BaseModel):
+    """Internal schema for creating notifications."""
+    event_type: str
+    route_id: Optional[int] = None
+    route_name: Optional[str] = None
+    visit_id: int
+    store_id: int
+    store_name: str
+    merchandiser_id: int
+    merchandiser_name: str
+    summary_data: Optional[str] = None
+    event_time: datetime
+
+
+class NotificationMarkRead(BaseModel):
+    """Mark notifications as read."""
+    notification_ids: list[int]
+
+
+class NotificationMarkAcknowledged(BaseModel):
+    """Mark notifications as acknowledged."""
+    notification_ids: list[int]
+
+
+class NotificationFilters(BaseModel):
+    """Filters for querying notifications."""
+    route_id: Optional[int] = None
+    event_type: Optional[str] = None
+    is_read: Optional[bool] = None
+    is_acknowledged: Optional[bool] = None
+    since_id: Optional[int] = None  # For pagination/reconnection
+    since_time: Optional[datetime] = None  # For sync after disconnect
+    limit: int = 50
+
+
+class NotificationCountOut(BaseModel):
+    """Unread notification counts per route."""
+    route_id: Optional[int] = None
+    route_name: Optional[str] = None
+    unread_count: int
+    total_count: int
+
+
+class WebSocketMessage(BaseModel):
+    """Message format for WebSocket communication."""
+    type: str  # notification | sync | ack | error
+    data: Optional[dict] = None

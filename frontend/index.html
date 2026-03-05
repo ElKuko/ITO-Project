@@ -203,6 +203,25 @@
     <!-- ═══ Page: Route History (Admin only) ═══ -->
     <div id="page-route-history" class="page">
       <div class="container wide">
+        <!-- Real-time Notifications Header -->
+        <div class="notifications-header" id="notifications-header">
+          <div class="notifications-title">
+            <h2 style="margin:0;">Notificaciones en Tiempo Real</h2>
+            <span class="ws-status" id="ws-status">Conectando...</span>
+          </div>
+          <div class="notifications-actions">
+            <span class="total-unread-badge" id="total-unread-badge" style="display:none;">0 nuevas</span>
+            <button class="btn btn-sm" onclick="markAllNotificationsRead()" id="btn-mark-all-read" style="display:none;">Marcar todas como leídas</button>
+          </div>
+        </div>
+
+        <!-- Route Notification Panels (4 routes grid) -->
+        <div class="route-notification-grid" id="route-notification-grid">
+          <p class="meta">Cargando rutas...</p>
+        </div>
+
+        <hr style="margin:24px 0;border:none;border-top:1px solid #e5e5e5;">
+
         <h2 style="margin:16px 0 12px;">Historial por Ruta</h2>
         <p class="meta" style="margin-bottom:16px;">Vea el historial de visitas organizado por cada ruta asignada.</p>
 

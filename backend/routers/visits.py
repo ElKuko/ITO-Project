@@ -281,7 +281,7 @@ def update_condition_checks(
 # ── Step 6: Complete Visit ───────────────────────────────────────────────
 
 @router.put("/{visit_id}/complete", response_model=StoreVisitOut)
-def complete_visit(
+async def complete_visit(
     visit_id: int,
     req: VisitCompleteRequest,
     db: Session = Depends(get_db),
@@ -327,7 +327,47 @@ def complete_visit(
         ))
 
     db.commit()
-    return _visit_query(db).filter(StoreVisit.id == visit.id).first()
+
+    # Get the complete visit with all relations for notification
+    completed_visit = _visit_query(db).filter(StoreVisit.id == visit.id).first()
+
+    # Calculate summary data for notification
+    photos = db.query(VisitPhoto).filter(VisitPhoto.visit_id == visit_id).all()
+    gondola_groups = set()
+    complete_groups = 0
+    for p in photos:
+        if p.gondola_group_id:
+            gondola_groups.add(p.gondola_group_id)
+
+    # Count complete groups (have both before and after)
+    for group_id in gondola_groups:
+        group_photos = [p for p in photos if p.gondola_group_id == group_id]
+        has_before = any(p.photo_type in ("gondola_before", "shelf_before") for p in group_photos)
+        has_after = any(p.photo_type in ("gondola_after", "shelf_after") for p in group_photos)
+        if has_before and has_after:
+            complete_groups += 1
+
+    summary_data = {
+        "photo_groups_complete": complete_groups,
+        "photo_groups_total": len(gondola_groups),
+        "photo_count": len(photos),
+        "sku_actions_count": len(req.sku_actions),
+    }
+
+    # Create and broadcast notification
+    try:
+        from .notifications import create_and_broadcast_notification
+        await create_and_broadcast_notification(
+            db=db,
+            event_type="visit_completed",
+            visit=completed_visit,
+            summary_data=summary_data,
+        )
+    except Exception:
+        # Don't fail the visit completion if notification fails
+        pass
+
+    return completed_visit
 
 
 # ── Reprocess Photo CV ───────────────────────────────────────────────────
