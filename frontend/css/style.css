@@ -1436,11 +1436,10 @@ tr.inactive-row {
   font-weight: 600;
 }
 
-/* Route Notification Grid - 4 panels */
+/* Route Notification Grid - single Norte panel */
 .route-notification-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
 }
 
@@ -1451,7 +1450,13 @@ tr.inactive-row {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 400px;
+  max-height: 500px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.notification-panel-single {
+  max-height: 600px;
 }
 
 .notification-panel-header {
