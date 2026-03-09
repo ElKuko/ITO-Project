@@ -2,7 +2,7 @@
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -41,6 +41,12 @@ app.include_router(chat.router)
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "app": "ito-merchandising", "version": "0.1.0"}
+
+@app.get("/api/my-ip")
+def get_client_ip(request: Request):
+    """Returns the client's IP address (useful for finding your phone's local IP)."""
+    client_ip = request.client.host if request.client else "unknown"
+    return {"ip": client_ip}
 
 
 # ── Static file serving (must be AFTER all API routes) ───────────────────
