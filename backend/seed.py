@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.database import engine, SessionLocal, Base
-from backend.models import User, Store, SKU, StoreSKUApproval, StoreVisit, VisitSKUAction, Route, RouteStop
+from backend.models import User, Store, SKU, StoreSKUApproval, StoreVisit, VisitSKUAction, Route, RouteStop, Notification, ChatMessage
 from backend.auth import hash_password
 
 
