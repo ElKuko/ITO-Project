@@ -564,6 +564,9 @@ async function loadSKUListForSection(section) {
       `).join('');
     }
 
+    // Restore saved state for this section
+    restoreSectionState(section);
+
     // Update UI for this section
     updateBulkToolbar(section);
     updatePendingWarning(section);
@@ -571,6 +574,51 @@ async function loadSKUListForSection(section) {
   } catch (err) {
     toast('Error cargando SKUs');
   }
+}
+
+function restoreSectionState(section) {
+  // Restore checkbox selections
+  visitState.selectedSkus[section].forEach(skuId => {
+    const checkbox = document.getElementById(`sku-check-${section}-${skuId}`);
+    if (checkbox) {
+      checkbox.checked = true;
+      document.getElementById(`sku-item-${section}-${skuId}`)?.classList.add('selected');
+    }
+  });
+
+  // Restore action chip states
+  const sectionSkus = visitState.skusBySection[section] || [];
+  sectionSkus.forEach(sku => {
+    const actions = visitState.skuActions[`${sku.id}`];
+    if (actions && actions.size > 0) {
+      const chipsContainer = document.getElementById(`chips-${sku.id}`);
+      if (chipsContainer) {
+        // Apply selected state to active chips
+        actions.forEach(action => {
+          const chip = chipsContainer.querySelector(`[data-action="${action}"]`);
+          if (chip) chip.classList.add('selected');
+        });
+
+        // If agotado is selected, disable llena/relleno
+        if (actions.has('agotado')) {
+          disableChips(chipsContainer, ['gondola_llena', 'se_relleno']);
+        }
+      }
+    }
+
+    // Restore orden quantity display
+    const qty = visitState.ordenQuantities[sku.id];
+    if (qty && qty > 0) {
+      const chipsContainer = document.getElementById(`chips-${sku.id}`);
+      if (chipsContainer) {
+        const ordenChip = chipsContainer.querySelector('[data-action="orden"]');
+        if (ordenChip) {
+          ordenChip.classList.add('selected');
+          ordenChip.textContent = `Orden (${qty})`;
+        }
+      }
+    }
+  });
 }
 
 // Legacy function for backwards compatibility
