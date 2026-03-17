@@ -6,11 +6,31 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .database import engine, Base
+from .database import engine, Base, SessionLocal
+from .models import SKU, User, Store
 from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes, notifications, chat
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
+
+
+def seed_if_empty():
+    """Auto-seed database if it's empty (no SKUs)."""
+    db = SessionLocal()
+    try:
+        sku_count = db.query(SKU).count()
+        if sku_count == 0:
+            print("Database empty — seeding SKUs and routes...")
+            from scripts.seed_all_skus import seed_all
+            seed_all()
+    except Exception as e:
+        print(f"Auto-seed check failed: {e}")
+    finally:
+        db.close()
+
+
+# Run auto-seed on startup
+seed_if_empty()
 
 app = FastAPI(
     title="Ito Merchandising API",
