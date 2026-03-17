@@ -15,12 +15,16 @@ Base.metadata.create_all(bind=engine)
 
 
 def seed_if_empty():
-    """Auto-seed database if it's empty (no SKUs)."""
+    """Auto-seed database if it's empty (no users)."""
     db = SessionLocal()
     try:
-        sku_count = db.query(SKU).count()
-        if sku_count == 0:
-            print("Database empty — seeding SKUs and routes...")
+        user_count = db.query(User).count()
+        if user_count == 0:
+            print("Database empty — seeding users, stores, and SKUs...")
+            # First seed users, stores, demo SKUs
+            from backend.seed import seed
+            seed()
+            # Then seed the real Ito product SKUs
             from scripts.seed_all_skus import seed_all
             seed_all()
     except Exception as e:
