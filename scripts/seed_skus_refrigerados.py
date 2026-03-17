@@ -58,6 +58,7 @@ def seed_refrigerados():
             name=full_name,
             brand="Ito",
             category="Productos Refrigerados",
+            section="produce",
             barcode=barcode,
         )
         db.add(sku)

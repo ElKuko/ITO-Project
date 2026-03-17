@@ -66,6 +66,7 @@ def seed_congelados():
             name=full_name,
             brand="Ito",
             category="Productos Congelados",
+            section="congelados",
             barcode=barcode,
         )
         db.add(sku)

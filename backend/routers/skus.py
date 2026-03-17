@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/skus", tags=["skus"])
 def list_skus(
     brand: str = None,
     category: str = None,
+    section: str = None,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -28,6 +29,8 @@ def list_skus(
         q = q.filter(SKU.brand == brand)
     if category:
         q = q.filter(SKU.category == category)
+    if section:
+        q = q.filter(SKU.section == section)
     return q.order_by(SKU.name).all()
 
 

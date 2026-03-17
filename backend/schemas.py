@@ -83,6 +83,7 @@ class SKUCreate(BaseModel):
     name: str
     brand: str
     category: Optional[str] = None
+    section: Optional[str] = None  # produce | provisiones | congelados
     barcode: Optional[str] = None
     image_url: Optional[str] = None
 
@@ -92,6 +93,7 @@ class SKUOut(BaseModel):
     name: str
     brand: str
     category: Optional[str] = None
+    section: Optional[str] = None  # produce | provisiones | congelados
     barcode: Optional[str] = None
     image_url: Optional[str] = None
     is_active: bool

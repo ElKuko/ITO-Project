@@ -98,16 +98,34 @@ function navigateTo(page) {
 // ═══ STORE VISIT — 4-Step Workflow (v2) ═══════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════
 
+// Section definitions for the 3-area workflow
+const SECTIONS = ['produce', 'provisiones', 'congelados'];
+const SECTION_LABELS = {
+  produce: 'Produce',
+  provisiones: 'Provisiones',
+  congelados: 'Congelados',
+};
+
 let visitState = {
   step: 0,
   visitId: null,
   storeId: null,
   storeName: '',
-  approvedSkus: [],
+  approvedSkus: [],          // All approved SKUs for the store
+  skusBySection: {},         // { section: [skus] }
   skuActions: {},            // { skuId: Set of actions }
   ordenQuantities: {},       // { skuId: quantity } for orden actions
-  selectedSkus: new Set(),   // Currently selected SKU IDs for bulk actions
-  gondolaGroups: [],         // Array of { groupId, skuIds, beforePhoto, afterPhoto }
+  // Per-section state
+  selectedSkus: {            // { section: Set of skuIds }
+    produce: new Set(),
+    provisiones: new Set(),
+    congelados: new Set(),
+  },
+  gondolaGroups: {           // { section: Array of groups }
+    produce: [],
+    provisiones: [],
+    congelados: [],
+  },
   conditions: { prices: null, pop: null, clean: null },
   conditionNotes: '',
   photos: { arrival: null },
@@ -121,10 +139,19 @@ function resetVisitState() {
     storeId: null,
     storeName: '',
     approvedSkus: [],
+    skusBySection: {},
     skuActions: {},
     ordenQuantities: {},
-    selectedSkus: new Set(),
-    gondolaGroups: [],
+    selectedSkus: {
+      produce: new Set(),
+      provisiones: new Set(),
+      congelados: new Set(),
+    },
+    gondolaGroups: {
+      produce: [],
+      provisiones: [],
+      congelados: [],
+    },
     conditions: { prices: null, pop: null, clean: null },
     conditionNotes: '',
     photos: { arrival: null },
@@ -157,18 +184,20 @@ async function loadVisitPage() {
   document.getElementById('condition-notes').value = '';
   document.getElementById('visit-notes').value = '';
 
-  // Reset bulk toolbar
-  updateBulkToolbar();
-  updatePendingWarning();
-  updateGondolaGroupsSummary();
+  // Reset bulk toolbar for all sections
+  SECTIONS.forEach(section => {
+    updateBulkToolbar(section);
+    updatePendingWarning(section);
+    updateGondolaGroupsSummary(section);
+  });
 
   // Disable step 1 next button
   const btn1 = document.getElementById('btn-step1-next');
   if (btn1) btn1.disabled = true;
 
-  // Disable step 3 next button
-  const btn3 = document.getElementById('btn-step3-next');
-  if (btn3) btn3.disabled = true;
+  // Disable step 5 (condition checks) next button
+  const btn5 = document.getElementById('btn-step5-next');
+  if (btn5) btn5.disabled = true;
 }
 
 function showStep(stepNum) {
@@ -181,7 +210,7 @@ function showStep(stepNum) {
   const stepEl = document.getElementById(`visit-step-${stepNum}`);
   if (stepEl) stepEl.classList.add('active');
 
-  // Update step indicator (4 steps)
+  // Update step indicator (6 steps)
   document.querySelectorAll('.step-indicator .step').forEach(el => {
     const s = parseInt(el.dataset.step);
     el.classList.remove('active', 'completed');
@@ -190,8 +219,11 @@ function showStep(stepNum) {
   });
 
   // Load step-specific data
-  if (stepNum === 2) loadSKUList();
-  if (stepNum === 4) showVisitSummary();
+  // Steps 2, 3, 4 are section-based SKU steps
+  if (stepNum === 2) loadSKUListForSection('produce');
+  if (stepNum === 3) loadSKUListForSection('provisiones');
+  if (stepNum === 4) loadSKUListForSection('congelados');
+  if (stepNum === 6) showVisitSummary();
 }
 
 function nextStep() {
@@ -199,11 +231,16 @@ function nextStep() {
 }
 
 function validateStep2AndNext() {
-  // Check if there are any gondola groups with missing after photos
-  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+  // Legacy function - now use validateSectionAndNext
+  validateSectionAndNext('produce');
+}
+
+function validateSectionAndNext(section) {
+  // Check if there are any gondola groups with missing after photos for this section
+  const pendingGroups = visitState.gondolaGroups[section].filter(g => !g.afterPhoto);
 
   if (pendingGroups.length > 0) {
-    toast(`Faltan ${pendingGroups.length} foto(s) DESPUÉS. Complete todos los grupos antes de continuar.`);
+    toast(`Faltan ${pendingGroups.length} foto(s) DESPUÉS en ${SECTION_LABELS[section]}. Complete todos los grupos antes de continuar.`);
     return;
   }
 
@@ -290,17 +327,21 @@ async function onArrivalPhotoSelected(input) {
 
 // ── Gondola Photo Capture (Before/After) ────────────────────────────────
 
-function captureGondolaBefore() {
-  if (visitState.selectedSkus.size === 0) {
+// Track current section for photo capture
+let currentPhotoSection = null;
+
+function captureGondolaBefore(section) {
+  currentPhotoSection = section;
+  if (visitState.selectedSkus[section].size === 0) {
     toast('Seleccione SKUs primero');
     return;
   }
-  const input = document.getElementById('camera-gondola-before');
-  input.onchange = (e) => onGondolaBeforeSelected(e.target);
+  const input = document.getElementById(`camera-gondola-before-${section}`);
+  input.onchange = (e) => onGondolaBeforeSelected(e.target, section);
   input.click();
 }
 
-async function onGondolaBeforeSelected(input) {
+async function onGondolaBeforeSelected(input, section) {
   const file = input.files[0];
   if (!file) return;
 
@@ -311,16 +352,17 @@ async function onGondolaBeforeSelected(input) {
   });
 
   // Get selected SKU IDs
-  const skuIds = Array.from(visitState.selectedSkus);
+  const skuIds = Array.from(visitState.selectedSkus[section]);
 
   // Create local gondola group record
   const group = {
     groupId: groupId,
+    section: section,
     skuIds: [...skuIds],
     beforePhoto: URL.createObjectURL(file),
     afterPhoto: null,
   };
-  visitState.gondolaGroups.push(group);
+  visitState.gondolaGroups[section].push(group);
 
   // Upload to server
   try {
@@ -339,21 +381,22 @@ async function onGondolaBeforeSelected(input) {
     toast('Foto ANTES guardada');
 
     // Clear selection after taking before photo
-    clearSkuSelection();
+    clearSkuSelection(section);
 
     // Update UI
-    updatePendingWarning();
-    updateGondolaGroupsSummary();
+    updatePendingWarning(section);
+    updateGondolaGroupsSummary(section);
   } catch (err) {
     toast('Error subiendo foto: ' + err.message);
     // Remove the group on error
-    visitState.gondolaGroups.pop();
+    visitState.gondolaGroups[section].pop();
   }
 }
 
-function captureGondolaAfter() {
+function captureGondolaAfter(section) {
+  currentPhotoSection = section;
   // Find groups that need after photos
-  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
+  const pendingGroups = visitState.gondolaGroups[section].filter(g => !g.afterPhoto);
   if (pendingGroups.length === 0) {
     toast('No hay fotos ANTES pendientes');
     return;
@@ -361,15 +404,15 @@ function captureGondolaAfter() {
 
   // If only one pending group, take photo directly
   if (pendingGroups.length === 1) {
-    triggerAfterPhotoCapture(pendingGroups[0].groupId);
+    triggerAfterPhotoCapture(pendingGroups[0].groupId, section);
     return;
   }
 
   // Multiple pending groups: show picker
-  showGondolaPicker(pendingGroups);
+  showGondolaPicker(pendingGroups, section);
 }
 
-function showGondolaPicker(pendingGroups) {
+function showGondolaPicker(pendingGroups, section) {
   const grid = document.getElementById('gondola-picker-grid');
 
   grid.innerHTML = pendingGroups.map((group, idx) => {
@@ -379,9 +422,9 @@ function showGondolaPicker(pendingGroups) {
     }).slice(0, 2).join(', ') + (group.skuIds.length > 2 ? ` (+${group.skuIds.length - 2})` : '');
 
     return `
-      <div class="gondola-picker-item" onclick="selectGondolaForAfter('${group.groupId}')">
+      <div class="gondola-picker-item" onclick="selectGondolaForAfter('${group.groupId}', '${section}')">
         <img class="picker-thumbnail" src="${group.beforePhoto}" alt="Antes">
-        <div class="picker-label">Grupo ${visitState.gondolaGroups.indexOf(group) + 1}</div>
+        <div class="picker-label">Grupo ${visitState.gondolaGroups[section].indexOf(group) + 1}</div>
         <div class="picker-skus">${skuNames}</div>
       </div>
     `;
@@ -390,24 +433,25 @@ function showGondolaPicker(pendingGroups) {
   document.getElementById('modal-gondola-picker').style.display = 'flex';
 }
 
-function selectGondolaForAfter(groupId) {
+function selectGondolaForAfter(groupId, section) {
   closeModal('modal-gondola-picker');
-  triggerAfterPhotoCapture(groupId);
+  triggerAfterPhotoCapture(groupId, section);
 }
 
-function triggerAfterPhotoCapture(groupId) {
-  const input = document.getElementById('camera-gondola-after');
+function triggerAfterPhotoCapture(groupId, section) {
+  const input = document.getElementById(`camera-gondola-after-${section}`);
   input.dataset.groupId = groupId;
-  input.onchange = (e) => onGondolaAfterSelected(e.target, groupId);
+  input.dataset.section = section;
+  input.onchange = (e) => onGondolaAfterSelected(e.target, groupId, section);
   input.click();
 }
 
-async function onGondolaAfterSelected(input, groupId) {
+async function onGondolaAfterSelected(input, groupId, section) {
   const file = input.files[0];
   if (!file) return;
 
   // Find the group
-  const group = visitState.gondolaGroups.find(g => g.groupId === groupId);
+  const group = visitState.gondolaGroups[section].find(g => g.groupId === groupId);
   if (!group) return;
 
   group.afterPhoto = URL.createObjectURL(file);
@@ -429,15 +473,15 @@ async function onGondolaAfterSelected(input, groupId) {
     toast('Foto DESPUÉS guardada');
 
     // Update UI
-    updatePendingWarning();
-    updateGondolaGroupsSummary();
+    updatePendingWarning(section);
+    updateGondolaGroupsSummary(section);
   } catch (err) {
     toast('Error subiendo foto: ' + err.message);
     group.afterPhoto = null;
   }
 }
 
-// ── Step 3: Condition Checks ────────────────────────────────────────────
+// ── Step 5: Condition Checks ────────────────────────────────────────────
 
 function setCondition(field, value, btn) {
   visitState.conditions[field] = value;
@@ -454,107 +498,151 @@ function setCondition(field, value, btn) {
 
   // Enable next if all answered
   const allAnswered = Object.values(visitState.conditions).every(v => v !== null);
-  document.getElementById('btn-step3-next').disabled = !allAnswered;
+  document.getElementById('btn-step5-next').disabled = !allAnswered;
 }
 
-// ── Step 2: SKU List with Checkboxes ────────────────────────────────────
+// ── Section-based SKU List with Checkboxes ──────────────────────────────
 
-async function loadSKUList() {
+// Get current section based on step number
+function getCurrentSection() {
+  switch (visitState.step) {
+    case 2: return 'produce';
+    case 3: return 'provisiones';
+    case 4: return 'congelados';
+    default: return null;
+  }
+}
+
+async function loadSKUListForSection(section) {
   try {
-    const approvals = await apiGet(`/approvals/?store_id=${visitState.storeId}`);
-    visitState.approvedSkus = approvals.map(a => a.sku);
+    // Load all approvals once and cache them
+    if (visitState.approvedSkus.length === 0) {
+      const approvals = await apiGet(`/approvals/?store_id=${visitState.storeId}`);
+      visitState.approvedSkus = approvals.map(a => a.sku);
 
-    const skuList = document.getElementById('visit-sku-list');
-    if (approvals.length === 0) {
-      skuList.innerHTML = '<p class="meta">No hay SKUs aprobados para esta tienda.</p>';
+      // Group SKUs by section
+      visitState.skusBySection = {
+        produce: [],
+        provisiones: [],
+        congelados: [],
+      };
+      for (const sku of visitState.approvedSkus) {
+        const sec = sku.section || 'provisiones'; // default to provisiones if no section
+        if (visitState.skusBySection[sec]) {
+          visitState.skusBySection[sec].push(sku);
+        }
+      }
+    }
+
+    const sectionSkus = visitState.skusBySection[section] || [];
+    const skuList = document.getElementById(`visit-sku-list-${section}`);
+
+    if (sectionSkus.length === 0) {
+      skuList.innerHTML = `<p class="meta">No hay SKUs de ${SECTION_LABELS[section]} aprobados para esta tienda.</p>`;
     } else {
-      skuList.innerHTML = approvals.map(a => `
-        <li class="sku-item" data-sku-id="${a.sku.id}" id="sku-item-${a.sku.id}">
-          <input type="checkbox" class="sku-checkbox" id="sku-check-${a.sku.id}"
-                 onchange="toggleSkuSelection(${a.sku.id}, this.checked)">
+      skuList.innerHTML = sectionSkus.map(sku => `
+        <li class="sku-item" data-sku-id="${sku.id}" data-section="${section}" id="sku-item-${section}-${sku.id}">
+          <input type="checkbox" class="sku-checkbox" id="sku-check-${section}-${sku.id}"
+                 onchange="toggleSkuSelection('${section}', ${sku.id}, this.checked)">
           <div class="sku-info">
-            <span class="sku-name">${a.sku.name}</span>
-            <span class="sku-meta">${a.sku.brand}${a.sku.category ? ' · ' + a.sku.category : ''}</span>
+            <span class="sku-name">${sku.name}</span>
+            <span class="sku-meta">${sku.brand}${sku.category ? ' · ' + sku.category : ''}</span>
           </div>
-          <div class="action-chips" id="chips-${a.sku.id}">
-            <span class="chip chip-llena" data-action="gondola_llena" onclick="toggleAction(${a.sku.id},'gondola_llena',this)">Llena</span>
-            <span class="chip chip-relleno" data-action="se_relleno" onclick="toggleAction(${a.sku.id},'se_relleno',this)">Rellenó</span>
-            <span class="chip chip-orden" data-action="orden" onclick="toggleAction(${a.sku.id},'orden',this)">Orden</span>
-            <span class="chip chip-agotado" data-action="agotado" onclick="toggleAction(${a.sku.id},'agotado',this)">Agotado</span>
+          <div class="action-chips" id="chips-${sku.id}">
+            <span class="chip chip-llena" data-action="gondola_llena" onclick="toggleAction(${sku.id},'gondola_llena',this)">Llena</span>
+            <span class="chip chip-relleno" data-action="se_relleno" onclick="toggleAction(${sku.id},'se_relleno',this)">Rellenó</span>
+            <span class="chip chip-orden" data-action="orden" onclick="toggleAction(${sku.id},'orden',this)">Orden</span>
+            <span class="chip chip-agotado" data-action="agotado" onclick="toggleAction(${sku.id},'agotado',this)">Agotado</span>
           </div>
         </li>
       `).join('');
     }
 
-    // Reset selection state
-    visitState.selectedSkus.clear();
-    updateBulkToolbar();
-    updatePendingWarning();
-    updateGondolaGroupsSummary();
+    // Update UI for this section
+    updateBulkToolbar(section);
+    updatePendingWarning(section);
+    updateGondolaGroupsSummary(section);
   } catch (err) {
     toast('Error cargando SKUs');
   }
 }
 
+// Legacy function for backwards compatibility
+async function loadSKUList() {
+  const section = getCurrentSection();
+  if (section) {
+    await loadSKUListForSection(section);
+  }
+}
+
 // ── SKU Selection for Bulk Actions ──────────────────────────────────────
 
-function toggleSkuSelection(skuId, selected) {
+function toggleSkuSelection(section, skuId, selected) {
   if (selected) {
-    visitState.selectedSkus.add(skuId);
-    document.getElementById(`sku-item-${skuId}`)?.classList.add('selected');
+    visitState.selectedSkus[section].add(skuId);
+    document.getElementById(`sku-item-${section}-${skuId}`)?.classList.add('selected');
   } else {
-    visitState.selectedSkus.delete(skuId);
-    document.getElementById(`sku-item-${skuId}`)?.classList.remove('selected');
+    visitState.selectedSkus[section].delete(skuId);
+    document.getElementById(`sku-item-${section}-${skuId}`)?.classList.remove('selected');
   }
-  updateBulkToolbar();
+  updateBulkToolbar(section);
 }
 
-function clearSkuSelection() {
-  visitState.selectedSkus.forEach(skuId => {
-    const checkbox = document.getElementById(`sku-check-${skuId}`);
+function clearSkuSelection(section) {
+  visitState.selectedSkus[section].forEach(skuId => {
+    const checkbox = document.getElementById(`sku-check-${section}-${skuId}`);
     if (checkbox) checkbox.checked = false;
-    document.getElementById(`sku-item-${skuId}`)?.classList.remove('selected');
+    document.getElementById(`sku-item-${section}-${skuId}`)?.classList.remove('selected');
   });
-  visitState.selectedSkus.clear();
-  updateBulkToolbar();
+  visitState.selectedSkus[section].clear();
+  updateBulkToolbar(section);
 }
 
-function updateBulkToolbar() {
-  const count = visitState.selectedSkus.size;
-  document.getElementById('selected-count').textContent = count;
+function updateBulkToolbar(section) {
+  const count = visitState.selectedSkus[section].size;
+  const countEl = document.getElementById(`selected-count-${section}`);
+  if (countEl) countEl.textContent = count;
 
   // Enable/disable bulk action buttons
   const hasSelection = count > 0;
-  document.getElementById('btn-gondola-before').disabled = !hasSelection;
-  document.getElementById('btn-clear-selection').disabled = !hasSelection;
+  const beforeBtn = document.getElementById(`btn-gondola-before-${section}`);
+  const clearBtn = document.getElementById(`btn-clear-selection-${section}`);
+  if (beforeBtn) beforeBtn.disabled = !hasSelection;
+  if (clearBtn) clearBtn.disabled = !hasSelection;
 
   // After photo button enabled only if there are pending groups
-  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
-  document.getElementById('btn-gondola-after').disabled = pendingGroups.length === 0;
+  const pendingGroups = visitState.gondolaGroups[section].filter(g => !g.afterPhoto);
+  const afterBtn = document.getElementById(`btn-gondola-after-${section}`);
+  if (afterBtn) afterBtn.disabled = pendingGroups.length === 0;
 }
 
-function updatePendingWarning() {
-  const pendingGroups = visitState.gondolaGroups.filter(g => !g.afterPhoto);
-  const warningEl = document.getElementById('pending-warning');
-  const countEl = document.getElementById('pending-count');
+function updatePendingWarning(section) {
+  const pendingGroups = visitState.gondolaGroups[section].filter(g => !g.afterPhoto);
+  const warningEl = document.getElementById(`pending-warning-${section}`);
+  const countEl = document.getElementById(`pending-count-${section}`);
 
-  if (pendingGroups.length > 0) {
-    countEl.textContent = pendingGroups.length;
-    warningEl.style.display = 'flex';
-  } else {
-    warningEl.style.display = 'none';
+  if (warningEl && countEl) {
+    if (pendingGroups.length > 0) {
+      countEl.textContent = pendingGroups.length;
+      warningEl.style.display = 'flex';
+    } else {
+      warningEl.style.display = 'none';
+    }
   }
 }
 
-function updateGondolaGroupsSummary() {
-  const container = document.getElementById('gondola-groups-summary');
-  if (visitState.gondolaGroups.length === 0) {
+function updateGondolaGroupsSummary(section) {
+  const container = document.getElementById(`gondola-groups-summary-${section}`);
+  if (!container) return;
+
+  const groups = visitState.gondolaGroups[section];
+  if (groups.length === 0) {
     container.innerHTML = '';
     return;
   }
 
   container.innerHTML = '<h4 style="margin-bottom:8px;font-size:14px;">Grupos de Góndola</h4>' +
-    visitState.gondolaGroups.map((group, idx) => {
+    groups.map((group, idx) => {
       const isPending = !group.afterPhoto;
       const skuNames = group.skuIds.map(id => {
         const sku = visitState.approvedSkus.find(s => s.id === id);
@@ -702,7 +790,7 @@ function confirmOrdenQty() {
   closeModal('modal-orden-qty');
 }
 
-// ── Step 4: Summary & Submit ────────────────────────────────────────────
+// ── Step 6: Summary & Submit ────────────────────────────────────────────
 
 function showVisitSummary() {
   visitState.conditionNotes = document.getElementById('condition-notes').value;
@@ -718,10 +806,19 @@ function showVisitSummary() {
   // Calculate total boxes ordered
   const totalBoxesOrdered = Object.values(visitState.ordenQuantities).reduce((sum, qty) => sum + qty, 0);
 
-  // Count photos: 1 arrival + gondola groups (before + after)
+  // Count photos across all sections: 1 arrival + gondola groups (before + after)
   const arrivalCount = visitState.photos.arrival ? 1 : 0;
-  const gondolaBeforeCount = visitState.gondolaGroups.filter(g => g.beforePhoto).length;
-  const gondolaAfterCount = visitState.gondolaGroups.filter(g => g.afterPhoto).length;
+  let gondolaBeforeCount = 0;
+  let gondolaAfterCount = 0;
+  let totalGroups = 0;
+
+  SECTIONS.forEach(section => {
+    const groups = visitState.gondolaGroups[section] || [];
+    totalGroups += groups.length;
+    gondolaBeforeCount += groups.filter(g => g.beforePhoto).length;
+    gondolaAfterCount += groups.filter(g => g.afterPhoto).length;
+  });
+
   const totalPhotos = arrivalCount + gondolaBeforeCount + gondolaAfterCount;
   const pendingAfter = gondolaBeforeCount - gondolaAfterCount;
 
@@ -729,7 +826,7 @@ function showVisitSummary() {
   summaryEl.innerHTML = `
     <div class="summary-item"><span>Tienda:</span><span>${visitState.storeName}</span></div>
     <div class="summary-item"><span>Fotos:</span><span>${totalPhotos} (${arrivalCount} llegada, ${gondolaBeforeCount} antes, ${gondolaAfterCount} después)</span></div>
-    <div class="summary-item"><span>Grupos Góndola:</span><span>${visitState.gondolaGroups.length}${pendingAfter > 0 ? ` (${pendingAfter} pendiente)` : ''}</span></div>
+    <div class="summary-item"><span>Grupos Góndola:</span><span>${totalGroups}${pendingAfter > 0 ? ` (${pendingAfter} pendiente)` : ''}</span></div>
     <div class="summary-item"><span>Góndola Llena:</span><span>${actionCounts.gondola_llena}</span></div>
     <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
     <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden} SKU(s)${totalBoxesOrdered > 0 ? ` — ${totalBoxesOrdered} cajas` : ''}</span></div>

@@ -67,6 +67,8 @@ class SKU(Base):
     name = Column(String(200), nullable=False)
     brand = Column(String(100), nullable=False)
     category = Column(String(100), nullable=True)
+    # Store section: produce | provisiones | congelados
+    section = Column(String(50), nullable=True, index=True)
     barcode = Column(String(50), nullable=True, unique=True)
     image_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)

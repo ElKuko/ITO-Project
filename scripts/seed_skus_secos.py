@@ -46,6 +46,7 @@ def seed_secos():
             name=full_name,
             brand="Ito",
             category="Productos Secos",
+            section="provisiones",
             barcode=barcode,
         )
         db.add(sku)

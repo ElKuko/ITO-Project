@@ -54,12 +54,14 @@
     <div id="page-visit" class="page active">
       <div class="container">
 
-        <!-- Step Indicator (4 steps) -->
+        <!-- Step Indicator (6 steps) -->
         <div class="step-indicator" id="step-indicator">
           <span class="step active" data-step="1">1</span>
           <span class="step" data-step="2">2</span>
           <span class="step" data-step="3">3</span>
           <span class="step" data-step="4">4</span>
+          <span class="step" data-step="5">5</span>
+          <span class="step" data-step="6">6</span>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -95,56 +97,148 @@
           </div>
         </div>
 
-        <!-- Step 2: Unified SKU & Gondola Interaction -->
+        <!-- Step 2: Produce Section -->
         <div id="visit-step-2" class="visit-step">
           <div class="card">
-            <h3>Paso 2: SKUs y Góndolas</h3>
-            <p class="meta">Seleccione SKUs y tome fotos de antes/después por grupo de góndola.</p>
+            <h3>Paso 2: Produce</h3>
+            <p class="meta">Productos refrigerados. Seleccione SKUs y tome fotos de antes/después.</p>
 
             <!-- Bulk Actions Toolbar -->
-            <div class="bulk-toolbar" id="bulk-toolbar">
+            <div class="bulk-toolbar" id="bulk-toolbar-produce">
               <div class="bulk-info">
-                <span id="selected-count">0</span> SKU(s) seleccionados
+                <span id="selected-count-produce">0</span> SKU(s) seleccionados
               </div>
               <div class="bulk-actions">
-                <button class="btn btn-sm" onclick="captureGondolaBefore()" id="btn-gondola-before" disabled>
+                <button class="btn btn-sm" onclick="captureGondolaBefore('produce')" id="btn-gondola-before-produce" disabled>
                   📷 Foto ANTES
                 </button>
-                <button class="btn btn-sm" onclick="captureGondolaAfter()" id="btn-gondola-after" disabled>
+                <button class="btn btn-sm" onclick="captureGondolaAfter('produce')" id="btn-gondola-after-produce" disabled>
                   📷 Foto DESPUÉS
                 </button>
-                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection()" id="btn-clear-selection" disabled>
+                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('produce')" id="btn-clear-selection-produce" disabled>
                   Limpiar
                 </button>
               </div>
             </div>
 
             <!-- Pending After Photos Warning -->
-            <div class="pending-warning" id="pending-warning" style="display:none;">
+            <div class="pending-warning" id="pending-warning-produce" style="display:none;">
               <span class="warning-icon">⚠️</span>
-              <span id="pending-count">0</span> grupo(s) pendiente(s) de foto DESPUÉS
+              <span id="pending-count-produce">0</span> grupo(s) pendiente(s) de foto DESPUÉS
             </div>
 
             <!-- Hidden file inputs for gondola photos -->
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before" style="display:none">
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-produce" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-produce" style="display:none">
 
             <!-- SKU List with Checkboxes -->
-            <ul class="sku-list sku-list-selectable" id="visit-sku-list"></ul>
+            <ul class="sku-list sku-list-selectable" id="visit-sku-list-produce"></ul>
 
             <!-- Gondola Groups Summary -->
-            <div class="gondola-groups-summary" id="gondola-groups-summary"></div>
+            <div class="gondola-groups-summary" id="gondola-groups-summary-produce"></div>
 
-            <button class="btn btn-primary btn-block" onclick="validateStep2AndNext()" id="btn-step2-next" style="margin-top:12px;">
-              Siguiente →
+            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('produce')" id="btn-step2-next" style="margin-top:12px;">
+              Siguiente: Provisiones →
             </button>
           </div>
         </div>
 
-        <!-- Step 3: Quick Condition Checks -->
+        <!-- Step 3: Provisiones Section -->
         <div id="visit-step-3" class="visit-step">
           <div class="card">
-            <h3>Paso 3: Condición de Góndola</h3>
+            <h3>Paso 3: Provisiones</h3>
+            <p class="meta">Productos secos. Seleccione SKUs y tome fotos de antes/después.</p>
+
+            <!-- Bulk Actions Toolbar -->
+            <div class="bulk-toolbar" id="bulk-toolbar-provisiones">
+              <div class="bulk-info">
+                <span id="selected-count-provisiones">0</span> SKU(s) seleccionados
+              </div>
+              <div class="bulk-actions">
+                <button class="btn btn-sm" onclick="captureGondolaBefore('provisiones')" id="btn-gondola-before-provisiones" disabled>
+                  📷 Foto ANTES
+                </button>
+                <button class="btn btn-sm" onclick="captureGondolaAfter('provisiones')" id="btn-gondola-after-provisiones" disabled>
+                  📷 Foto DESPUÉS
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('provisiones')" id="btn-clear-selection-provisiones" disabled>
+                  Limpiar
+                </button>
+              </div>
+            </div>
+
+            <!-- Pending After Photos Warning -->
+            <div class="pending-warning" id="pending-warning-provisiones" style="display:none;">
+              <span class="warning-icon">⚠️</span>
+              <span id="pending-count-provisiones">0</span> grupo(s) pendiente(s) de foto DESPUÉS
+            </div>
+
+            <!-- Hidden file inputs for gondola photos -->
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-provisiones" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-provisiones" style="display:none">
+
+            <!-- SKU List with Checkboxes -->
+            <ul class="sku-list sku-list-selectable" id="visit-sku-list-provisiones"></ul>
+
+            <!-- Gondola Groups Summary -->
+            <div class="gondola-groups-summary" id="gondola-groups-summary-provisiones"></div>
+
+            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('provisiones')" id="btn-step3-next" style="margin-top:12px;">
+              Siguiente: Congelados →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 4: Congelados Section -->
+        <div id="visit-step-4" class="visit-step">
+          <div class="card">
+            <h3>Paso 4: Congelados</h3>
+            <p class="meta">Productos congelados. Seleccione SKUs y tome fotos de antes/después.</p>
+
+            <!-- Bulk Actions Toolbar -->
+            <div class="bulk-toolbar" id="bulk-toolbar-congelados">
+              <div class="bulk-info">
+                <span id="selected-count-congelados">0</span> SKU(s) seleccionados
+              </div>
+              <div class="bulk-actions">
+                <button class="btn btn-sm" onclick="captureGondolaBefore('congelados')" id="btn-gondola-before-congelados" disabled>
+                  📷 Foto ANTES
+                </button>
+                <button class="btn btn-sm" onclick="captureGondolaAfter('congelados')" id="btn-gondola-after-congelados" disabled>
+                  📷 Foto DESPUÉS
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('congelados')" id="btn-clear-selection-congelados" disabled>
+                  Limpiar
+                </button>
+              </div>
+            </div>
+
+            <!-- Pending After Photos Warning -->
+            <div class="pending-warning" id="pending-warning-congelados" style="display:none;">
+              <span class="warning-icon">⚠️</span>
+              <span id="pending-count-congelados">0</span> grupo(s) pendiente(s) de foto DESPUÉS
+            </div>
+
+            <!-- Hidden file inputs for gondola photos -->
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-congelados" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-congelados" style="display:none">
+
+            <!-- SKU List with Checkboxes -->
+            <ul class="sku-list sku-list-selectable" id="visit-sku-list-congelados"></ul>
+
+            <!-- Gondola Groups Summary -->
+            <div class="gondola-groups-summary" id="gondola-groups-summary-congelados"></div>
+
+            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('congelados')" id="btn-step4-next" style="margin-top:12px;">
+              Siguiente: Condiciones →
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 5: Quick Condition Checks -->
+        <div id="visit-step-5" class="visit-step">
+          <div class="card">
+            <h3>Paso 5: Condición de Góndola</h3>
 
             <div class="condition-check">
               <label>¿Están todos los precios en góndola?</label>
@@ -175,16 +269,16 @@
               <textarea id="condition-notes" rows="2" placeholder="Explique el problema..."></textarea>
             </div>
 
-            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step3-next" disabled style="margin-top:12px;">
+            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step5-next" disabled style="margin-top:12px;">
               Siguiente →
             </button>
           </div>
         </div>
 
-        <!-- Step 4: Submit -->
-        <div id="visit-step-4" class="visit-step">
+        <!-- Step 6: Submit -->
+        <div id="visit-step-6" class="visit-step">
           <div class="card">
-            <h3>Paso 4: Enviar Visita</h3>
+            <h3>Paso 6: Enviar Visita</h3>
             <div class="form-group">
               <label>Notas adicionales (opcional)</label>
               <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>
