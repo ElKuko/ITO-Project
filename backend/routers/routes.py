@@ -73,6 +73,44 @@ def list_routes(
     ]
 
 
+@router.put("/{route_id}/assign")
+def assign_merchandiser_to_route(
+    route_id: int,
+    merchandiser_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign a merchandiser to a route. Pass merchandiser_id=null to unassign."""
+    if current_user.role not in ("admin", "supervisor"):
+        raise HTTPException(status_code=403, detail="Admin/supervisor access required")
+
+    route = db.query(Route).filter(Route.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+
+    if merchandiser_id is not None:
+        # Verify merchandiser exists and is a merchandiser
+        merchandiser = db.query(User).filter(User.id == merchandiser_id).first()
+        if not merchandiser:
+            raise HTTPException(status_code=404, detail="User not found")
+        if merchandiser.role != "merchandiser":
+            raise HTTPException(status_code=400, detail="User is not a merchandiser")
+
+        # Remove from any previous route
+        db.query(Route).filter(Route.merchandiser_id == merchandiser_id).update(
+            {"merchandiser_id": None}
+        )
+
+    route.merchandiser_id = merchandiser_id
+    db.commit()
+
+    return {
+        "id": route.id,
+        "name": route.name,
+        "merchandiser_id": route.merchandiser_id,
+    }
+
+
 @router.get("/{route_id}")
 def get_route(
     route_id: int,

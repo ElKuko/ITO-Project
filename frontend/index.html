@@ -511,6 +511,7 @@
           <button class="admin-tab active" data-admin-tab="users" onclick="showAdminTab('users')">Usuarios</button>
           <button class="admin-tab" data-admin-tab="skus" onclick="showAdminTab('skus')">SKUs</button>
           <button class="admin-tab" data-admin-tab="stores" onclick="showAdminTab('stores')">Tiendas</button>
+          <button class="admin-tab" data-admin-tab="routes" onclick="showAdminTab('routes')">Rutas</button>
         </div>
 
         <!-- Admin: Users Management -->
@@ -588,6 +589,24 @@
                 </tr>
               </thead>
               <tbody id="admin-stores-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Admin: Routes Management -->
+        <div id="admin-tab-routes" class="admin-panel">
+          <div class="admin-header">
+            <h3>Asignación de Rutas</h3>
+          </div>
+          <p class="meta" style="margin:0 0 16px;">Asigna merchandisers a rutas para habilitar el chat y seguimiento.</p>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ruta</th><th>Tiendas</th><th>Merchandiser Asignado</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="admin-routes-table"></tbody>
             </table>
           </div>
         </div>

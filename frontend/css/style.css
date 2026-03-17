@@ -663,6 +663,21 @@ th {
   font-weight: 500;
 }
 
+/* ── Route Assignment Select ─────────────────────────────────────────────── */
+.route-assign-select {
+  padding: 6px 10px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  min-width: 180px;
+}
+
+.route-assign-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 /* ── Action Buttons in Table ────────────────────────────────────────────── */
 .action-btns {
   display: flex;

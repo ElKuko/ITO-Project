@@ -1308,6 +1308,7 @@ function showAdminTab(tab) {
   if (tab === 'users') loadAdminUsers();
   else if (tab === 'skus') loadAdminSkus();
   else if (tab === 'stores') loadAdminStores();
+  else if (tab === 'routes') loadAdminRoutes();
 }
 
 // ── User Management ──────────────────────────────────────────────────────
@@ -1666,6 +1667,70 @@ async function toggleStoreStatus(storeId, activate) {
     loadAdminStores();
   } catch (err) {
     toast('Error: ' + err.message);
+  }
+}
+
+// ── Route Assignment Management ──────────────────────────────────────────
+
+let adminRoutes = {
+  routes: [],
+  merchandisers: [],
+};
+
+async function loadAdminRoutes() {
+  try {
+    // Load routes and merchandisers in parallel
+    const [routes, merchandisers] = await Promise.all([
+      apiGet('/routes/'),
+      apiGet('/users/?role=merchandiser'),
+    ]);
+
+    adminRoutes.routes = routes;
+    adminRoutes.merchandisers = merchandisers;
+
+    renderRoutesTable();
+  } catch (err) {
+    toast('Error cargando rutas');
+  }
+}
+
+function renderRoutesTable() {
+  const tbody = document.getElementById('admin-routes-table');
+  if (!tbody) return;
+
+  tbody.innerHTML = adminRoutes.routes.map(r => {
+    const merchandiserOptions = adminRoutes.merchandisers.map(m => {
+      const selected = r.merchandiser?.id === m.id ? 'selected' : '';
+      return `<option value="${m.id}" ${selected}>${m.full_name}</option>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td><strong>${r.name}</strong></td>
+        <td>${r.store_count} tiendas</td>
+        <td>
+          <select class="route-assign-select" onchange="assignMerchandiserToRoute(${r.id}, this.value)">
+            <option value="">-- Sin asignar --</option>
+            ${merchandiserOptions}
+          </select>
+        </td>
+        <td>
+          ${r.merchandiser ? `<span class="status-active">Asignado</span>` : `<span class="status-inactive">Sin asignar</span>`}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function assignMerchandiserToRoute(routeId, merchandiserId) {
+  try {
+    const merchId = merchandiserId ? parseInt(merchandiserId) : null;
+    await api(`/routes/${routeId}/assign?merchandiser_id=${merchId || ''}`, { method: 'PUT' });
+    toast(merchId ? 'Merchandiser asignado' : 'Asignación removida');
+    loadAdminRoutes();
+  } catch (err) {
+    toast('Error: ' + err.message);
+    loadAdminRoutes(); // Reload to reset select
   }
 }
 
