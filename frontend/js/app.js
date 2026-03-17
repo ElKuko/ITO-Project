@@ -230,6 +230,12 @@ function nextStep() {
   showStep(visitState.step + 1);
 }
 
+function prevStep() {
+  if (visitState.step > 0) {
+    showStep(visitState.step - 1);
+  }
+}
+
 function validateStep2AndNext() {
   // Legacy function - now use validateSectionAndNext
   validateSectionAndNext('produce');

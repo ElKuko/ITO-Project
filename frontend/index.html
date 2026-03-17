@@ -91,9 +91,12 @@
               <input type="file" accept="image/*" capture="environment" id="camera-arrival" style="display:none">
               <div class="photo-preview" id="arrival-preview"></div>
             </div>
-            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step1-next" disabled style="margin-top:12px;">
-              Siguiente →
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-primary" onclick="nextStep()" id="btn-step1-next" disabled style="flex:1;">
+                Siguiente →
+              </button>
+            </div>
           </div>
         </div>
 
@@ -137,9 +140,12 @@
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-produce"></div>
 
-            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('produce')" id="btn-step2-next" style="margin-top:12px;">
-              Siguiente: Provisiones →
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-primary" onclick="validateSectionAndNext('produce')" id="btn-step2-next" style="flex:1;">
+                Siguiente: Provisiones →
+              </button>
+            </div>
           </div>
         </div>
 
@@ -183,9 +189,12 @@
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-provisiones"></div>
 
-            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('provisiones')" id="btn-step3-next" style="margin-top:12px;">
-              Siguiente: Congelados →
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-primary" onclick="validateSectionAndNext('provisiones')" id="btn-step3-next" style="flex:1;">
+                Siguiente: Congelados →
+              </button>
+            </div>
           </div>
         </div>
 
@@ -229,9 +238,12 @@
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-congelados"></div>
 
-            <button class="btn btn-primary btn-block" onclick="validateSectionAndNext('congelados')" id="btn-step4-next" style="margin-top:12px;">
-              Siguiente: Condiciones →
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-primary" onclick="validateSectionAndNext('congelados')" id="btn-step4-next" style="flex:1;">
+                Siguiente: Condiciones →
+              </button>
+            </div>
           </div>
         </div>
 
@@ -269,9 +281,12 @@
               <textarea id="condition-notes" rows="2" placeholder="Explique el problema..."></textarea>
             </div>
 
-            <button class="btn btn-primary btn-block" onclick="nextStep()" id="btn-step5-next" disabled style="margin-top:12px;">
-              Siguiente →
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-primary" onclick="nextStep()" id="btn-step5-next" disabled style="flex:1;">
+                Siguiente →
+              </button>
+            </div>
           </div>
         </div>
 
@@ -286,9 +301,12 @@
 
             <div class="visit-summary" id="visit-summary"></div>
 
-            <button id="btn-submit-visit" class="btn btn-success btn-block" onclick="submitVisit()">
-              ✓ Enviar Visita
-            </button>
+            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button id="btn-submit-visit" class="btn btn-success" onclick="submitVisit()" style="flex:1;">
+                ✓ Enviar Visita
+              </button>
+            </div>
           </div>
         </div>
 
