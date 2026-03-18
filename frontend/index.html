@@ -54,14 +54,13 @@
     <div id="page-visit" class="page active">
       <div class="container">
 
-        <!-- Step Indicator (6 steps) -->
+        <!-- Step Indicator (5 steps) -->
         <div class="step-indicator" id="step-indicator">
           <span class="step active" data-step="1">1</span>
           <span class="step" data-step="2">2</span>
           <span class="step" data-step="3">3</span>
           <span class="step" data-step="4">4</span>
           <span class="step" data-step="5">5</span>
-          <span class="step" data-step="6">6</span>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -140,6 +139,36 @@
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-produce"></div>
 
+            <!-- Section Conditions -->
+            <div class="section-conditions">
+              <h4>Condiciones - Produce</h4>
+              <div class="condition-check">
+                <label>¿Están todos los precios en góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="produce" data-field="prices" onclick="setSectionCondition('produce', 'prices', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="produce" data-field="prices" onclick="setSectionCondition('produce', 'prices', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está todo el material PoP?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="produce" data-field="pop" onclick="setSectionCondition('produce', 'pop', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="produce" data-field="pop" onclick="setSectionCondition('produce', 'pop', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está limpio y presentable?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="produce" data-field="presentable" onclick="setSectionCondition('produce', 'presentable', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="produce" data-field="presentable" onclick="setSectionCondition('produce', 'presentable', false, this)">No</button>
+                </div>
+              </div>
+              <div class="form-group condition-notes-group" id="condition-notes-group-produce" style="display:none;">
+                <label>Notas</label>
+                <textarea id="condition-notes-produce" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('produce', this.value)"></textarea>
+              </div>
+            </div>
+
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
               <button class="btn btn-primary" onclick="validateSectionAndNext('produce')" id="btn-step2-next" style="flex:1;">
@@ -188,6 +217,36 @@
 
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-provisiones"></div>
+
+            <!-- Section Conditions -->
+            <div class="section-conditions">
+              <h4>Condiciones - Provisiones</h4>
+              <div class="condition-check">
+                <label>¿Están todos los precios en góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="provisiones" data-field="prices" onclick="setSectionCondition('provisiones', 'prices', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="provisiones" data-field="prices" onclick="setSectionCondition('provisiones', 'prices', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está todo el material PoP?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="provisiones" data-field="pop" onclick="setSectionCondition('provisiones', 'pop', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="provisiones" data-field="pop" onclick="setSectionCondition('provisiones', 'pop', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está limpio y presentable?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="provisiones" data-field="presentable" onclick="setSectionCondition('provisiones', 'presentable', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="provisiones" data-field="presentable" onclick="setSectionCondition('provisiones', 'presentable', false, this)">No</button>
+                </div>
+              </div>
+              <div class="form-group condition-notes-group" id="condition-notes-group-provisiones" style="display:none;">
+                <label>Notas</label>
+                <textarea id="condition-notes-provisiones" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('provisiones', this.value)"></textarea>
+              </div>
+            </div>
 
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
@@ -238,62 +297,49 @@
             <!-- Gondola Groups Summary -->
             <div class="gondola-groups-summary" id="gondola-groups-summary-congelados"></div>
 
+            <!-- Section Conditions -->
+            <div class="section-conditions">
+              <h4>Condiciones - Congelados</h4>
+              <div class="condition-check">
+                <label>¿Están todos los precios en góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="congelados" data-field="prices" onclick="setSectionCondition('congelados', 'prices', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="congelados" data-field="prices" onclick="setSectionCondition('congelados', 'prices', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está todo el material PoP?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="congelados" data-field="pop" onclick="setSectionCondition('congelados', 'pop', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="congelados" data-field="pop" onclick="setSectionCondition('congelados', 'pop', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Está limpio y presentable?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', false, this)">No</button>
+                </div>
+              </div>
+              <div class="form-group condition-notes-group" id="condition-notes-group-congelados" style="display:none;">
+                <label>Notas</label>
+                <textarea id="condition-notes-congelados" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('congelados', this.value)"></textarea>
+              </div>
+            </div>
+
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
               <button class="btn btn-primary" onclick="validateSectionAndNext('congelados')" id="btn-step4-next" style="flex:1;">
-                Siguiente: Condiciones →
+                Siguiente: Resumen →
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Step 5: Quick Condition Checks -->
+        <!-- Step 5: Submit -->
         <div id="visit-step-5" class="visit-step">
           <div class="card">
-            <h3>Paso 5: Condición de Góndola</h3>
-
-            <div class="condition-check">
-              <label>¿Están todos los precios en góndola?</label>
-              <div class="toggle-group">
-                <button class="toggle-btn" data-field="prices" data-value="true" onclick="setCondition('prices', true, this)">Sí</button>
-                <button class="toggle-btn" data-field="prices" data-value="false" onclick="setCondition('prices', false, this)">No</button>
-              </div>
-            </div>
-
-            <div class="condition-check">
-              <label>¿Está todo el material PoP en góndola?</label>
-              <div class="toggle-group">
-                <button class="toggle-btn" data-field="pop" data-value="true" onclick="setCondition('pop', true, this)">Sí</button>
-                <button class="toggle-btn" data-field="pop" data-value="false" onclick="setCondition('pop', false, this)">No</button>
-              </div>
-            </div>
-
-            <div class="condition-check">
-              <label>¿Está limpio y presentable el producto en góndola?</label>
-              <div class="toggle-group">
-                <button class="toggle-btn" data-field="clean" data-value="true" onclick="setCondition('clean', true, this)">Sí</button>
-                <button class="toggle-btn" data-field="clean" data-value="false" onclick="setCondition('clean', false, this)">No</button>
-              </div>
-            </div>
-
-            <div class="form-group" id="condition-notes-group" style="display:none; margin-top:12px;">
-              <label>Notas (si contestó No)</label>
-              <textarea id="condition-notes" rows="2" placeholder="Explique el problema..."></textarea>
-            </div>
-
-            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
-              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
-              <button class="btn btn-primary" onclick="nextStep()" id="btn-step5-next" disabled style="flex:1;">
-                Siguiente →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 6: Submit -->
-        <div id="visit-step-6" class="visit-step">
-          <div class="card">
-            <h3>Paso 6: Enviar Visita</h3>
+            <h3>Paso 5: Enviar Visita</h3>
             <div class="form-group">
               <label>Notas adicionales (opcional)</label>
               <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>

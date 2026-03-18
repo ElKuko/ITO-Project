@@ -514,6 +514,33 @@ th {
   color: white;
 }
 
+/* ── Section Conditions Container ─────────────────────────────────────── */
+.section-conditions {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 2px solid var(--border);
+}
+
+.section-conditions h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.section-conditions .condition-check {
+  padding: 8px 0;
+}
+
+.section-conditions .toggle-group {
+  gap: 6px;
+}
+
+.section-conditions .toggle-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
 /* ── New SKU Action Chips (Spanish) ─────────────────────────────────── */
 .chip-llena { background: #e6f4ea; color: var(--success); border-color: #e6f4ea; }
 .chip-llena.selected { background: var(--success); color: white; }
@@ -551,6 +578,41 @@ th {
 .visit-summary .summary-item span:first-child {
   color: var(--text-secondary);
 }
+
+.visit-summary .summary-divider {
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+.visit-summary .summary-conditions-header {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.visit-summary .summary-section-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+  align-items: center;
+}
+
+.visit-summary .summary-section-conditions strong {
+  min-width: 90px;
+  font-size: 12px;
+}
+
+.visit-summary .summary-section-conditions span {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.visit-summary .cond-ok { background: #e6f4ea; color: var(--success); }
+.visit-summary .cond-no { background: #fce8e6; color: var(--danger); }
+.visit-summary .cond-na { background: #f1f3f4; color: var(--text-secondary); }
+.visit-summary .cond-notes { font-style: italic; color: var(--text-secondary); }
 
 /* ── Approval Checkbox List ─────────────────────────────────────────── */
 .approval-item {

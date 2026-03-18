@@ -278,7 +278,7 @@ def update_condition_checks(
     return {"detail": "Condition checks updated"}
 
 
-# ── Step 6: Complete Visit ───────────────────────────────────────────────
+# ── Step 5: Complete Visit ───────────────────────────────────────────────
 
 @router.put("/{visit_id}/complete", response_model=StoreVisitOut)
 async def complete_visit(
@@ -294,7 +294,12 @@ async def complete_visit(
     if current_user.role == "merchandiser" and visit.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Update condition checks if provided
+    # Update per-section conditions if provided (new format)
+    if req.section_conditions:
+        import json
+        visit.section_conditions = json.dumps(req.section_conditions)
+
+    # Update legacy condition checks if provided (backwards compatibility)
     if req.prices_on_gondola is not None:
         visit.prices_on_gondola = req.prices_on_gondola
     if req.pop_material_present is not None:

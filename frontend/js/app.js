@@ -126,8 +126,12 @@ let visitState = {
     provisiones: [],
     congelados: [],
   },
-  conditions: { prices: null, pop: null, clean: null },
-  conditionNotes: '',
+  // Per-section conditions
+  sectionConditions: {
+    produce: { prices: null, pop: null, presentable: null, notes: '' },
+    provisiones: { prices: null, pop: null, presentable: null, notes: '' },
+    congelados: { prices: null, pop: null, presentable: null, notes: '' },
+  },
   photos: { arrival: null },
   gps: { lat: null, lng: null, accuracy: null },
 };
@@ -152,8 +156,11 @@ function resetVisitState() {
       provisiones: [],
       congelados: [],
     },
-    conditions: { prices: null, pop: null, clean: null },
-    conditionNotes: '',
+    sectionConditions: {
+      produce: { prices: null, pop: null, presentable: null, notes: '' },
+      provisiones: { prices: null, pop: null, presentable: null, notes: '' },
+      congelados: { prices: null, pop: null, presentable: null, notes: '' },
+    },
     photos: { arrival: null },
     gps: { lat: null, lng: null, accuracy: null },
   };
@@ -194,10 +201,6 @@ async function loadVisitPage() {
   // Disable step 1 next button
   const btn1 = document.getElementById('btn-step1-next');
   if (btn1) btn1.disabled = true;
-
-  // Disable step 5 (condition checks) next button
-  const btn5 = document.getElementById('btn-step5-next');
-  if (btn5) btn5.disabled = true;
 }
 
 function showStep(stepNum) {
@@ -210,7 +213,7 @@ function showStep(stepNum) {
   const stepEl = document.getElementById(`visit-step-${stepNum}`);
   if (stepEl) stepEl.classList.add('active');
 
-  // Update step indicator (6 steps)
+  // Update step indicator (5 steps)
   document.querySelectorAll('.step-indicator .step').forEach(el => {
     const s = parseInt(el.dataset.step);
     el.classList.remove('active', 'completed');
@@ -223,7 +226,7 @@ function showStep(stepNum) {
   if (stepNum === 2) loadSKUListForSection('produce');
   if (stepNum === 3) loadSKUListForSection('provisiones');
   if (stepNum === 4) loadSKUListForSection('congelados');
-  if (stepNum === 6) showVisitSummary();
+  if (stepNum === 5) showVisitSummary();
 }
 
 function nextStep() {
@@ -489,8 +492,10 @@ async function onGondolaAfterSelected(input, groupId, section) {
 
 // ── Step 5: Condition Checks ────────────────────────────────────────────
 
-function setCondition(field, value, btn) {
-  visitState.conditions[field] = value;
+// ── Section Conditions ──────────────────────────────────────────────────
+
+function setSectionCondition(section, field, value, btn) {
+  visitState.sectionConditions[section][field] = value;
 
   // Update button styles
   btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => {
@@ -498,13 +503,17 @@ function setCondition(field, value, btn) {
   });
   btn.classList.add(value ? 'selected-yes' : 'selected-no');
 
-  // Show notes field if any "No"
-  const anyNo = Object.values(visitState.conditions).some(v => v === false);
-  document.getElementById('condition-notes-group').style.display = anyNo ? 'block' : 'none';
+  // Show notes field if any "No" in this section
+  const cond = visitState.sectionConditions[section];
+  const anyNo = cond.prices === false || cond.pop === false || cond.presentable === false;
+  const notesGroup = document.getElementById(`condition-notes-group-${section}`);
+  if (notesGroup) {
+    notesGroup.style.display = anyNo ? 'block' : 'none';
+  }
+}
 
-  // Enable next if all answered
-  const allAnswered = Object.values(visitState.conditions).every(v => v !== null);
-  document.getElementById('btn-step5-next').disabled = !allAnswered;
+function updateSectionConditionNotes(section, notes) {
+  visitState.sectionConditions[section].notes = notes;
 }
 
 // ── Section-based SKU List with Checkboxes ──────────────────────────────
@@ -619,6 +628,33 @@ function restoreSectionState(section) {
       }
     }
   });
+
+  // Restore condition button states
+  const cond = visitState.sectionConditions[section];
+  ['prices', 'pop', 'presentable'].forEach(field => {
+    const value = cond[field];
+    if (value !== null) {
+      const btns = document.querySelectorAll(`.toggle-btn[data-section="${section}"][data-field="${field}"]`);
+      btns.forEach(btn => {
+        btn.classList.remove('selected-yes', 'selected-no');
+        const btnValue = btn.textContent.trim() === 'Sí';
+        if (btnValue === value) {
+          btn.classList.add(value ? 'selected-yes' : 'selected-no');
+        }
+      });
+    }
+  });
+
+  // Show notes field if any "No"
+  const anyNo = cond.prices === false || cond.pop === false || cond.presentable === false;
+  const notesGroup = document.getElementById(`condition-notes-group-${section}`);
+  if (notesGroup) {
+    notesGroup.style.display = anyNo ? 'block' : 'none';
+    const notesTextarea = document.getElementById(`condition-notes-${section}`);
+    if (notesTextarea && cond.notes) {
+      notesTextarea.value = cond.notes;
+    }
+  }
 }
 
 // Legacy function for backwards compatibility
@@ -844,11 +880,9 @@ function confirmOrdenQty() {
   closeModal('modal-orden-qty');
 }
 
-// ── Step 6: Summary & Submit ────────────────────────────────────────────
+// ── Step 5: Summary & Submit ────────────────────────────────────────────
 
 function showVisitSummary() {
-  visitState.conditionNotes = document.getElementById('condition-notes').value;
-
   // Count actions from Sets (multi-select)
   const actionCounts = { gondola_llena: 0, se_relleno: 0, orden: 0, agotado: 0 };
   Object.values(visitState.skuActions).forEach(actionsSet => {
@@ -876,6 +910,25 @@ function showVisitSummary() {
   const totalPhotos = arrivalCount + gondolaBeforeCount + gondolaAfterCount;
   const pendingAfter = gondolaBeforeCount - gondolaAfterCount;
 
+  // Build conditions summary per section
+  const condIcon = (val) => val === true ? '✓' : val === false ? '✗' : '—';
+  const condClass = (val) => val === true ? 'cond-ok' : val === false ? 'cond-no' : 'cond-na';
+
+  let conditionsHtml = '';
+  SECTIONS.forEach(section => {
+    const cond = visitState.sectionConditions[section];
+    const label = SECTION_LABELS[section];
+    conditionsHtml += `
+      <div class="summary-section-conditions">
+        <strong>${label}:</strong>
+        <span class="${condClass(cond.prices)}">Precios ${condIcon(cond.prices)}</span>
+        <span class="${condClass(cond.pop)}">PoP ${condIcon(cond.pop)}</span>
+        <span class="${condClass(cond.presentable)}">Presentable ${condIcon(cond.presentable)}</span>
+        ${cond.notes ? `<span class="cond-notes">(${cond.notes})</span>` : ''}
+      </div>
+    `;
+  });
+
   const summaryEl = document.getElementById('visit-summary');
   summaryEl.innerHTML = `
     <div class="summary-item"><span>Tienda:</span><span>${visitState.storeName}</span></div>
@@ -885,9 +938,9 @@ function showVisitSummary() {
     <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
     <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden} SKU(s)${totalBoxesOrdered > 0 ? ` — ${totalBoxesOrdered} cajas` : ''}</span></div>
     <div class="summary-item"><span>Agotado:</span><span>${actionCounts.agotado}</span></div>
-    <div class="summary-item"><span>Precios OK:</span><span>${visitState.conditions.prices ? 'Sí' : 'No'}</span></div>
-    <div class="summary-item"><span>PoP OK:</span><span>${visitState.conditions.pop ? 'Sí' : 'No'}</span></div>
-    <div class="summary-item"><span>Presentable:</span><span>${visitState.conditions.clean ? 'Sí' : 'No'}</span></div>
+    <div class="summary-divider"></div>
+    <div class="summary-conditions-header">Condiciones por Sección:</div>
+    ${conditionsHtml}
   `;
 }
 
@@ -914,10 +967,7 @@ async function submitVisit() {
     const notes = document.getElementById('visit-notes').value;
 
     await apiPut(`/visits/${visitState.visitId}/complete`, {
-      prices_on_gondola: visitState.conditions.prices,
-      pop_material_present: visitState.conditions.pop,
-      product_presentable: visitState.conditions.clean,
-      condition_notes: visitState.conditionNotes,
+      section_conditions: visitState.sectionConditions,
       sku_actions: actions,
       notes: notes,
     });

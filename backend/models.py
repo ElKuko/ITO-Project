@@ -126,11 +126,15 @@ class StoreVisit(Base):
     longitude = Column(Float, nullable=True)
     gps_accuracy = Column(Float, nullable=True)  # meters
 
-    # Condition checks (Step 3)
+    # Condition checks (legacy - single values for whole visit)
     prices_on_gondola = Column(Boolean, nullable=True)  # Estan todos los precios?
     pop_material_present = Column(Boolean, nullable=True)  # Esta todo el material PoP?
     product_presentable = Column(Boolean, nullable=True)  # Esta limpio y presentable?
     condition_notes = Column(Text, nullable=True)  # Optional notes if any "No"
+
+    # Condition checks per section (JSON)
+    # Format: {"produce": {"prices": true, "pop": true, "presentable": true, "notes": ""}, ...}
+    section_conditions = Column(Text, nullable=True)
 
     notes = Column(Text, nullable=True)
     status = Column(String(20), default="submitted")  # submitted | reviewed

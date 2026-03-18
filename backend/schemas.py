@@ -230,8 +230,12 @@ class VisitConditionChecks(BaseModel):
 
 
 class VisitCompleteRequest(BaseModel):
-    """Step 6: Complete/submit the visit."""
-    # Condition checks
+    """Step 5: Complete/submit the visit."""
+    # Per-section condition checks (new format)
+    # Format: {"produce": {"prices": true, "pop": true, "presentable": true, "notes": ""}, ...}
+    section_conditions: Optional[dict] = None
+
+    # Legacy condition checks (for backwards compatibility)
     prices_on_gondola: Optional[bool] = None
     pop_material_present: Optional[bool] = None
     product_presentable: Optional[bool] = None
@@ -258,6 +262,7 @@ class StoreVisitOut(BaseModel):
     pop_material_present: Optional[bool] = None
     product_presentable: Optional[bool] = None
     condition_notes: Optional[str] = None
+    section_conditions: Optional[str] = None  # JSON string
 
     notes: Optional[str] = None
     status: str
