@@ -714,6 +714,22 @@ th {
   font-weight: 600;
 }
 
+/* ── SKU Section Groups ─────────────────────────────────────────────────── */
+.sku-section-group {
+  margin-bottom: 24px;
+}
+
+.sku-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f0f4f9 100%);
+  border-left: 4px solid var(--primary);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
 /* ── Status Badge ───────────────────────────────────────────────────────── */
 .status-active {
   color: var(--success);

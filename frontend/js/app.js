@@ -1495,23 +1495,63 @@ async function loadAdminSkus() {
 }
 
 function renderSkuTable(skus) {
-  const tbody = document.getElementById('admin-skus-table');
-  tbody.innerHTML = skus.map(s => `
-    <tr class="${!s.is_active ? 'inactive-row' : ''}">
-      <td>${s.name}</td>
-      <td>${s.brand}</td>
-      <td>${s.category || '-'}</td>
-      <td>${s.barcode || '-'}</td>
-      <td><span class="${s.is_active ? 'status-active' : 'status-inactive'}">${s.is_active ? 'Activo' : 'Inactivo'}</span></td>
-      <td class="action-btns">
-        <button class="btn-edit" onclick="editSku(${s.id})">Editar</button>
-        ${s.is_active
-          ? `<button class="btn-deactivate" onclick="toggleSkuStatus(${s.id}, false)">Desactivar</button>`
-          : `<button class="btn-activate" onclick="toggleSkuStatus(${s.id}, true)">Activar</button>`
-        }
-      </td>
-    </tr>
-  `).join('');
+  const container = document.getElementById('admin-skus-container');
+
+  // Group SKUs by section
+  const sections = ['produce', 'provisiones', 'congelados'];
+  const grouped = {
+    produce: [],
+    provisiones: [],
+    congelados: []
+  };
+
+  skus.forEach(s => {
+    const section = s.section || 'provisiones';
+    if (grouped[section]) {
+      grouped[section].push(s);
+    } else {
+      grouped.provisiones.push(s);
+    }
+  });
+
+  // Render each section
+  container.innerHTML = sections.map(section => {
+    const sectionSkus = grouped[section];
+    if (sectionSkus.length === 0) return '';
+
+    return `
+      <div class="sku-section-group">
+        <h4 class="sku-section-title">${SECTION_LABELS[section]}</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th><th>Marca</th><th>Categoría</th><th>Código</th><th>Estado</th><th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sectionSkus.map(s => `
+                <tr class="${!s.is_active ? 'inactive-row' : ''}">
+                  <td>${s.name}</td>
+                  <td>${s.brand}</td>
+                  <td>${s.category || '-'}</td>
+                  <td>${s.barcode || '-'}</td>
+                  <td><span class="${s.is_active ? 'status-active' : 'status-inactive'}">${s.is_active ? 'Activo' : 'Inactivo'}</span></td>
+                  <td class="action-btns">
+                    <button class="btn-edit" onclick="editSku(${s.id})">Editar</button>
+                    ${s.is_active
+                      ? `<button class="btn-deactivate" onclick="toggleSkuStatus(${s.id}, false)">Desactivar</button>`
+                      : `<button class="btn-activate" onclick="toggleSkuStatus(${s.id}, true)">Activar</button>`
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function filterSkuTable() {
