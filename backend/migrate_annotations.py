@@ -3,7 +3,8 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "ito.db")
+# Database is in the backend directory, same as this script
+DB_PATH = os.path.join(os.path.dirname(__file__), "ito.db")
 
 
 def migrate():
