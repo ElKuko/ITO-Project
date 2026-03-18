@@ -286,6 +286,10 @@ class ChatMessage(Base):
     ref_photo_url = Column(String(500), nullable=True)  # thumbnail URL
     ref_captured_at = Column(DateTime, nullable=True)
 
+    # Annotation reference (for ANNOTATED_REFERENCE messages)
+    ref_annotation_id = Column(Integer, ForeignKey("image_annotations.id"), nullable=True)
+    ref_annotation_preview_url = Column(String(500), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -299,3 +303,35 @@ class ChatMessage(Base):
     ref_visit = relationship("StoreVisit")
     ref_store = relationship("Store")
     ref_photo = relationship("VisitPhoto")
+    ref_annotation = relationship("ImageAnnotation")
+
+
+class ImageAnnotation(Base):
+    """Annotations drawn on visit photos (non-destructive overlay)."""
+    __tablename__ = "image_annotations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Reference to original photo
+    photo_id = Column(Integer, ForeignKey("visit_photos.id"), nullable=False, index=True)
+    visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False, index=True)
+
+    # Photo context
+    photo_type = Column(String(30), nullable=False)  # BEFORE | AFTER
+    gondola_group_id = Column(String(36), nullable=True)
+
+    # Annotation data (JSON array of drawing objects)
+    # Format: [{"type": "circle", "x": 100, "y": 200, "radius": 50, "color": "#ff0000", "strokeWidth": 3}, ...]
+    annotation_data = Column(Text, nullable=False)
+
+    # Flattened preview image (original + annotations merged)
+    preview_path = Column(String(500), nullable=True)
+
+    # Creator
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    photo = relationship("VisitPhoto")
+    visit = relationship("StoreVisit")
+    creator = relationship("User")

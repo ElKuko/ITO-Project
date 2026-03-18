@@ -38,6 +38,8 @@ def _chat_message_to_dict(msg: ChatMessage, sender: User = None) -> dict:
         "ref_gondola_group_id": msg.ref_gondola_group_id,
         "ref_photo_url": msg.ref_photo_url,
         "ref_captured_at": msg.ref_captured_at.isoformat() if msg.ref_captured_at else None,
+        "ref_annotation_id": msg.ref_annotation_id,
+        "ref_annotation_preview_url": msg.ref_annotation_preview_url,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
         "is_read": msg.is_read,
     }
@@ -127,6 +129,19 @@ async def send_chat_message(
         msg.ref_gondola_group_id = data.reference.gondola_group_id
         msg.ref_photo_url = data.reference.photo_url
         msg.ref_captured_at = data.reference.captured_at
+
+    # Add annotated reference if provided
+    if data.annotated_reference and data.message_type == "ANNOTATED_REFERENCE":
+        msg.ref_annotation_id = data.annotated_reference.annotation_id
+        msg.ref_visit_id = data.annotated_reference.visit_id
+        msg.ref_store_id = data.annotated_reference.store_id
+        msg.ref_store_name = data.annotated_reference.store_name
+        msg.ref_photo_id = data.annotated_reference.photo_id
+        msg.ref_photo_type = data.annotated_reference.photo_type
+        msg.ref_gondola_group_id = data.annotated_reference.gondola_group_id
+        msg.ref_photo_url = data.annotated_reference.original_photo_url
+        msg.ref_annotation_preview_url = data.annotated_reference.annotation_preview_url
+        msg.ref_captured_at = data.annotated_reference.captured_at
 
     db.add(msg)
     db.commit()
@@ -311,6 +326,21 @@ async def websocket_chat(
                         msg.ref_photo_url = ref.get("photo_url")
                         if ref.get("captured_at"):
                             msg.ref_captured_at = datetime.fromisoformat(ref["captured_at"].replace("Z", "+00:00"))
+
+                    # Add annotated reference if provided
+                    ann_ref = msg_data.get("annotated_reference")
+                    if ann_ref and msg.message_type == "ANNOTATED_REFERENCE":
+                        msg.ref_annotation_id = ann_ref.get("annotation_id")
+                        msg.ref_visit_id = ann_ref.get("visit_id")
+                        msg.ref_store_id = ann_ref.get("store_id")
+                        msg.ref_store_name = ann_ref.get("store_name")
+                        msg.ref_photo_id = ann_ref.get("photo_id")
+                        msg.ref_photo_type = ann_ref.get("photo_type")
+                        msg.ref_gondola_group_id = ann_ref.get("gondola_group_id")
+                        msg.ref_photo_url = ann_ref.get("original_photo_url")
+                        msg.ref_annotation_preview_url = ann_ref.get("annotation_preview_url")
+                        if ann_ref.get("captured_at"):
+                            msg.ref_captured_at = datetime.fromisoformat(ann_ref["captured_at"].replace("Z", "+00:00"))
 
                     db.add(msg)
                     db.commit()

@@ -1083,6 +1083,23 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
           </button>
         ` : '';
 
+        // Build annotate button for before photo
+        const beforeAnnotateBtn = group.before ? `
+          <button class="photo-action-btn btn-annotate" onclick="event.stopPropagation(); openAnnotationEditor({
+            visitId: ${visitId},
+            storeId: ${storeId},
+            storeName: '${storeName.replace(/'/g, "\\'")}',
+            photoId: ${group.before.id},
+            photoType: 'BEFORE',
+            gondolaGroupId: '${groupId}',
+            photoUrl: '${group.before.file_path}',
+            capturedAt: '${group.before.captured_at || ''}',
+            routeId: chatState.routeId
+          })">
+            <span>✏️</span> Anotar
+          </button>
+        ` : '';
+
         // Build comment button for after photo
         const afterCommentBtn = group.after ? `
           <button class="photo-action-btn" onclick="event.stopPropagation(); commentOnImage(
@@ -1094,6 +1111,23 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
           </button>
         ` : '';
 
+        // Build annotate button for after photo
+        const afterAnnotateBtn = group.after ? `
+          <button class="photo-action-btn btn-annotate" onclick="event.stopPropagation(); openAnnotationEditor({
+            visitId: ${visitId},
+            storeId: ${storeId},
+            storeName: '${storeName.replace(/'/g, "\\'")}',
+            photoId: ${group.after.id},
+            photoType: 'AFTER',
+            gondolaGroupId: '${groupId}',
+            photoUrl: '${group.after.file_path}',
+            capturedAt: '${group.after.captured_at || ''}',
+            routeId: chatState.routeId
+          })">
+            <span>✏️</span> Anotar
+          </button>
+        ` : '';
+
         gondolaHtml += `
           <div class="photo-compare-group ${isHighlighted ? 'highlighted' : ''}" style="margin-top:12px;" data-group-id="${groupId}">
             <div class="compare-header meta">Grupo ${idx + 1}</div>
@@ -1101,13 +1135,15 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
               <div class="photo-compare-col ${isHighlighted && highlightPhotoType === 'BEFORE' ? 'photo-highlighted' : ''}">
                 <div class="compare-label">ANTES</div>
                 ${group.before
-                  ? `<img src="${group.before.file_path}" class="compare-img">${beforeCommentBtn}`
+                  ? `<img src="${group.before.file_path}" class="compare-img">
+                     <div class="photo-card-actions">${beforeCommentBtn}${beforeAnnotateBtn}</div>`
                   : '<div class="compare-placeholder">Sin foto</div>'}
               </div>
               <div class="photo-compare-col ${isHighlighted && highlightPhotoType === 'AFTER' ? 'photo-highlighted' : ''}">
                 <div class="compare-label">DESPUÉS</div>
                 ${group.after
-                  ? `<img src="${group.after.file_path}" class="compare-img">${afterCommentBtn}`
+                  ? `<img src="${group.after.file_path}" class="compare-img">
+                     <div class="photo-card-actions">${afterCommentBtn}${afterAnnotateBtn}</div>`
                   : '<div class="compare-placeholder">Sin foto</div>'}
               </div>
             </div>
@@ -2610,6 +2646,23 @@ function renderChatMessage(msg, currentUserId) {
     `;
   }
 
+  // Handle annotated reference messages
+  if (msg.message_type === 'ANNOTATED_REFERENCE') {
+    const previewUrl = msg.ref_annotation_preview_url || msg.ref_photo_url;
+    referenceHtml = `
+      <div class="chat-message-annotation" onclick="navigateToTaggedPhoto(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
+        <div class="reference-preview-row">
+          <img class="reference-preview-thumbnail" src="${previewUrl}" alt="Annotated" style="max-height:150px;object-fit:contain;">
+          <div class="reference-preview-info">
+            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
+            <span class="reference-preview-meta">Imagen Anotada</span>
+            <span class="reference-preview-badge" style="background:#ef4444;">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="chat-message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
       ${!isSent ? `<div class="chat-message-sender">${msg.sender_name || 'Usuario'}</div>` : ''}
@@ -3110,6 +3163,23 @@ function renderMerchChatMessage(msg, currentUserId) {
     `;
   }
 
+  // Handle annotated reference messages
+  if (msg.message_type === 'ANNOTATED_REFERENCE') {
+    const previewUrl = msg.ref_annotation_preview_url || msg.ref_photo_url;
+    referenceHtml = `
+      <div class="chat-message-annotation" onclick="navigateToTaggedPhotoMerch(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
+        <div class="reference-preview-row">
+          <img class="reference-preview-thumbnail" src="${previewUrl}" alt="Annotated" style="max-height:150px;object-fit:contain;">
+          <div class="reference-preview-info">
+            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
+            <span class="reference-preview-meta">Imagen Anotada</span>
+            <span class="reference-preview-badge" style="background:#ef4444;">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="chat-message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
       ${!isSent ? `<div class="chat-message-sender">${msg.sender_name || 'Supervisor'}</div>` : ''}
@@ -3249,4 +3319,607 @@ function setupMerchChatInput() {
     newInput.style.height = 'auto';
     newInput.style.height = Math.min(newInput.scrollHeight, 100) + 'px';
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ IMAGE ANNOTATION EDITOR ══════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+const annotationState = {
+  // Context
+  visitId: null,
+  storeId: null,
+  storeName: '',
+  photoId: null,
+  photoType: '',  // BEFORE | AFTER
+  gondolaGroupId: null,
+  originalPhotoUrl: '',
+  capturedAt: null,
+  routeId: null,
+
+  // Canvas
+  canvas: null,
+  ctx: null,
+  image: null,
+  imageLoaded: false,
+
+  // Drawing state
+  isDrawing: false,
+  currentTool: 'pen',
+  currentColor: '#ff0000',
+  currentStroke: 4,
+  startX: 0,
+  startY: 0,
+
+  // History for undo/redo
+  shapes: [],      // Committed shapes
+  undoStack: [],   // For redo
+  currentPath: [], // Current freehand path being drawn
+
+  // Scale factor for canvas
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
+/**
+ * Open the annotation editor for a specific photo.
+ */
+function openAnnotationEditor(photoData) {
+  // Store context
+  annotationState.visitId = photoData.visitId;
+  annotationState.storeId = photoData.storeId;
+  annotationState.storeName = photoData.storeName || '';
+  annotationState.photoId = photoData.photoId;
+  annotationState.photoType = photoData.photoType;
+  annotationState.gondolaGroupId = photoData.gondolaGroupId;
+  annotationState.originalPhotoUrl = photoData.photoUrl;
+  annotationState.capturedAt = photoData.capturedAt;
+  annotationState.routeId = photoData.routeId;
+
+  // Reset state
+  annotationState.shapes = [];
+  annotationState.undoStack = [];
+  annotationState.currentPath = [];
+  annotationState.isDrawing = false;
+  annotationState.currentTool = 'pen';
+  annotationState.currentColor = '#ff0000';
+  annotationState.currentStroke = 4;
+
+  // Update UI
+  document.getElementById('annotation-photo-type').textContent = photoData.photoType;
+  document.getElementById('annotation-store-name').textContent = photoData.storeName || '';
+
+  // Reset tool buttons
+  document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.tool-btn[data-tool="pen"]').classList.add('active');
+  document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.color-btn[data-color="#ff0000"]').classList.add('active');
+  document.querySelectorAll('.stroke-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.stroke-btn[data-stroke="4"]').classList.add('active');
+
+  // Show modal
+  document.getElementById('modal-annotation').style.display = 'flex';
+
+  // Initialize canvas
+  initAnnotationCanvas(photoData.photoUrl);
+}
+
+/**
+ * Initialize the annotation canvas with the image.
+ */
+function initAnnotationCanvas(imageUrl) {
+  const container = document.getElementById('annotation-canvas-container');
+  const canvas = document.getElementById('annotation-canvas');
+  const ctx = canvas.getContext('2d');
+
+  annotationState.canvas = canvas;
+  annotationState.ctx = ctx;
+  annotationState.imageLoaded = false;
+
+  // Load image
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    annotationState.image = img;
+    annotationState.imageLoaded = true;
+
+    // Calculate size to fit container
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    let scale = Math.min(
+      containerWidth / img.width,
+      containerHeight / img.height,
+      1 // Don't upscale
+    );
+
+    const displayWidth = img.width * scale;
+    const displayHeight = img.height * scale;
+
+    // Set canvas size to match image display size
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.style.width = displayWidth + 'px';
+    canvas.style.height = displayHeight + 'px';
+
+    annotationState.scale = scale;
+
+    // Draw initial image
+    redrawAnnotationCanvas();
+
+    // Setup event listeners
+    setupAnnotationEvents();
+  };
+
+  img.onerror = () => {
+    toast('Error cargando imagen');
+    closeAnnotationEditor();
+  };
+
+  img.src = imageUrl;
+}
+
+/**
+ * Set up touch and mouse events for drawing.
+ */
+function setupAnnotationEvents() {
+  const canvas = annotationState.canvas;
+
+  // Remove existing listeners
+  canvas.onmousedown = null;
+  canvas.onmousemove = null;
+  canvas.onmouseup = null;
+  canvas.ontouchstart = null;
+  canvas.ontouchmove = null;
+  canvas.ontouchend = null;
+
+  // Mouse events
+  canvas.onmousedown = handleAnnotationStart;
+  canvas.onmousemove = handleAnnotationMove;
+  canvas.onmouseup = handleAnnotationEnd;
+  canvas.onmouseleave = handleAnnotationEnd;
+
+  // Touch events
+  canvas.ontouchstart = (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleAnnotationStart(touch);
+  };
+  canvas.ontouchmove = (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleAnnotationMove(touch);
+  };
+  canvas.ontouchend = (e) => {
+    e.preventDefault();
+    handleAnnotationEnd();
+  };
+}
+
+/**
+ * Get canvas coordinates from event.
+ */
+function getAnnotationCoords(e) {
+  const canvas = annotationState.canvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  const clientX = e.clientX !== undefined ? e.clientX : e.pageX;
+  const clientY = e.clientY !== undefined ? e.clientY : e.pageY;
+
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY,
+  };
+}
+
+/**
+ * Handle drawing start.
+ */
+function handleAnnotationStart(e) {
+  if (!annotationState.imageLoaded) return;
+
+  const coords = getAnnotationCoords(e);
+  annotationState.isDrawing = true;
+  annotationState.startX = coords.x;
+  annotationState.startY = coords.y;
+
+  if (annotationState.currentTool === 'pen') {
+    annotationState.currentPath = [{x: coords.x, y: coords.y}];
+  }
+}
+
+/**
+ * Handle drawing move.
+ */
+function handleAnnotationMove(e) {
+  if (!annotationState.isDrawing || !annotationState.imageLoaded) return;
+
+  const coords = getAnnotationCoords(e);
+
+  if (annotationState.currentTool === 'pen') {
+    // Add point to path
+    annotationState.currentPath.push({x: coords.x, y: coords.y});
+    // Redraw with current path
+    redrawAnnotationCanvas();
+    drawCurrentPath();
+  } else {
+    // Preview shape
+    redrawAnnotationCanvas();
+    drawShapePreview(coords.x, coords.y);
+  }
+}
+
+/**
+ * Handle drawing end.
+ */
+function handleAnnotationEnd() {
+  if (!annotationState.isDrawing) return;
+
+  annotationState.isDrawing = false;
+
+  if (annotationState.currentTool === 'pen' && annotationState.currentPath.length > 1) {
+    // Commit freehand path
+    annotationState.shapes.push({
+      type: 'pen',
+      points: [...annotationState.currentPath],
+      color: annotationState.currentColor,
+      stroke: annotationState.currentStroke,
+    });
+    annotationState.currentPath = [];
+    annotationState.undoStack = []; // Clear redo on new action
+  } else if (annotationState.currentTool !== 'pen') {
+    // Commit shape (using last mouse position - we need to get it somehow)
+    // Actually, for shapes we commit on mouseup with the final position
+    // The shape was drawn in preview, now we commit it
+  }
+
+  redrawAnnotationCanvas();
+  updateUndoRedoButtons();
+}
+
+/**
+ * Draw current freehand path (while drawing).
+ */
+function drawCurrentPath() {
+  const ctx = annotationState.ctx;
+  const path = annotationState.currentPath;
+
+  if (path.length < 2) return;
+
+  ctx.strokeStyle = annotationState.currentColor;
+  ctx.lineWidth = annotationState.currentStroke;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) {
+    ctx.lineTo(path[i].x, path[i].y);
+  }
+  ctx.stroke();
+}
+
+/**
+ * Draw shape preview while dragging.
+ */
+function drawShapePreview(endX, endY) {
+  const ctx = annotationState.ctx;
+  const startX = annotationState.startX;
+  const startY = annotationState.startY;
+  const tool = annotationState.currentTool;
+
+  ctx.strokeStyle = annotationState.currentColor;
+  ctx.lineWidth = annotationState.currentStroke;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (tool === 'circle') {
+    const radiusX = Math.abs(endX - startX) / 2;
+    const radiusY = Math.abs(endY - startY) / 2;
+    const centerX = (startX + endX) / 2;
+    const centerY = (startY + endY) / 2;
+
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (tool === 'rect') {
+    ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+  } else if (tool === 'arrow') {
+    drawArrow(ctx, startX, startY, endX, endY);
+  }
+
+  // We'll commit the shape here instead of in handleAnnotationEnd
+  // Store end coordinates for commit
+  annotationState.endX = endX;
+  annotationState.endY = endY;
+}
+
+/**
+ * Draw an arrow from (x1,y1) to (x2,y2).
+ */
+function drawArrow(ctx, x1, y1, x2, y2) {
+  const headLen = 15;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // Arrowhead
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(
+    x2 - headLen * Math.cos(angle - Math.PI / 6),
+    y2 - headLen * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(
+    x2 - headLen * Math.cos(angle + Math.PI / 6),
+    y2 - headLen * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.stroke();
+}
+
+/**
+ * Commit shape when mouse up (for non-pen tools).
+ */
+function handleAnnotationEnd() {
+  if (!annotationState.isDrawing) return;
+  annotationState.isDrawing = false;
+
+  const tool = annotationState.currentTool;
+
+  if (tool === 'pen' && annotationState.currentPath.length > 1) {
+    annotationState.shapes.push({
+      type: 'pen',
+      points: [...annotationState.currentPath],
+      color: annotationState.currentColor,
+      stroke: annotationState.currentStroke,
+    });
+    annotationState.currentPath = [];
+  } else if (tool !== 'pen' && annotationState.endX !== undefined) {
+    const startX = annotationState.startX;
+    const startY = annotationState.startY;
+    const endX = annotationState.endX;
+    const endY = annotationState.endY;
+
+    // Only commit if there's actual movement
+    if (Math.abs(endX - startX) > 5 || Math.abs(endY - startY) > 5) {
+      annotationState.shapes.push({
+        type: tool,
+        startX, startY, endX, endY,
+        color: annotationState.currentColor,
+        stroke: annotationState.currentStroke,
+      });
+    }
+
+    annotationState.endX = undefined;
+    annotationState.endY = undefined;
+  }
+
+  annotationState.undoStack = []; // Clear redo on new action
+  redrawAnnotationCanvas();
+  updateUndoRedoButtons();
+}
+
+/**
+ * Redraw the canvas with image and all shapes.
+ */
+function redrawAnnotationCanvas() {
+  const ctx = annotationState.ctx;
+  const canvas = annotationState.canvas;
+  const img = annotationState.image;
+
+  if (!img) return;
+
+  // Clear and draw image
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  // Draw all committed shapes
+  for (const shape of annotationState.shapes) {
+    ctx.strokeStyle = shape.color;
+    ctx.lineWidth = shape.stroke;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (shape.type === 'pen') {
+      if (shape.points.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(shape.points[0].x, shape.points[0].y);
+      for (let i = 1; i < shape.points.length; i++) {
+        ctx.lineTo(shape.points[i].x, shape.points[i].y);
+      }
+      ctx.stroke();
+    } else if (shape.type === 'circle') {
+      const radiusX = Math.abs(shape.endX - shape.startX) / 2;
+      const radiusY = Math.abs(shape.endY - shape.startY) / 2;
+      const centerX = (shape.startX + shape.endX) / 2;
+      const centerY = (shape.startY + shape.endY) / 2;
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (shape.type === 'rect') {
+      ctx.strokeRect(shape.startX, shape.startY, shape.endX - shape.startX, shape.endY - shape.startY);
+    } else if (shape.type === 'arrow') {
+      drawArrow(ctx, shape.startX, shape.startY, shape.endX, shape.endY);
+    }
+  }
+}
+
+/**
+ * Set the current drawing tool.
+ */
+function setAnnotationTool(tool) {
+  annotationState.currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`.tool-btn[data-tool="${tool}"]`).classList.add('active');
+}
+
+/**
+ * Set the current drawing color.
+ */
+function setAnnotationColor(color) {
+  annotationState.currentColor = color;
+  document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`.color-btn[data-color="${color}"]`).classList.add('active');
+}
+
+/**
+ * Set the current stroke width.
+ */
+function setAnnotationStroke(width) {
+  annotationState.currentStroke = width;
+  document.querySelectorAll('.stroke-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`.stroke-btn[data-stroke="${width}"]`).classList.add('active');
+}
+
+/**
+ * Undo the last drawing action.
+ */
+function annotationUndo() {
+  if (annotationState.shapes.length === 0) return;
+
+  const shape = annotationState.shapes.pop();
+  annotationState.undoStack.push(shape);
+  redrawAnnotationCanvas();
+  updateUndoRedoButtons();
+}
+
+/**
+ * Redo the last undone action.
+ */
+function annotationRedo() {
+  if (annotationState.undoStack.length === 0) return;
+
+  const shape = annotationState.undoStack.pop();
+  annotationState.shapes.push(shape);
+  redrawAnnotationCanvas();
+  updateUndoRedoButtons();
+}
+
+/**
+ * Clear all annotations.
+ */
+function annotationClear() {
+  if (annotationState.shapes.length === 0) return;
+
+  if (confirm('¿Borrar todas las anotaciones?')) {
+    annotationState.undoStack.push(...annotationState.shapes);
+    annotationState.shapes = [];
+    redrawAnnotationCanvas();
+    updateUndoRedoButtons();
+  }
+}
+
+/**
+ * Update undo/redo button states.
+ */
+function updateUndoRedoButtons() {
+  const undoBtn = document.getElementById('btn-annotation-undo');
+  const redoBtn = document.getElementById('btn-annotation-redo');
+
+  undoBtn.disabled = annotationState.shapes.length === 0;
+  redoBtn.disabled = annotationState.undoStack.length === 0;
+}
+
+/**
+ * Close the annotation editor.
+ */
+function closeAnnotationEditor() {
+  document.getElementById('modal-annotation').style.display = 'none';
+  annotationState.canvas = null;
+  annotationState.ctx = null;
+  annotationState.image = null;
+}
+
+/**
+ * Show the share dialog with preview.
+ */
+function showAnnotationShareDialog() {
+  if (annotationState.shapes.length === 0) {
+    toast('Agregue anotaciones antes de compartir');
+    return;
+  }
+
+  // Generate preview image
+  const previewDataUrl = annotationState.canvas.toDataURL('image/png');
+  document.getElementById('annotation-share-preview-img').src = previewDataUrl;
+  document.getElementById('annotation-share-badge').textContent = annotationState.photoType;
+  document.getElementById('annotation-share-message').value = '';
+
+  document.getElementById('modal-annotation-share').style.display = 'flex';
+}
+
+/**
+ * Send the annotated image to chat.
+ */
+async function sendAnnotationToChat() {
+  const message = document.getElementById('annotation-share-message').value.trim();
+
+  if (!message) {
+    toast('Por favor escriba un mensaje');
+    return;
+  }
+
+  try {
+    // 1. Save annotation to backend
+    const annotationData = JSON.stringify(annotationState.shapes);
+    const annotation = await apiPost('/annotations/', {
+      photo_id: annotationState.photoId,
+      visit_id: annotationState.visitId,
+      photo_type: annotationState.photoType,
+      gondola_group_id: annotationState.gondolaGroupId,
+      annotation_data: annotationData,
+    });
+
+    // 2. Save preview image
+    const previewDataUrl = annotationState.canvas.toDataURL('image/png');
+    await apiPost(`/annotations/${annotation.id}/preview`, {
+      image_data: previewDataUrl,
+    });
+
+    // Get updated annotation with preview path
+    const updatedAnnotation = await apiGet(`/annotations/${annotation.id}`);
+
+    // 3. Send chat message with annotation reference
+    const routeId = annotationState.routeId;
+    if (!routeId) {
+      toast('No se puede determinar la ruta para el chat');
+      return;
+    }
+
+    const chatMessage = {
+      route_id: routeId,
+      text: message,
+      message_type: 'ANNOTATED_REFERENCE',
+      annotated_reference: {
+        annotation_id: annotation.id,
+        visit_id: annotationState.visitId,
+        store_id: annotationState.storeId,
+        store_name: annotationState.storeName,
+        photo_id: annotationState.photoId,
+        photo_type: annotationState.photoType,
+        gondola_group_id: annotationState.gondolaGroupId,
+        original_photo_url: annotationState.originalPhotoUrl,
+        annotation_preview_url: updatedAnnotation.preview_path,
+        captured_at: annotationState.capturedAt,
+      },
+    };
+
+    await apiPost(`/chat/routes/${routeId}/messages`, chatMessage);
+
+    toast('Anotación enviada al chat');
+    closeModal('modal-annotation-share');
+    closeAnnotationEditor();
+
+  } catch (err) {
+    console.error('Error sending annotation:', err);
+    toast('Error al enviar anotación: ' + err.message);
+  }
 }

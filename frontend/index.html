@@ -845,6 +845,107 @@
     </div>
   </div>
 
+  <!-- Image Annotation Editor Modal -->
+  <div id="modal-annotation" class="modal modal-fullscreen" style="display:none;">
+    <div class="annotation-editor">
+      <!-- Header -->
+      <div class="annotation-header">
+        <button class="btn btn-icon" onclick="closeAnnotationEditor()">
+          <span class="icon-back">&larr;</span>
+        </button>
+        <div class="annotation-title">
+          <span id="annotation-photo-type">BEFORE</span>
+          <span class="annotation-subtitle" id="annotation-store-name"></span>
+        </div>
+        <div class="annotation-header-actions">
+          <button class="btn btn-icon" onclick="annotationUndo()" id="btn-annotation-undo" disabled title="Deshacer">
+            <span class="icon-undo">&#8630;</span>
+          </button>
+          <button class="btn btn-icon" onclick="annotationRedo()" id="btn-annotation-redo" disabled title="Rehacer">
+            <span class="icon-redo">&#8631;</span>
+          </button>
+          <button class="btn btn-icon" onclick="annotationClear()" title="Limpiar todo">
+            <span class="icon-clear">&#128465;</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Area -->
+      <div class="annotation-canvas-container" id="annotation-canvas-container">
+        <canvas id="annotation-canvas"></canvas>
+      </div>
+
+      <!-- Drawing Tools -->
+      <div class="annotation-toolbar">
+        <div class="annotation-tools">
+          <button class="tool-btn active" data-tool="pen" onclick="setAnnotationTool('pen')" title="Lápiz">
+            <span class="tool-icon">&#9999;</span>
+          </button>
+          <button class="tool-btn" data-tool="circle" onclick="setAnnotationTool('circle')" title="Círculo">
+            <span class="tool-icon">&#9711;</span>
+          </button>
+          <button class="tool-btn" data-tool="rect" onclick="setAnnotationTool('rect')" title="Rectángulo">
+            <span class="tool-icon">&#9634;</span>
+          </button>
+          <button class="tool-btn" data-tool="arrow" onclick="setAnnotationTool('arrow')" title="Flecha">
+            <span class="tool-icon">&rarr;</span>
+          </button>
+        </div>
+        <div class="annotation-options">
+          <div class="color-picker">
+            <button class="color-btn active" data-color="#ff0000" onclick="setAnnotationColor('#ff0000')" style="background:#ff0000;"></button>
+            <button class="color-btn" data-color="#00ff00" onclick="setAnnotationColor('#00ff00')" style="background:#00ff00;"></button>
+            <button class="color-btn" data-color="#0000ff" onclick="setAnnotationColor('#0000ff')" style="background:#0000ff;"></button>
+            <button class="color-btn" data-color="#ffff00" onclick="setAnnotationColor('#ffff00')" style="background:#ffff00;"></button>
+            <button class="color-btn" data-color="#ffffff" onclick="setAnnotationColor('#ffffff')" style="background:#ffffff;border:1px solid #ccc;"></button>
+          </div>
+          <div class="stroke-picker">
+            <button class="stroke-btn" data-stroke="2" onclick="setAnnotationStroke(2)">
+              <span style="font-size:10px;">S</span>
+            </button>
+            <button class="stroke-btn active" data-stroke="4" onclick="setAnnotationStroke(4)">
+              <span style="font-size:14px;">M</span>
+            </button>
+            <button class="stroke-btn" data-stroke="8" onclick="setAnnotationStroke(8)">
+              <span style="font-size:18px;">L</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Share to Chat -->
+      <div class="annotation-footer">
+        <button class="btn btn-primary btn-block" onclick="showAnnotationShareDialog()">
+          Compartir en Chat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotation Share Dialog -->
+  <div id="modal-annotation-share" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Compartir en Chat</h3>
+        <button class="modal-close" onclick="closeModal('modal-annotation-share')">&times;</button>
+      </div>
+      <div class="annotation-share-body">
+        <div class="annotation-share-preview">
+          <img id="annotation-share-preview-img" src="" alt="Preview">
+          <span class="annotation-share-badge" id="annotation-share-badge">BEFORE</span>
+        </div>
+        <div class="form-group">
+          <label>Mensaje</label>
+          <textarea id="annotation-share-message" rows="3" placeholder="Escribe un comentario sobre esta imagen..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('modal-annotation-share')">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="sendAnnotationToChat()">Enviar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>
 </body>

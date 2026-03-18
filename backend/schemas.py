@@ -408,8 +408,9 @@ class ChatMessageCreate(BaseModel):
     """Create a new chat message."""
     route_id: int
     text: str
-    message_type: str = "TEXT"  # TEXT | TAGGED_REFERENCE
+    message_type: str = "TEXT"  # TEXT | TAGGED_REFERENCE | ANNOTATED_REFERENCE
     reference: Optional[TaggedReference] = None
+    annotated_reference: Optional["AnnotatedReference"] = None
 
 
 class ChatMessageOut(BaseModel):
@@ -432,6 +433,10 @@ class ChatMessageOut(BaseModel):
     ref_photo_url: Optional[str] = None
     ref_captured_at: Optional[datetime] = None
 
+    # Annotation reference fields (for ANNOTATED_REFERENCE)
+    ref_annotation_id: Optional[int] = None
+    ref_annotation_preview_url: Optional[str] = None
+
     created_at: datetime
     is_read: bool
 
@@ -442,3 +447,44 @@ class ChatMessageOut(BaseModel):
 class ChatMessageMarkRead(BaseModel):
     """Mark chat messages as read."""
     message_ids: list[int]
+
+
+# ── Image Annotations ────────────────────────────────────────────────────
+
+class AnnotationCreate(BaseModel):
+    """Create an annotation on a visit photo."""
+    photo_id: int
+    visit_id: int
+    photo_type: str  # BEFORE | AFTER
+    gondola_group_id: Optional[str] = None
+    annotation_data: str  # JSON array of drawing objects
+
+
+class AnnotationOut(BaseModel):
+    """Annotation response."""
+    id: int
+    photo_id: int
+    visit_id: int
+    photo_type: str
+    gondola_group_id: Optional[str] = None
+    annotation_data: str  # JSON array of drawing objects
+    preview_path: Optional[str] = None
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AnnotatedReference(BaseModel):
+    """Reference to an annotated photo for chat messages."""
+    annotation_id: int
+    visit_id: int
+    store_id: int
+    store_name: str
+    photo_id: int
+    photo_type: str  # BEFORE | AFTER
+    gondola_group_id: Optional[str] = None
+    original_photo_url: Optional[str] = None
+    annotation_preview_url: Optional[str] = None
+    captured_at: Optional[datetime] = None
