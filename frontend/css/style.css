@@ -2440,13 +2440,21 @@ tr.inactive-row {
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 8px;
+  position: relative;
 }
 
-.chat-message-annotation img {
+.chat-message-annotation .annotation-image-container {
+  position: relative;
   width: 100%;
-  max-height: 200px;
+}
+
+.chat-message-annotation .annotation-image {
+  width: 100%;
+  max-height: 300px;
   object-fit: contain;
   cursor: pointer;
+  display: block;
+  background: #eee;
 }
 
 .chat-message-annotation .annotation-badge {
@@ -2459,6 +2467,17 @@ tr.inactive-row {
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 4px;
+}
+
+.chat-message-annotation .annotation-meta {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #666;
+  border-top: 1px solid #eee;
+}
+
+.chat-message-annotation .annotation-meta strong {
+  color: #333;
 }
 
 /* Photo viewer with annotate button */

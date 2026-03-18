@@ -2651,13 +2651,12 @@ function renderChatMessage(msg, currentUserId) {
     const previewUrl = msg.ref_annotation_preview_url || msg.ref_photo_url;
     referenceHtml = `
       <div class="chat-message-annotation" onclick="navigateToTaggedPhoto(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
-        <div class="reference-preview-row">
-          <img class="reference-preview-thumbnail" src="${previewUrl}" alt="Annotated" style="max-height:150px;object-fit:contain;">
-          <div class="reference-preview-info">
-            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
-            <span class="reference-preview-meta">Imagen Anotada</span>
-            <span class="reference-preview-badge" style="background:#ef4444;">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
-          </div>
+        <div class="annotation-image-container">
+          <img class="annotation-image" src="${previewUrl}" alt="Imagen anotada">
+          <span class="annotation-badge">${msg.ref_photo_type === 'BEFORE' ? 'ANTES' : 'DESPUÉS'}</span>
+        </div>
+        <div class="annotation-meta">
+          <strong>${msg.ref_store_name || 'Tienda'}</strong>
         </div>
       </div>
     `;
@@ -3168,13 +3167,12 @@ function renderMerchChatMessage(msg, currentUserId) {
     const previewUrl = msg.ref_annotation_preview_url || msg.ref_photo_url;
     referenceHtml = `
       <div class="chat-message-annotation" onclick="navigateToTaggedPhotoMerch(${msg.ref_visit_id}, '${msg.ref_gondola_group_id || ''}', '${msg.ref_photo_type || ''}')">
-        <div class="reference-preview-row">
-          <img class="reference-preview-thumbnail" src="${previewUrl}" alt="Annotated" style="max-height:150px;object-fit:contain;">
-          <div class="reference-preview-info">
-            <span class="reference-preview-store">${msg.ref_store_name || 'Tienda'}</span>
-            <span class="reference-preview-meta">Imagen Anotada</span>
-            <span class="reference-preview-badge" style="background:#ef4444;">${msg.ref_photo_type === 'BEFORE' ? 'Antes' : 'Después'}</span>
-          </div>
+        <div class="annotation-image-container">
+          <img class="annotation-image" src="${previewUrl}" alt="Imagen anotada">
+          <span class="annotation-badge">${msg.ref_photo_type === 'BEFORE' ? 'ANTES' : 'DESPUÉS'}</span>
+        </div>
+        <div class="annotation-meta">
+          <strong>${msg.ref_store_name || 'Tienda'}</strong>
         </div>
       </div>
     `;
