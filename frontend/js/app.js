@@ -71,7 +71,9 @@ function showApp() {
   // Show chat tab for merchandisers (admins have chat in Por Ruta)
   if (navChat) navChat.style.display = !isAdmin ? 'block' : 'none';
 
-  navigateTo('visit');
+  // Restore last active tab or default to 'visit'
+  const lastTab = localStorage.getItem('activeTab') || 'visit';
+  navigateTo(lastTab);
 }
 
 // ── Navigation ──────────────────────────────────────────────────────────
@@ -83,6 +85,9 @@ function navigateTo(page) {
   const tabEl = document.querySelector(`[data-page="${page}"]`);
   if (pageEl) pageEl.classList.add('active');
   if (tabEl) tabEl.classList.add('active');
+
+  // Remember active tab for page refresh
+  localStorage.setItem('activeTab', page);
 
   switch (page) {
     case 'visit': loadVisitPage(); break;
