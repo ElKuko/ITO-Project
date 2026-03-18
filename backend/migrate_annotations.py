@@ -38,19 +38,27 @@ def migrate():
         cursor.execute("CREATE INDEX ix_image_annotations_visit_id ON image_annotations(visit_id)")
         print("Created image_annotations table.")
 
-    # Check if chat_messages has ref_annotation_id column
-    cursor.execute("PRAGMA table_info(chat_messages)")
-    columns = [col[1] for col in cursor.fetchall()]
+    # Check if chat_messages table exists
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='chat_messages'
+    """)
+    if cursor.fetchone():
+        # Table exists, check for columns
+        cursor.execute("PRAGMA table_info(chat_messages)")
+        columns = [col[1] for col in cursor.fetchall()]
 
-    if "ref_annotation_id" not in columns:
-        print("Adding ref_annotation_id column to chat_messages...")
-        cursor.execute("ALTER TABLE chat_messages ADD COLUMN ref_annotation_id INTEGER")
-        print("Added ref_annotation_id column.")
+        if "ref_annotation_id" not in columns:
+            print("Adding ref_annotation_id column to chat_messages...")
+            cursor.execute("ALTER TABLE chat_messages ADD COLUMN ref_annotation_id INTEGER")
+            print("Added ref_annotation_id column.")
 
-    if "ref_annotation_preview_url" not in columns:
-        print("Adding ref_annotation_preview_url column to chat_messages...")
-        cursor.execute("ALTER TABLE chat_messages ADD COLUMN ref_annotation_preview_url VARCHAR(500)")
-        print("Added ref_annotation_preview_url column.")
+        if "ref_annotation_preview_url" not in columns:
+            print("Adding ref_annotation_preview_url column to chat_messages...")
+            cursor.execute("ALTER TABLE chat_messages ADD COLUMN ref_annotation_preview_url VARCHAR(500)")
+            print("Added ref_annotation_preview_url column.")
+    else:
+        print("chat_messages table does not exist yet - it will be created with all columns when the app starts.")
 
     conn.commit()
     conn.close()
