@@ -1289,13 +1289,34 @@ async function loadStoreApprovals() {
 
     const approvedIds = new Set(approvals.map(a => a.sku_id));
 
+    // Group SKUs by section
+    const sections = ['produce', 'provisiones', 'congelados'];
+    const grouped = { produce: [], provisiones: [], congelados: [] };
+
+    allSkus.forEach(sku => {
+      const section = sku.section || 'provisiones';
+      if (grouped[section]) {
+        grouped[section].push(sku);
+      } else {
+        grouped.provisiones.push(sku);
+      }
+    });
+
     const skuList = document.getElementById('approval-sku-list');
-    skuList.innerHTML = allSkus.map(sku => `
-      <li class="approval-item">
-        <input type="checkbox" id="sku-${sku.id}" value="${sku.id}" ${approvedIds.has(sku.id) ? 'checked' : ''}>
-        <label for="sku-${sku.id}">${sku.name} <span class="meta">(${sku.brand})</span></label>
-      </li>
-    `).join('');
+    skuList.innerHTML = sections.map(section => {
+      const sectionSkus = grouped[section];
+      if (sectionSkus.length === 0) return '';
+
+      return `
+        <li class="approval-section-header">${SECTION_LABELS[section]}</li>
+        ${sectionSkus.map(sku => `
+          <li class="approval-item">
+            <input type="checkbox" id="sku-${sku.id}" value="${sku.id}" ${approvedIds.has(sku.id) ? 'checked' : ''}>
+            <label for="sku-${sku.id}">${sku.name} <span class="meta">(${sku.brand})</span></label>
+          </li>
+        `).join('')}
+      `;
+    }).join('');
 
     document.getElementById('approval-editor').style.display = 'block';
   } catch (err) {

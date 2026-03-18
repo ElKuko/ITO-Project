@@ -637,6 +637,20 @@ th {
   font-size: 14px;
 }
 
+.approval-section-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 12px 0 8px;
+  margin-top: 8px;
+  border-bottom: 2px solid var(--primary);
+  list-style: none;
+}
+
+.approval-section-header:first-child {
+  margin-top: 0;
+}
+
 /* ── Photo Capture Area ─────────────────────────────────────────────── */
 .photo-capture-area {
   text-align: center;
