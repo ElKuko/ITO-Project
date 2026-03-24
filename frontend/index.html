@@ -491,8 +491,11 @@
           <select id="filter-region" onchange="refreshDashboard()">
             <option value="">Todas las Regiones</option>
           </select>
-          <input type="date" id="filter-date-from" onchange="refreshDashboard()">
-          <input type="date" id="filter-date-to" onchange="refreshDashboard()">
+          <div class="date-quick-filters">
+            <button class="quick-filter-btn" data-range="today" onclick="setDateFilter('today')">Hoy</button>
+            <button class="quick-filter-btn" data-range="week" onclick="setDateFilter('week')">Esta Semana</button>
+            <button class="quick-filter-btn" data-range="month" onclick="setDateFilter('month')">Este Mes</button>
+          </div>
         </div>
 
         <!-- Summary Stats -->

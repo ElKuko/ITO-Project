@@ -364,6 +364,32 @@ th {
   background: white;
 }
 
+.date-quick-filters {
+  display: flex;
+  gap: 4px;
+}
+
+.quick-filter-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-filter-btn:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+}
+
+.quick-filter-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
 /* ── CV Results overlay ──────────────────────────────────────────────── */
 .cv-result-container {
   position: relative;

@@ -1243,10 +1243,50 @@ async function loadDashboardPage() {
   }
 }
 
+// Dashboard date filter state
+let dashboardDateFilter = null; // 'today' | 'week' | 'month' | null
+
+function setDateFilter(range) {
+  // Toggle off if clicking the same filter
+  if (dashboardDateFilter === range) {
+    dashboardDateFilter = null;
+  } else {
+    dashboardDateFilter = range;
+  }
+
+  // Update button states
+  document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.range === dashboardDateFilter);
+  });
+
+  refreshDashboard();
+}
+
+function getDateRange(range) {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+
+  if (range === 'today') {
+    return { from: todayStr, to: todayStr };
+  } else if (range === 'week') {
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const mmMon = String(monday.getMonth() + 1).padStart(2, '0');
+    const ddMon = String(monday.getDate()).padStart(2, '0');
+    return { from: `${monday.getFullYear()}-${mmMon}-${ddMon}`, to: todayStr };
+  } else if (range === 'month') {
+    return { from: `${yyyy}-${mm}-01`, to: todayStr };
+  }
+  return { from: null, to: null };
+}
+
 async function refreshDashboard() {
   const region = document.getElementById('filter-region').value;
-  const dateFrom = document.getElementById('filter-date-from').value;
-  const dateTo = document.getElementById('filter-date-to').value;
+  const { from: dateFrom, to: dateTo } = getDateRange(dashboardDateFilter);
 
   let params = [];
   if (region) params.push(`region=${region}`);
@@ -1261,7 +1301,16 @@ async function refreshDashboard() {
     ]);
 
     document.getElementById('stat-visits').textContent = summary.total_visits;
-    document.getElementById('stat-coverage').textContent = `${(summary.coverage_rate * 100).toFixed(0)}%`;
+
+    // Only show coverage when a date filter is active
+    const coverageEl = document.getElementById('stat-coverage');
+    const coverageCard = coverageEl.closest('.stat-card');
+    if (dashboardDateFilter) {
+      coverageEl.textContent = `${(summary.coverage_rate * 100).toFixed(0)}%`;
+      coverageCard.style.display = '';
+    } else {
+      coverageCard.style.display = 'none';
+    }
 
     // Action type stats
     const gondolaLlena = document.getElementById('stat-gondola-llena');
