@@ -1,0 +1,45 @@
+# Alembic Database Migrations
+
+## Setup (first time after cloning)
+
+After seeding the database, it's automatically stamped as up-to-date.
+
+If you have an existing database, stamp it manually:
+```bash
+cd backend
+alembic stamp head
+```
+
+## When you modify models.py
+
+1. Generate a migration:
+```bash
+cd backend
+alembic revision --autogenerate -m "Add new_column to users"
+```
+
+2. Review the generated file in `alembic/versions/`
+
+3. Apply the migration:
+```bash
+alembic upgrade head
+```
+
+## Common commands
+
+```bash
+# Check current revision
+alembic current
+
+# Show migration history
+alembic history
+
+# Upgrade to latest
+alembic upgrade head
+
+# Downgrade one revision
+alembic downgrade -1
+
+# Downgrade to specific revision
+alembic downgrade abc123
+```

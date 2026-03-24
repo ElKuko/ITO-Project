@@ -16,6 +16,19 @@ from backend.models import User, SKU, Route
 from backend.auth import hash_password
 
 
+def stamp_alembic():
+    """Mark the database as up-to-date with current migrations."""
+    try:
+        from alembic.config import Config
+        from alembic import command
+
+        alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "alembic.ini"))
+        command.stamp(alembic_cfg, "head")
+        print("  Alembic: Database stamped as up-to-date")
+    except Exception as e:
+        print(f"  Alembic: Could not stamp database ({e})")
+
+
 def seed():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -83,12 +96,15 @@ def seed():
     db.commit()
     db.close()
 
+    # Stamp database for Alembic migrations
+    stamp_alembic()
+
     print("Database seeded successfully!")
     print("  Users: admin/admin123 (president), merch1/merch123, merch2/merch123")
     print("  Routes: 1 (Norte)")
     print(f"  SKUs: {len(skus)}")
     print("")
-    print("Next: Run 'python scripts/seed_ruta_norte.py' to add stores.")
+    print("Next: Run 'python scripts/seed_all_skus.py' to add all SKUs and stores.")
 
 
 if __name__ == "__main__":
