@@ -584,6 +584,7 @@
           <button class="admin-tab" data-admin-tab="skus" onclick="showAdminTab('skus')">SKUs</button>
           <button class="admin-tab" data-admin-tab="stores" onclick="showAdminTab('stores')">Tiendas</button>
           <button class="admin-tab" data-admin-tab="routes" onclick="showAdminTab('routes')">Rutas</button>
+          <button class="admin-tab" data-admin-tab="reports" onclick="showAdminTab('reports')">Reportes</button>
         </div>
 
         <!-- Admin: Users Management -->
@@ -671,6 +672,64 @@
               </thead>
               <tbody id="admin-routes-table"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Admin: Reports -->
+        <div id="admin-tab-reports" class="admin-panel">
+          <div class="admin-header">
+            <h3>Reportes</h3>
+          </div>
+          <p class="meta" style="margin:0 0 16px;">Datos de inteligencia de mercado obtenidos via los merchandisers.</p>
+
+          <!-- Report: SKUs Aprobados -->
+          <div class="report-card" style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <div>
+                <h4 style="margin:0;">SKUs Aprobados en Tiendas</h4>
+                <p class="meta" style="margin:4px 0 0;">Lista de productos aprobados por tienda. Datos que los supermercados no comparten.</p>
+              </div>
+              <button class="btn btn-primary" onclick="downloadApprovedSkusExcel()">Descargar Excel</button>
+            </div>
+
+            <!-- Filters -->
+            <div class="filter-row" style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+              <select id="report-filter-quarter" onchange="loadApprovedSkusReport()" style="padding:6px 10px;">
+                <option value="">Todos los trimestres</option>
+              </select>
+              <select id="report-filter-chain" onchange="loadApprovedSkusReport()" style="padding:6px 10px;">
+                <option value="">Todas las cadenas</option>
+              </select>
+              <select id="report-filter-region" onchange="loadApprovedSkusReport()" style="padding:6px 10px;">
+                <option value="">Todas las regiones</option>
+              </select>
+            </div>
+
+            <!-- Summary stats -->
+            <div id="report-summary" style="display:flex;gap:20px;margin-bottom:12px;">
+              <span class="meta">Tiendas: <strong id="report-total-stores">0</strong></span>
+              <span class="meta">Aprobaciones: <strong id="report-total-approvals">0</strong></span>
+            </div>
+
+            <!-- Data table -->
+            <div class="table-wrapper" style="max-height:400px;overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tienda</th>
+                    <th>Cadena</th>
+                    <th>Pueblo</th>
+                    <th>Región</th>
+                    <th>SKU</th>
+                    <th>Marca</th>
+                    <th>Categoría</th>
+                    <th>Sección</th>
+                    <th>Trimestre</th>
+                  </tr>
+                </thead>
+                <tbody id="report-approved-skus-table"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

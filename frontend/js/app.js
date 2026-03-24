@@ -1497,6 +1497,7 @@ function showAdminTab(tab) {
   else if (tab === 'skus') loadAdminSkus();
   else if (tab === 'stores') loadAdminStores();
   else if (tab === 'routes') loadAdminRoutes();
+  else if (tab === 'reports') loadReports();
 }
 
 // ── User Management ──────────────────────────────────────────────────────
@@ -1960,6 +1961,140 @@ async function assignMerchandiserToRoute(routeId, merchandiserId) {
     toast('Error: ' + err.message);
     loadAdminRoutes(); // Reload to reset select
   }
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────
+
+let reportsData = {
+  filterOptions: null,
+  approvedSkus: null,
+};
+
+async function loadReports() {
+  // Load filter options if not already loaded
+  if (!reportsData.filterOptions) {
+    await loadReportFilterOptions();
+  }
+  // Load the approved SKUs report
+  loadApprovedSkusReport();
+}
+
+async function loadReportFilterOptions() {
+  try {
+    const options = await apiGet('/reports/filter-options');
+    reportsData.filterOptions = options;
+
+    // Populate quarter filter
+    const quarterSelect = document.getElementById('report-filter-quarter');
+    if (quarterSelect) {
+      quarterSelect.innerHTML = '<option value="">Todos los trimestres</option>' +
+        options.quarters.map(q => `<option value="${q}">${q}</option>`).join('');
+    }
+
+    // Populate chain filter
+    const chainSelect = document.getElementById('report-filter-chain');
+    if (chainSelect) {
+      chainSelect.innerHTML = '<option value="">Todas las cadenas</option>' +
+        options.chains.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    // Populate region filter
+    const regionSelect = document.getElementById('report-filter-region');
+    if (regionSelect) {
+      regionSelect.innerHTML = '<option value="">Todas las regiones</option>' +
+        options.regions.map(r => `<option value="${r}">${r}</option>`).join('');
+    }
+  } catch (err) {
+    console.error('Error loading filter options:', err);
+  }
+}
+
+async function loadApprovedSkusReport() {
+  const quarter = document.getElementById('report-filter-quarter')?.value || '';
+  const chain = document.getElementById('report-filter-chain')?.value || '';
+  const region = document.getElementById('report-filter-region')?.value || '';
+
+  try {
+    let url = '/reports/approved-skus/flat?';
+    if (quarter) url += `quarter=${encodeURIComponent(quarter)}&`;
+    if (chain) url += `chain=${encodeURIComponent(chain)}&`;
+    if (region) url += `region=${encodeURIComponent(region)}&`;
+
+    const data = await apiGet(url);
+    reportsData.approvedSkus = data;
+
+    // Update summary
+    const uniqueStores = new Set(data.rows.map(r => r.tienda)).size;
+    document.getElementById('report-total-stores').textContent = uniqueStores;
+    document.getElementById('report-total-approvals').textContent = data.rows.length;
+
+    // Render table
+    const tbody = document.getElementById('report-approved-skus-table');
+    if (tbody) {
+      if (data.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">No hay datos para los filtros seleccionados</td></tr>';
+      } else {
+        tbody.innerHTML = data.rows.map(r => `
+          <tr>
+            <td>${r.tienda}</td>
+            <td>${r.cadena}</td>
+            <td>${r.pueblo}</td>
+            <td>${r.region}</td>
+            <td>${r.sku}</td>
+            <td>${r.marca}</td>
+            <td>${r.categoria}</td>
+            <td>${r.seccion}</td>
+            <td>${r.trimestre}</td>
+          </tr>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    toast('Error cargando reporte');
+    console.error(err);
+  }
+}
+
+function downloadApprovedSkusExcel() {
+  const data = reportsData.approvedSkus;
+  if (!data || data.rows.length === 0) {
+    toast('No hay datos para descargar');
+    return;
+  }
+
+  // Create CSV content (Excel-compatible)
+  const headers = data.columns.map(c => c.label);
+  const rows = data.rows.map(row =>
+    data.columns.map(c => {
+      const val = row[c.key] || '';
+      // Escape quotes and wrap in quotes if contains comma or quote
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    }).join(',')
+  );
+
+  // Add BOM for Excel UTF-8 compatibility
+  const BOM = '\uFEFF';
+  const csv = BOM + headers.join(',') + '\n' + rows.join('\n');
+
+  // Create download link
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+
+  // Generate filename with date
+  const date = new Date().toISOString().split('T')[0];
+  a.download = `SKUs_Aprobados_${date}.csv`;
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  toast('Descarga iniciada');
 }
 
 // ── Modal Helpers ────────────────────────────────────────────────────────
