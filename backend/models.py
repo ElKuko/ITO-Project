@@ -130,6 +130,7 @@ class StoreVisit(Base):
     prices_on_gondola = Column(Boolean, nullable=True)  # Estan todos los precios?
     pop_material_present = Column(Boolean, nullable=True)  # Esta todo el material PoP?
     product_presentable = Column(Boolean, nullable=True)  # Esta limpio y presentable?
+    gondola_space_gained = Column(Boolean, nullable=True)  # Lograste coger mas espacio en la gondola?
     condition_notes = Column(Text, nullable=True)  # Optional notes if any "No"
 
     # Condition checks per section (JSON)

@@ -226,6 +226,7 @@ class VisitConditionChecks(BaseModel):
     prices_on_gondola: bool
     pop_material_present: bool
     product_presentable: bool
+    gondola_space_gained: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -239,6 +240,7 @@ class VisitCompleteRequest(BaseModel):
     prices_on_gondola: Optional[bool] = None
     pop_material_present: Optional[bool] = None
     product_presentable: Optional[bool] = None
+    gondola_space_gained: Optional[bool] = None
     condition_notes: Optional[str] = None
 
     # SKU actions (all approved SKUs should have an action)
@@ -261,6 +263,7 @@ class StoreVisitOut(BaseModel):
     prices_on_gondola: Optional[bool] = None
     pop_material_present: Optional[bool] = None
     product_presentable: Optional[bool] = None
+    gondola_space_gained: Optional[bool] = None
     condition_notes: Optional[str] = None
     section_conditions: Optional[str] = None  # JSON string
 

@@ -208,6 +208,7 @@ def get_route_visits(
                 "prices_on_gondola": v.prices_on_gondola,
                 "pop_material_present": v.pop_material_present,
                 "product_presentable": v.product_presentable,
+                "gondola_space_gained": v.gondola_space_gained,
             }
             for v in visits
         ],

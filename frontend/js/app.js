@@ -133,9 +133,9 @@ let visitState = {
   },
   // Per-section conditions
   sectionConditions: {
-    produce: { prices: null, pop: null, presentable: null, notes: '' },
-    provisiones: { prices: null, pop: null, presentable: null, notes: '' },
-    congelados: { prices: null, pop: null, presentable: null, notes: '' },
+    produce: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
+    provisiones: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
+    congelados: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
   },
   photos: { arrival: null },
   gps: { lat: null, lng: null, accuracy: null },
@@ -162,9 +162,9 @@ function resetVisitState() {
       congelados: [],
     },
     sectionConditions: {
-      produce: { prices: null, pop: null, presentable: null, notes: '' },
-      provisiones: { prices: null, pop: null, presentable: null, notes: '' },
-      congelados: { prices: null, pop: null, presentable: null, notes: '' },
+      produce: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
+      provisiones: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
+      congelados: { prices: null, pop: null, presentable: null, gondola_space: null, notes: '' },
     },
     photos: { arrival: null },
     gps: { lat: null, lng: null, accuracy: null },
@@ -636,7 +636,7 @@ function restoreSectionState(section) {
 
   // Restore condition button states
   const cond = visitState.sectionConditions[section];
-  ['prices', 'pop', 'presentable'].forEach(field => {
+  ['prices', 'pop', 'presentable', 'gondola_space'].forEach(field => {
     const value = cond[field];
     if (value !== null) {
       const btns = document.querySelectorAll(`.toggle-btn[data-section="${section}"][data-field="${field}"]`);
@@ -929,6 +929,7 @@ function showVisitSummary() {
         <span class="${condClass(cond.prices)}">Precios ${condIcon(cond.prices)}</span>
         <span class="${condClass(cond.pop)}">PoP ${condIcon(cond.pop)}</span>
         <span class="${condClass(cond.presentable)}">Presentable ${condIcon(cond.presentable)}</span>
+        <span class="${condClass(cond.gondola_space)}">+Espacio ${condIcon(cond.gondola_space)}</span>
         ${cond.notes ? `<span class="cond-notes">(${cond.notes})</span>` : ''}
       </div>
     `;

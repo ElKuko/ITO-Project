@@ -163,6 +163,13 @@
                   <button class="toggle-btn" data-section="produce" data-field="presentable" onclick="setSectionCondition('produce', 'presentable', false, this)">No</button>
                 </div>
               </div>
+              <div class="condition-check">
+                <label>¿Lograste coger más espacio en la góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="produce" data-field="gondola_space" onclick="setSectionCondition('produce', 'gondola_space', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="produce" data-field="gondola_space" onclick="setSectionCondition('produce', 'gondola_space', false, this)">No</button>
+                </div>
+              </div>
               <div class="form-group condition-notes-group" id="condition-notes-group-produce" style="display:none;">
                 <label>Notas</label>
                 <textarea id="condition-notes-produce" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('produce', this.value)"></textarea>
@@ -242,6 +249,13 @@
                   <button class="toggle-btn" data-section="provisiones" data-field="presentable" onclick="setSectionCondition('provisiones', 'presentable', false, this)">No</button>
                 </div>
               </div>
+              <div class="condition-check">
+                <label>¿Lograste coger más espacio en la góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="provisiones" data-field="gondola_space" onclick="setSectionCondition('provisiones', 'gondola_space', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="provisiones" data-field="gondola_space" onclick="setSectionCondition('provisiones', 'gondola_space', false, this)">No</button>
+                </div>
+              </div>
               <div class="form-group condition-notes-group" id="condition-notes-group-provisiones" style="display:none;">
                 <label>Notas</label>
                 <textarea id="condition-notes-provisiones" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('provisiones', this.value)"></textarea>
@@ -319,6 +333,13 @@
                 <div class="toggle-group">
                   <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', true, this)">Sí</button>
                   <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', false, this)">No</button>
+                </div>
+              </div>
+              <div class="condition-check">
+                <label>¿Lograste coger más espacio en la góndola?</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn" data-section="congelados" data-field="gondola_space" onclick="setSectionCondition('congelados', 'gondola_space', true, this)">Sí</button>
+                  <button class="toggle-btn" data-section="congelados" data-field="gondola_space" onclick="setSectionCondition('congelados', 'gondola_space', false, this)">No</button>
                 </div>
               </div>
               <div class="form-group condition-notes-group" id="condition-notes-group-congelados" style="display:none;">

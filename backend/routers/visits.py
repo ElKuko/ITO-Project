@@ -272,6 +272,7 @@ def update_condition_checks(
     visit.prices_on_gondola = req.prices_on_gondola
     visit.pop_material_present = req.pop_material_present
     visit.product_presentable = req.product_presentable
+    visit.gondola_space_gained = req.gondola_space_gained
     visit.condition_notes = req.notes
     db.commit()
 
@@ -306,6 +307,8 @@ async def complete_visit(
         visit.pop_material_present = req.pop_material_present
     if req.product_presentable is not None:
         visit.product_presentable = req.product_presentable
+    if req.gondola_space_gained is not None:
+        visit.gondola_space_gained = req.gondola_space_gained
     if req.condition_notes:
         visit.condition_notes = req.condition_notes
 
