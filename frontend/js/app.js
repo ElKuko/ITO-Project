@@ -1244,7 +1244,7 @@ async function loadDashboardPage() {
 }
 
 // Dashboard date filter state
-let dashboardDateFilter = null; // 'today' | 'week' | 'month' | null
+let dashboardDateFilter = null; // 'today' | 'week' | 'month' | 'custom' | null
 
 function setDateFilter(range) {
   // Toggle off if clicking the same filter
@@ -1254,9 +1254,26 @@ function setDateFilter(range) {
     dashboardDateFilter = range;
   }
 
+  // Clear custom date inputs when using quick filters
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+
   // Update button states
   document.querySelectorAll('.quick-filter-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.range === dashboardDateFilter);
+  });
+
+  refreshDashboard();
+}
+
+function setCustomDateFilter() {
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+
+  // Clear quick filter buttons
+  dashboardDateFilter = (dateFrom || dateTo) ? 'custom' : null;
+  document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+    btn.classList.remove('active');
   });
 
   refreshDashboard();
@@ -1286,7 +1303,16 @@ function getDateRange(range) {
 
 async function refreshDashboard() {
   const region = document.getElementById('filter-region').value;
-  const { from: dateFrom, to: dateTo } = getDateRange(dashboardDateFilter);
+
+  let dateFrom, dateTo;
+  if (dashboardDateFilter === 'custom') {
+    dateFrom = document.getElementById('filter-date-from').value;
+    dateTo = document.getElementById('filter-date-to').value;
+  } else {
+    const range = getDateRange(dashboardDateFilter);
+    dateFrom = range.from;
+    dateTo = range.to;
+  }
 
   let params = [];
   if (region) params.push(`region=${region}`);

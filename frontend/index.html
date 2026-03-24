@@ -496,6 +496,8 @@
             <button class="quick-filter-btn" data-range="week" onclick="setDateFilter('week')">Esta Semana</button>
             <button class="quick-filter-btn" data-range="month" onclick="setDateFilter('month')">Este Mes</button>
           </div>
+          <input type="date" id="filter-date-from" onchange="setCustomDateFilter()">
+          <input type="date" id="filter-date-to" onchange="setCustomDateFilter()">
         </div>
 
         <!-- Summary Stats -->
