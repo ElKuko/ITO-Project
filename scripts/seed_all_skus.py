@@ -1,5 +1,11 @@
 """Master seed script for all Ito data (SKUs and Routes)"""
 
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from scripts.seed_skus_refrigerados import seed_refrigerados
 from scripts.seed_skus_congelados import seed_congelados
 from scripts.seed_skus_secos import seed_secos
