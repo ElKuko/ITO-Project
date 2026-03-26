@@ -26,8 +26,7 @@ from ..schemas import (
 )
 from ..auth import get_current_user
 from ..cv.void_detector import analyze_shelf_image
-
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "uploads")
+from ..storage import storage
 
 router = APIRouter(prefix="/api/visits", tags=["visits"])
 
@@ -151,12 +150,10 @@ async def upload_photo(
 
     ext = os.path.splitext(file.filename or "photo.jpg")[1] or ".jpg"
     filename = f"{visit_id}_{photo_type}_{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    content_type = file.content_type or "image/jpeg"
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
     contents = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    file_url = await storage.upload(contents, filename, content_type)
 
     # Parse captured_at if provided
     photo_captured_at = datetime.utcnow()
@@ -166,21 +163,25 @@ async def upload_photo(
         except ValueError:
             pass
 
-    # Run CV on gondola photos
+    # Run CV on gondola photos (only works with local storage)
     cv_results = None
     cv_processed = False
     if should_run_cv and photo_type in ("gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf"):
-        try:
-            result = analyze_shelf_image(filepath)
-            cv_results = json.dumps(result)
-            cv_processed = True
-        except Exception:
-            pass
+        # CV analysis requires local file access - skip for cloud storage
+        if file_url.startswith("/uploads/"):
+            try:
+                from ..config import UPLOAD_DIR
+                local_path = os.path.join(UPLOAD_DIR, filename)
+                result = analyze_shelf_image(local_path)
+                cv_results = json.dumps(result)
+                cv_processed = True
+            except Exception:
+                pass
 
     photo = VisitPhoto(
         visit_id=visit_id,
         photo_type=photo_type,
-        file_path=f"/uploads/{filename}",
+        file_path=file_url,
         gondola_group_id=group_id,
         captured_at=photo_captured_at,
         latitude=lat,
@@ -387,13 +388,21 @@ def reprocess_photo(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """Re-run CV analysis on a photo."""
+    """Re-run CV analysis on a photo (only works with local storage)."""
     photo = db.query(VisitPhoto).filter(
         VisitPhoto.id == photo_id, VisitPhoto.visit_id == visit_id
     ).first()
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    # CV analysis requires local file access
+    if not photo.file_path.startswith("/uploads/"):
+        raise HTTPException(
+            status_code=400,
+            detail="CV reprocessing not available for cloud-stored images"
+        )
+
+    from ..config import UPLOAD_DIR
     abs_path = os.path.join(UPLOAD_DIR, os.path.basename(photo.file_path))
     try:
         result = analyze_shelf_image(abs_path)
