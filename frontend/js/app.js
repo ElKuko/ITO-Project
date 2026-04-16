@@ -4370,20 +4370,18 @@ function renderWorkItemSkuList(skus, selectedIds) {
             <span class="sku-meta">${sku.brand || ''}</span>
           </div>
         </div>
-        <div class="sku-estado-trabajo" id="sku-fields-${sku.id}" style="display:${isSelected ? 'flex' : 'none'};">
-          <div class="sku-field-group">
+        <div class="sku-estado-trabajo" id="sku-fields-${sku.id}" style="display:${isSelected ? 'block' : 'none'};">
+          <div class="sku-chips-group">
             <label>Estado góndola</label>
-            <select onchange="updateSkuField(${sku.id}, 'estado_gondola', this.value)">
-              <option value="">Seleccione...</option>
-              ${ESTADO_OPTIONS.map(o => `<option value="${o.value}" ${selection.estado_gondola === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
-            </select>
+            <div class="chip-buttons">
+              ${ESTADO_OPTIONS.map(o => `<span class="chip chip-estado ${selection.estado_gondola === o.value ? 'active' : ''}" onclick="selectSkuChip(${sku.id}, 'estado_gondola', '${o.value}', this)">${o.label}</span>`).join('')}
+            </div>
           </div>
-          <div class="sku-field-group">
+          <div class="sku-chips-group">
             <label>Trabajo</label>
-            <select onchange="updateSkuField(${sku.id}, 'trabajo', this.value)">
-              <option value="">Seleccione...</option>
-              ${TRABAJO_OPTIONS.map(o => `<option value="${o.value}" ${selection.trabajo === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
-            </select>
+            <div class="chip-buttons">
+              ${TRABAJO_OPTIONS.map(o => `<span class="chip chip-trabajo ${selection.trabajo === o.value ? 'active' : ''}" onclick="selectSkuChip(${sku.id}, 'trabajo', '${o.value}', this)">${o.label}</span>`).join('')}
+            </div>
           </div>
         </div>
         <div class="ordene-fields" id="ordene-fields-${sku.id}" style="display:${selection.trabajo === 'ordene' ? 'flex' : 'none'};">
@@ -4399,6 +4397,24 @@ function renderWorkItemSkuList(skus, selectedIds) {
       </li>
     `;
   }).join('');
+}
+
+function selectSkuChip(skuId, field, value, chipEl) {
+  // Update selection state
+  if (!workflowState.workItemSkuSelections[skuId]) {
+    workflowState.workItemSkuSelections[skuId] = {};
+  }
+  workflowState.workItemSkuSelections[skuId][field] = value;
+
+  // Update chip styles - remove active from siblings, add to clicked
+  chipEl.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+
+  // Show/hide ordene fields
+  if (field === 'trabajo') {
+    const ordeneFieldsEl = document.getElementById(`ordene-fields-${skuId}`);
+    ordeneFieldsEl.style.display = value === 'ordene' ? 'flex' : 'none';
+  }
 }
 
 function toggleWorkItemSku(skuId, isChecked) {

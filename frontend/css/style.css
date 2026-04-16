@@ -2779,10 +2779,58 @@ tr.inactive-row {
 }
 
 .sku-estado-trabajo {
+  margin-top: 12px;
+}
+
+.sku-chips-group {
+  margin-bottom: 10px;
+}
+
+.sku-chips-group label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.chip-buttons {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.chip-buttons .chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.chip-buttons .chip:hover {
+  border-color: var(--primary);
+}
+
+.chip-buttons .chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.chip-buttons .chip.chip-estado.active {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.chip-buttons .chip.chip-trabajo.active {
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .sku-field-group {
