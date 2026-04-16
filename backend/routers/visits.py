@@ -144,7 +144,7 @@ async def upload_photo(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate photo type
-    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf")
+    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after")
     if photo_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid photo_type. Must be one of: {valid_types}")
 
