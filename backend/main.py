@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import engine, Base, SessionLocal
 from .models import SKU, User, Store
-from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes, notifications, chat, annotations, reports
+from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes, notifications, chat, annotations, reports, work_items
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
@@ -63,6 +63,7 @@ app.include_router(notifications.router)
 app.include_router(chat.router)
 app.include_router(annotations.router)
 app.include_router(reports.router)
+app.include_router(work_items.router)
 
 @app.get("/api/health")
 def health_check():

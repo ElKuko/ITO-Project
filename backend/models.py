@@ -145,21 +145,65 @@ class StoreVisit(Base):
     user = relationship("User", back_populates="visits")
     sku_actions = relationship("VisitSKUAction", back_populates="visit", cascade="all, delete-orphan")
     photos = relationship("VisitPhoto", back_populates="visit", cascade="all, delete-orphan")
+    work_items = relationship("WorkItem", back_populates="visit", cascade="all, delete-orphan")
+
+
+class WorkItem(Base):
+    """A photo-based work unit within a segment during a visit."""
+    __tablename__ = "work_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
+    segment = Column(String(30), nullable=False, index=True)  # produce | provisiones | congelados
+
+    # Photos
+    before_photo_id = Column(Integer, ForeignKey("visit_photos.id"), nullable=True)
+    after_photo_id = Column(Integer, ForeignKey("visit_photos.id"), nullable=True)
+
+    # Status: created | in_progress | completed
+    status = Column(String(20), nullable=False, default="created")
+
+    # Condition checks (yes/no questions per work item)
+    prices_on_gondola = Column(Boolean, nullable=True)
+    pop_material_present = Column(Boolean, nullable=True)
+    product_presentable = Column(Boolean, nullable=True)
+    gondola_space_gained = Column(Boolean, nullable=True)
+    condition_notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    visit = relationship("StoreVisit", back_populates="work_items")
+    before_photo = relationship("VisitPhoto", foreign_keys=[before_photo_id])
+    after_photo = relationship("VisitPhoto", foreign_keys=[after_photo_id])
+    sku_actions = relationship("VisitSKUAction", back_populates="work_item", cascade="all, delete-orphan")
 
 
 class VisitSKUAction(Base):
-    """Status/action for each approved SKU during a visit."""
+    """Status/action for each approved SKU within a work item."""
     __tablename__ = "visit_sku_actions"
 
     id = Column(Integer, primary_key=True, index=True)
     visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
+    work_item_id = Column(Integer, ForeignKey("work_items.id"), nullable=True)  # New: link to work item
     sku_id = Column(Integer, ForeignKey("skus.id"), nullable=False)
-    # Action types: gondola_llena | se_relleno | orden | unknown
-    action_type = Column(String(30), nullable=False)
+
+    # Legacy field (for backwards compatibility)
+    action_type = Column(String(30), nullable=True)
+
+    # New fields for redesigned workflow
+    estado_gondola = Column(String(20), nullable=True)  # llena | semi | agotada
+    trabajo = Column(String(20), nullable=True)  # organice | rellene | ordene
+
+    # Ordené-specific fields
+    orden_cantidad_cajas = Column(Integer, nullable=True)  # Number of boxes ordered
+    orden_fecha_llegada = Column(DateTime, nullable=True)  # Expected arrival date
+
     facings_count = Column(Integer, nullable=True)  # Optional quantity
     notes = Column(Text, nullable=True)
 
     visit = relationship("StoreVisit", back_populates="sku_actions")
+    work_item = relationship("WorkItem", back_populates="sku_actions")
     sku = relationship("SKU")
 
 
@@ -170,9 +214,12 @@ class VisitPhoto(Base):
     id = Column(Integer, primary_key=True, index=True)
     visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
 
-    # Photo type: arrival_proof | gondola_before | gondola_after
+    # Photo type: arrival_proof | gondola_before | gondola_after | work_item_before | work_item_after
     photo_type = Column(String(30), nullable=False, default="shelf")
     file_path = Column(String(500), nullable=False)
+
+    # Segment this photo belongs to (for new workflow)
+    segment = Column(String(30), nullable=True, index=True)  # produce | provisiones | congelados
 
     # Gondola grouping - links before/after photos for the same gondola
     # Client generates a UUID when taking before photo, reuses for after photo

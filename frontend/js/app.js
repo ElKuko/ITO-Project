@@ -173,6 +173,7 @@ function resetVisitState() {
 
 async function loadVisitPage() {
   resetVisitState();
+  resetWorkflowState();
   showStep(0);
 
   try {
@@ -192,15 +193,20 @@ async function loadVisitPage() {
   document.querySelectorAll('.toggle-btn').forEach(btn => {
     btn.classList.remove('selected-yes', 'selected-no');
   });
-  document.getElementById('condition-notes-group').style.display = 'none';
-  document.getElementById('condition-notes').value = '';
-  document.getElementById('visit-notes').value = '';
 
-  // Reset bulk toolbar for all sections
-  SECTIONS.forEach(section => {
-    updateBulkToolbar(section);
-    updatePendingWarning(section);
-    updateGondolaGroupsSummary(section);
+  const conditionNotesGroup = document.getElementById('condition-notes-group');
+  if (conditionNotesGroup) conditionNotesGroup.style.display = 'none';
+  const conditionNotes = document.getElementById('condition-notes');
+  if (conditionNotes) conditionNotes.value = '';
+  const visitNotes = document.getElementById('visit-notes');
+  if (visitNotes) visitNotes.value = '';
+
+  // Reset segment statuses
+  ['produce', 'provisiones', 'congelados'].forEach(segment => {
+    const statusEl = document.getElementById(`segment-status-${segment}`);
+    if (statusEl) statusEl.textContent = '0 fotos';
+    const card = statusEl?.closest('.segment-card');
+    if (card) card.classList.remove('has-items');
   });
 
   // Disable step 1 next button
@@ -218,19 +224,22 @@ function showStep(stepNum) {
   const stepEl = document.getElementById(`visit-step-${stepNum}`);
   if (stepEl) stepEl.classList.add('active');
 
-  // Update step indicator (5 steps)
+  // Update step indicator (3 main steps: 1=Arrival, 2=Segments, 5=Submit)
+  // Steps 3 and 4 are sub-views within step 2
   document.querySelectorAll('.step-indicator .step').forEach(el => {
     const s = parseInt(el.dataset.step);
     el.classList.remove('active', 'completed');
-    if (s < stepNum) el.classList.add('completed');
-    else if (s === stepNum) el.classList.add('active');
+
+    // Map actual step to indicator step
+    let indicatorStep = stepNum;
+    if (stepNum === 3 || stepNum === 4) indicatorStep = 2; // Sub-views of segment step
+
+    if (s < indicatorStep) el.classList.add('completed');
+    else if (s === indicatorStep) el.classList.add('active');
   });
 
   // Load step-specific data
-  // Steps 2, 3, 4 are section-based SKU steps
-  if (stepNum === 2) loadSKUListForSection('produce');
-  if (stepNum === 3) loadSKUListForSection('provisiones');
-  if (stepNum === 4) loadSKUListForSection('congelados');
+  if (stepNum === 2) updateSegmentStatuses();
   if (stepNum === 5) showVisitSummary();
 }
 
@@ -956,25 +965,12 @@ async function submitVisit() {
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
-    // Convert Set-based actions to array of action objects
-    // Each SKU can have multiple actions now
-    // For 'orden' actions, include the quantity
-    const actions = [];
-    Object.entries(visitState.skuActions).forEach(([skuId, actionsSet]) => {
-      actionsSet.forEach(actionType => {
-        const action = { sku_id: parseInt(skuId), action_type: actionType };
-        if (actionType === 'orden' && visitState.ordenQuantities[skuId]) {
-          action.quantity = visitState.ordenQuantities[skuId];
-        }
-        actions.push(action);
-      });
-    });
-
     const notes = document.getElementById('visit-notes').value;
 
+    // In the new workflow, SKU actions are saved in work items
+    // Just submit the visit with notes
     await apiPut(`/visits/${visitState.visitId}/complete`, {
-      section_conditions: visitState.sectionConditions,
-      sku_actions: actions,
+      sku_actions: [], // SKU actions are now in work items
       notes: notes,
     });
 
@@ -4131,4 +4127,508 @@ async function sendAnnotationToChat() {
     console.error('Error sending annotation:', err);
     toast('Error al enviar anotación: ' + err.message);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ NEW WORKFLOW: Segment-based Photo-first Work Items ═══════════════════
+// ══════════════════════════════════════════════════════════════════════════
+
+const SEGMENT_LABELS_NEW = {
+  produce: 'Produce',
+  provisiones: 'Provisiones',
+  congelados: 'Congelados',
+};
+
+const ESTADO_OPTIONS = [
+  { value: 'llena', label: 'Llena' },
+  { value: 'semi', label: 'Semi' },
+  { value: 'agotada', label: 'Agotada' },
+];
+
+const TRABAJO_OPTIONS = [
+  { value: 'organice', label: 'Organicé' },
+  { value: 'rellene', label: 'Rellené' },
+  { value: 'ordene', label: 'Ordené' },
+];
+
+let workflowState = {
+  currentSegment: null,
+  workItems: [],
+  currentWorkItemId: null,
+  currentWorkItem: null,
+  availableSkus: [],
+  workItemSkuSelections: {},
+};
+
+function resetWorkflowState() {
+  workflowState = {
+    currentSegment: null,
+    workItems: [],
+    currentWorkItemId: null,
+    currentWorkItem: null,
+    availableSkus: [],
+    workItemSkuSelections: {},
+  };
+}
+
+async function updateSegmentStatuses() {
+  if (!visitState.visitId) return;
+
+  try {
+    const summaries = await getSegmentSummaries(visitState.visitId);
+    for (const summary of summaries) {
+      const statusEl = document.getElementById(`segment-status-${summary.segment}`);
+      if (statusEl) {
+        const total = summary.total_work_items;
+        const completed = summary.completed_work_items;
+        statusEl.textContent = total === 0 ? '0 fotos' : `${completed}/${total} completados`;
+
+        const card = statusEl.closest('.segment-card');
+        if (card) {
+          card.classList.toggle('has-items', total > 0);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error updating segment statuses:', err);
+  }
+}
+
+async function enterSegment(segment) {
+  workflowState.currentSegment = segment;
+
+  document.getElementById('segment-title').textContent = SEGMENT_LABELS_NEW[segment];
+
+  await loadWorkItemsForSegment();
+
+  showStep(3);
+}
+
+function exitSegment() {
+  workflowState.currentSegment = null;
+  updateSegmentStatuses();
+  showStep(2);
+}
+
+async function loadWorkItemsForSegment() {
+  const segment = workflowState.currentSegment;
+  if (!segment) return;
+
+  try {
+    workflowState.workItems = await getWorkItems(visitState.visitId, segment);
+
+    const countEl = document.getElementById('segment-work-item-count');
+    const completed = workflowState.workItems.filter(w => w.status === 'completed').length;
+    countEl.textContent = `${completed}/${workflowState.workItems.length} completados`;
+
+    renderWorkItemList();
+  } catch (err) {
+    toast('Error cargando trabajos');
+    console.error(err);
+  }
+}
+
+function renderWorkItemList() {
+  const listEl = document.getElementById('work-item-list');
+
+  if (workflowState.workItems.length === 0) {
+    listEl.innerHTML = '<p class="meta">No hay trabajos aún. Tome una foto para comenzar.</p>';
+    return;
+  }
+
+  listEl.innerHTML = workflowState.workItems.map((item, idx) => {
+    const statusClass = item.status === 'completed' ? 'completed' : item.status === 'in_progress' ? 'in-progress' : '';
+    const statusLabel = item.status === 'completed' ? 'Completado' : item.status === 'in_progress' ? 'En progreso' : 'Pendiente';
+    const skuCount = item.sku_actions ? item.sku_actions.length : 0;
+    const photoUrl = item.before_photo ? item.before_photo.file_path : '';
+
+    return `
+      <div class="work-item-card ${statusClass}" onclick="openWorkItem(${item.id})">
+        <img class="work-item-thumbnail" src="${photoUrl}" alt="Foto ${idx + 1}">
+        <div class="work-item-info">
+          <div class="work-item-title">Trabajo ${idx + 1}</div>
+          <div class="work-item-meta">${skuCount} SKU(s) documentados</div>
+        </div>
+        <span class="work-item-status ${item.status}">${statusLabel}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function captureWorkItemPhoto() {
+  const input = document.getElementById('camera-work-item');
+  input.onchange = (e) => onWorkItemPhotoSelected(e.target);
+  input.click();
+}
+
+async function onWorkItemPhotoSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const segment = workflowState.currentSegment;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo_type', 'work_item_before');
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+
+    const photo = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+
+    const workItem = await createWorkItem(visitState.visitId, segment, photo.id);
+
+    workflowState.workItems.push(workItem);
+    renderWorkItemList();
+
+    const countEl = document.getElementById('segment-work-item-count');
+    const completed = workflowState.workItems.filter(w => w.status === 'completed').length;
+    countEl.textContent = `${completed}/${workflowState.workItems.length} completados`;
+
+    toast('Foto guardada. Toque para documentar.');
+
+    input.value = '';
+
+  } catch (err) {
+    toast('Error al crear trabajo: ' + err.message);
+    console.error(err);
+  }
+}
+
+async function openWorkItem(workItemId) {
+  workflowState.currentWorkItemId = workItemId;
+
+  try {
+    const workItem = await getWorkItem(workItemId);
+    workflowState.currentWorkItem = workItem;
+
+    const photoImg = document.getElementById('work-item-photo-img');
+    if (workItem.before_photo) {
+      photoImg.src = workItem.before_photo.file_path;
+    }
+
+    const statusBadge = document.getElementById('work-item-status-badge');
+    statusBadge.textContent = workItem.status === 'completed' ? 'Completado' : workItem.status === 'in_progress' ? 'En progreso' : 'Pendiente';
+    statusBadge.className = 'work-item-status-badge ' + (workItem.status === 'completed' ? 'completed' : '');
+
+    const availableData = await getAvailableSKUs(visitState.visitId, workflowState.currentSegment);
+    workflowState.availableSkus = availableData.skus;
+
+    const currentSkuIds = workItem.sku_actions ? workItem.sku_actions.map(a => a.sku_id) : [];
+    const currentSkus = workItem.sku_actions || [];
+
+    workflowState.workItemSkuSelections = {};
+    for (const action of currentSkus) {
+      workflowState.workItemSkuSelections[action.sku_id] = {
+        estado_gondola: action.estado_gondola || '',
+        trabajo: action.trabajo || '',
+        orden_cantidad_cajas: action.orden_cantidad_cajas || '',
+        orden_fecha_llegada: action.orden_fecha_llegada ? action.orden_fecha_llegada.split('T')[0] : '',
+        notes: action.notes || '',
+      };
+    }
+
+    const allSkus = [...workflowState.availableSkus];
+    for (const action of currentSkus) {
+      if (!allSkus.find(s => s.id === action.sku_id) && action.sku) {
+        allSkus.push(action.sku);
+      }
+    }
+
+    renderWorkItemSkuList(allSkus, currentSkuIds);
+
+    restoreWorkItemConditions(workItem);
+
+    showStep(4);
+
+  } catch (err) {
+    toast('Error al abrir trabajo: ' + err.message);
+    console.error(err);
+  }
+}
+
+function renderWorkItemSkuList(skus, selectedIds) {
+  const listEl = document.getElementById('work-item-sku-list');
+
+  if (skus.length === 0) {
+    listEl.innerHTML = '<p class="meta">No hay SKUs disponibles para este segmento.</p>';
+    return;
+  }
+
+  listEl.innerHTML = skus.map(sku => {
+    const isSelected = selectedIds.includes(sku.id);
+    const selection = workflowState.workItemSkuSelections[sku.id] || {};
+
+    return `
+      <li class="sku-item ${isSelected ? 'selected' : ''}" data-sku-id="${sku.id}">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleWorkItemSku(${sku.id}, this.checked)">
+          <div class="sku-info">
+            <span class="sku-name">${sku.name}</span>
+            <span class="sku-meta">${sku.brand || ''}</span>
+          </div>
+        </div>
+        <div class="sku-estado-trabajo" id="sku-fields-${sku.id}" style="display:${isSelected ? 'flex' : 'none'};">
+          <div class="sku-field-group">
+            <label>Estado góndola</label>
+            <select onchange="updateSkuField(${sku.id}, 'estado_gondola', this.value)">
+              <option value="">Seleccione...</option>
+              ${ESTADO_OPTIONS.map(o => `<option value="${o.value}" ${selection.estado_gondola === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="sku-field-group">
+            <label>Trabajo</label>
+            <select onchange="updateSkuField(${sku.id}, 'trabajo', this.value)">
+              <option value="">Seleccione...</option>
+              ${TRABAJO_OPTIONS.map(o => `<option value="${o.value}" ${selection.trabajo === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="ordene-fields" id="ordene-fields-${sku.id}" style="display:${selection.trabajo === 'ordene' ? 'flex' : 'none'};">
+          <div class="sku-field-group">
+            <label>Cantidad cajas</label>
+            <input type="number" min="1" value="${selection.orden_cantidad_cajas || ''}" onchange="updateSkuField(${sku.id}, 'orden_cantidad_cajas', this.value)">
+          </div>
+          <div class="sku-field-group">
+            <label>Fecha llegada</label>
+            <input type="date" value="${selection.orden_fecha_llegada || ''}" onchange="updateSkuField(${sku.id}, 'orden_fecha_llegada', this.value)">
+          </div>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
+function toggleWorkItemSku(skuId, isChecked) {
+  const fieldsEl = document.getElementById(`sku-fields-${skuId}`);
+  const itemEl = fieldsEl.closest('.sku-item');
+
+  if (isChecked) {
+    itemEl.classList.add('selected');
+    fieldsEl.style.display = 'flex';
+    if (!workflowState.workItemSkuSelections[skuId]) {
+      workflowState.workItemSkuSelections[skuId] = {
+        estado_gondola: '',
+        trabajo: '',
+        orden_cantidad_cajas: '',
+        orden_fecha_llegada: '',
+        notes: '',
+      };
+    }
+  } else {
+    itemEl.classList.remove('selected');
+    fieldsEl.style.display = 'none';
+    document.getElementById(`ordene-fields-${skuId}`).style.display = 'none';
+    delete workflowState.workItemSkuSelections[skuId];
+  }
+}
+
+function updateSkuField(skuId, field, value) {
+  if (!workflowState.workItemSkuSelections[skuId]) {
+    workflowState.workItemSkuSelections[skuId] = {};
+  }
+  workflowState.workItemSkuSelections[skuId][field] = value;
+
+  if (field === 'trabajo') {
+    const ordeneFieldsEl = document.getElementById(`ordene-fields-${skuId}`);
+    ordeneFieldsEl.style.display = value === 'ordene' ? 'flex' : 'none';
+  }
+}
+
+function restoreWorkItemConditions(workItem) {
+  const conditions = [
+    { field: 'prices', value: workItem.prices_on_gondola },
+    { field: 'pop', value: workItem.pop_material_present },
+    { field: 'presentable', value: workItem.product_presentable },
+    { field: 'gondola_space', value: workItem.gondola_space_gained },
+  ];
+
+  document.querySelectorAll('#visit-step-4 .work-item-conditions .toggle-btn').forEach(btn => {
+    btn.classList.remove('selected-yes', 'selected-no');
+  });
+
+  for (const cond of conditions) {
+    if (cond.value !== null) {
+      const btns = document.querySelectorAll(`#visit-step-4 .condition-check .toggle-btn`);
+      btns.forEach(btn => {
+        const label = btn.closest('.condition-check').querySelector('label').textContent;
+        if (
+          (cond.field === 'prices' && label.includes('precios')) ||
+          (cond.field === 'pop' && label.includes('PoP')) ||
+          (cond.field === 'presentable' && label.includes('presentable')) ||
+          (cond.field === 'gondola_space' && label.includes('espacio'))
+        ) {
+          const isYes = btn.textContent.trim() === 'Sí';
+          if ((cond.value && isYes) || (!cond.value && !isYes)) {
+            btn.classList.add(cond.value ? 'selected-yes' : 'selected-no');
+          }
+        }
+      });
+    }
+  }
+
+  if (workItem.condition_notes) {
+    document.getElementById('work-item-notes').value = workItem.condition_notes;
+    document.getElementById('work-item-notes-group').style.display = 'block';
+  }
+}
+
+let workItemConditions = {};
+
+function setWorkItemCondition(field, value, btn) {
+  workItemConditions[field] = value;
+
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => {
+    b.classList.remove('selected-yes', 'selected-no');
+  });
+  btn.classList.add(value ? 'selected-yes' : 'selected-no');
+
+  const anyNo = Object.values(workItemConditions).some(v => v === false);
+  document.getElementById('work-item-notes-group').style.display = anyNo ? 'block' : 'none';
+}
+
+async function saveWorkItemProgress() {
+  const workItemId = workflowState.currentWorkItemId;
+  if (!workItemId) return;
+
+  const skuActions = [];
+  for (const [skuIdStr, data] of Object.entries(workflowState.workItemSkuSelections)) {
+    const skuId = parseInt(skuIdStr);
+    if (!data.estado_gondola || !data.trabajo) {
+      continue;
+    }
+
+    const action = {
+      sku_id: skuId,
+      estado_gondola: data.estado_gondola,
+      trabajo: data.trabajo,
+      notes: data.notes || null,
+    };
+
+    if (data.trabajo === 'ordene') {
+      action.orden_cantidad_cajas = parseInt(data.orden_cantidad_cajas) || null;
+      action.orden_fecha_llegada = data.orden_fecha_llegada ? new Date(data.orden_fecha_llegada).toISOString() : null;
+    }
+
+    skuActions.push(action);
+  }
+
+  const notes = document.getElementById('work-item-notes').value;
+
+  try {
+    await updateWorkItem(workItemId, {
+      sku_actions: skuActions,
+      prices_on_gondola: workItemConditions.prices ?? null,
+      pop_material_present: workItemConditions.pop ?? null,
+      product_presentable: workItemConditions.presentable ?? null,
+      gondola_space_gained: workItemConditions.gondola_space ?? null,
+      condition_notes: notes || null,
+    });
+
+    toast('Progreso guardado');
+  } catch (err) {
+    toast('Error al guardar: ' + err.message);
+    console.error(err);
+  }
+}
+
+function captureAfterPhoto() {
+  saveWorkItemProgress();
+
+  const input = document.getElementById('camera-work-item-after');
+  input.onchange = (e) => onAfterPhotoSelected(e.target);
+  input.click();
+}
+
+async function onAfterPhotoSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const workItemId = workflowState.currentWorkItemId;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo_type', 'work_item_after');
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+
+    const photo = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+
+    await completeWorkItem(workItemId, photo.id);
+
+    toast('Trabajo completado');
+
+    input.value = '';
+    workflowState.currentWorkItemId = null;
+    workflowState.currentWorkItem = null;
+    workItemConditions = {};
+
+    await loadWorkItemsForSegment();
+    showStep(3);
+
+  } catch (err) {
+    toast('Error al completar trabajo: ' + err.message);
+    console.error(err);
+  }
+}
+
+function exitWorkItem() {
+  workflowState.currentWorkItemId = null;
+  workflowState.currentWorkItem = null;
+  workItemConditions = {};
+  showStep(3);
+}
+
+function goToSubmit() {
+  updateSegmentStatuses();
+  showStep(5);
+}
+
+async function showVisitSummaryNew() {
+  const summaryEl = document.getElementById('visit-summary');
+
+  try {
+    const summaries = await getSegmentSummaries(visitState.visitId);
+
+    let html = '<div class="summary-sections">';
+    let totalWorkItems = 0;
+    let completedWorkItems = 0;
+
+    for (const summary of summaries) {
+      totalWorkItems += summary.total_work_items;
+      completedWorkItems += summary.completed_work_items;
+
+      html += `
+        <div class="summary-section">
+          <strong>${SEGMENT_LABELS_NEW[summary.segment]}</strong>
+          <span>${summary.completed_work_items}/${summary.total_work_items} trabajos completados</span>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+
+    if (completedWorkItems < totalWorkItems) {
+      html += `<div class="pending-warning" style="margin-top:12px;">
+        <span class="warning-icon">⚠️</span>
+        ${totalWorkItems - completedWorkItems} trabajo(s) pendiente(s) de completar
+      </div>`;
+    }
+
+    summaryEl.innerHTML = html;
+
+  } catch (err) {
+    summaryEl.innerHTML = '<p class="meta">Error cargando resumen</p>';
+    console.error(err);
+  }
+}
+
+const originalShowVisitSummary = typeof showVisitSummary === 'function' ? showVisitSummary : null;
+function showVisitSummary() {
+  showVisitSummaryNew();
 }

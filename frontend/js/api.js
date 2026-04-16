@@ -83,3 +83,49 @@ async function apiUpload(path, file) {
   fd.append('file', file);
   return api(path, { method: 'POST', body: fd });
 }
+
+// ── Work Items API ────────────────────────────────────────────────────────
+
+function getWorkItems(visitId, segment = null) {
+  const path = segment
+    ? `/work-items/visit/${visitId}?segment=${segment}`
+    : `/work-items/visit/${visitId}`;
+  return apiGet(path);
+}
+
+function getSegmentSummaries(visitId) {
+  return apiGet(`/work-items/visit/${visitId}/segments`);
+}
+
+function getAvailableSKUs(visitId, segment) {
+  return apiGet(`/work-items/visit/${visitId}/segment/${segment}/available-skus`);
+}
+
+function createWorkItem(visitId, segment, photoId) {
+  return apiPost(`/work-items/visit/${visitId}`, {
+    segment,
+    photo_id: photoId,
+  });
+}
+
+function getWorkItem(workItemId) {
+  return apiGet(`/work-items/${workItemId}`);
+}
+
+function updateWorkItem(workItemId, data) {
+  return apiPut(`/work-items/${workItemId}`, data);
+}
+
+function completeWorkItem(workItemId, afterPhotoId) {
+  return apiPost(`/work-items/${workItemId}/complete`, {
+    after_photo_id: afterPhotoId,
+  });
+}
+
+function reopenWorkItem(workItemId) {
+  return apiPost(`/work-items/${workItemId}/reopen`, {});
+}
+
+function deleteWorkItem(workItemId) {
+  return apiDelete(`/work-items/${workItemId}`);
+}

@@ -59,13 +59,11 @@
     <div id="page-visit" class="page active">
       <div class="container">
 
-        <!-- Step Indicator (5 steps) -->
+        <!-- Step Indicator (3 main steps: Llegada, Segmentos, Enviar) -->
         <div class="step-indicator" id="step-indicator">
           <span class="step active" data-step="1">1</span>
           <span class="step" data-step="2">2</span>
-          <span class="step" data-step="3">3</span>
-          <span class="step" data-step="4">4</span>
-          <span class="step" data-step="5">5</span>
+          <span class="step" data-step="5">3</span>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -104,259 +102,132 @@
           </div>
         </div>
 
-        <!-- Step 2: Produce Section -->
+        <!-- Step 2: Segment Selection -->
         <div id="visit-step-2" class="visit-step">
           <div class="card">
-            <h3>Paso 2: Produce</h3>
-            <p class="meta">Productos refrigerados. Seleccione SKUs y tome fotos de antes/después.</p>
+            <h3>Paso 2: Seleccionar Segmento</h3>
+            <p class="meta">Seleccione el área de la tienda donde va a trabajar.</p>
 
-            <!-- Bulk Actions Toolbar -->
-            <div class="bulk-toolbar" id="bulk-toolbar-produce">
-              <div class="bulk-info">
-                <span id="selected-count-produce">0</span> SKU(s) seleccionados
-              </div>
-              <div class="bulk-actions">
-                <button class="btn btn-sm" onclick="captureGondolaBefore('produce')" id="btn-gondola-before-produce" disabled>
-                  📷 Foto ANTES
-                </button>
-                <button class="btn btn-sm" onclick="captureGondolaAfter('produce')" id="btn-gondola-after-produce" disabled>
-                  📷 Foto DESPUÉS
-                </button>
-                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('produce')" id="btn-clear-selection-produce" disabled>
-                  Limpiar
-                </button>
-              </div>
+            <div class="segment-grid" id="segment-grid">
+              <button class="segment-card" onclick="enterSegment('produce')">
+                <div class="segment-icon">🥬</div>
+                <div class="segment-name">Produce</div>
+                <div class="segment-status" id="segment-status-produce">0 fotos</div>
+              </button>
+              <button class="segment-card" onclick="enterSegment('provisiones')">
+                <div class="segment-icon">🥫</div>
+                <div class="segment-name">Provisiones</div>
+                <div class="segment-status" id="segment-status-provisiones">0 fotos</div>
+              </button>
+              <button class="segment-card" onclick="enterSegment('congelados')">
+                <div class="segment-icon">🧊</div>
+                <div class="segment-name">Congelados</div>
+                <div class="segment-status" id="segment-status-congelados">0 fotos</div>
+              </button>
             </div>
 
-            <!-- Pending After Photos Warning -->
-            <div class="pending-warning" id="pending-warning-produce" style="display:none;">
-              <span class="warning-icon">⚠️</span>
-              <span id="pending-count-produce">0</span> grupo(s) pendiente(s) de foto DESPUÉS
-            </div>
-
-            <!-- Hidden file inputs for gondola photos -->
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-produce" style="display:none">
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-produce" style="display:none">
-
-            <!-- SKU List with Checkboxes -->
-            <ul class="sku-list sku-list-selectable" id="visit-sku-list-produce"></ul>
-
-            <!-- Gondola Groups Summary -->
-            <div class="gondola-groups-summary" id="gondola-groups-summary-produce"></div>
-
-            <!-- Section Conditions -->
-            <div class="section-conditions">
-              <h4>Condiciones - Produce</h4>
-              <div class="condition-check">
-                <label>¿Están todos los precios en góndola?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="produce" data-field="prices" onclick="setSectionCondition('produce', 'prices', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="produce" data-field="prices" onclick="setSectionCondition('produce', 'prices', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Está todo el material PoP?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="produce" data-field="pop" onclick="setSectionCondition('produce', 'pop', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="produce" data-field="pop" onclick="setSectionCondition('produce', 'pop', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Está limpio y presentable?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="produce" data-field="presentable" onclick="setSectionCondition('produce', 'presentable', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="produce" data-field="presentable" onclick="setSectionCondition('produce', 'presentable', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Lograste coger más espacio en la góndola?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="produce" data-field="gondola_space" onclick="setSectionCondition('produce', 'gondola_space', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="produce" data-field="gondola_space" onclick="setSectionCondition('produce', 'gondola_space', false, this)">No</button>
-                </div>
-              </div>
-              <div class="form-group condition-notes-group" id="condition-notes-group-produce" style="display:none;">
-                <label>Notas</label>
-                <textarea id="condition-notes-produce" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('produce', this.value)"></textarea>
-              </div>
-            </div>
-
-            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
+            <div class="step-nav-buttons" style="margin-top:24px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
-              <button class="btn btn-primary" onclick="validateSectionAndNext('produce')" id="btn-step2-next" style="flex:1;">
-                Siguiente: Provisiones →
+              <button class="btn btn-success" onclick="goToSubmit()" id="btn-go-submit" style="flex:1;">
+                Revisar y Enviar →
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Step 3: Provisiones Section -->
+        <!-- Step 3: Segment Work Area (Photo-first) -->
         <div id="visit-step-3" class="visit-step">
-          <div class="card">
-            <h3>Paso 3: Provisiones</h3>
-            <p class="meta">Productos secos. Seleccione SKUs y tome fotos de antes/después.</p>
-
-            <!-- Bulk Actions Toolbar -->
-            <div class="bulk-toolbar" id="bulk-toolbar-provisiones">
-              <div class="bulk-info">
-                <span id="selected-count-provisiones">0</span> SKU(s) seleccionados
-              </div>
-              <div class="bulk-actions">
-                <button class="btn btn-sm" onclick="captureGondolaBefore('provisiones')" id="btn-gondola-before-provisiones" disabled>
-                  📷 Foto ANTES
-                </button>
-                <button class="btn btn-sm" onclick="captureGondolaAfter('provisiones')" id="btn-gondola-after-provisiones" disabled>
-                  📷 Foto DESPUÉS
-                </button>
-                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('provisiones')" id="btn-clear-selection-provisiones" disabled>
-                  Limpiar
-                </button>
-              </div>
+          <div class="card segment-work-card">
+            <div class="segment-header">
+              <button class="btn btn-outline btn-sm" onclick="exitSegment()">← Volver</button>
+              <h3 id="segment-title">Produce</h3>
+              <span class="segment-badge" id="segment-work-item-count">0 fotos</span>
             </div>
 
-            <!-- Pending After Photos Warning -->
-            <div class="pending-warning" id="pending-warning-provisiones" style="display:none;">
-              <span class="warning-icon">⚠️</span>
-              <span id="pending-count-provisiones">0</span> grupo(s) pendiente(s) de foto DESPUÉS
-            </div>
-
-            <!-- Hidden file inputs for gondola photos -->
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-provisiones" style="display:none">
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-provisiones" style="display:none">
-
-            <!-- SKU List with Checkboxes -->
-            <ul class="sku-list sku-list-selectable" id="visit-sku-list-provisiones"></ul>
-
-            <!-- Gondola Groups Summary -->
-            <div class="gondola-groups-summary" id="gondola-groups-summary-provisiones"></div>
-
-            <!-- Section Conditions -->
-            <div class="section-conditions">
-              <h4>Condiciones - Provisiones</h4>
-              <div class="condition-check">
-                <label>¿Están todos los precios en góndola?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="provisiones" data-field="prices" onclick="setSectionCondition('provisiones', 'prices', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="provisiones" data-field="prices" onclick="setSectionCondition('provisiones', 'prices', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Está todo el material PoP?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="provisiones" data-field="pop" onclick="setSectionCondition('provisiones', 'pop', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="provisiones" data-field="pop" onclick="setSectionCondition('provisiones', 'pop', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Está limpio y presentable?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="provisiones" data-field="presentable" onclick="setSectionCondition('provisiones', 'presentable', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="provisiones" data-field="presentable" onclick="setSectionCondition('provisiones', 'presentable', false, this)">No</button>
-                </div>
-              </div>
-              <div class="condition-check">
-                <label>¿Lograste coger más espacio en la góndola?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" data-section="provisiones" data-field="gondola_space" onclick="setSectionCondition('provisiones', 'gondola_space', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="provisiones" data-field="gondola_space" onclick="setSectionCondition('provisiones', 'gondola_space', false, this)">No</button>
-                </div>
-              </div>
-              <div class="form-group condition-notes-group" id="condition-notes-group-provisiones" style="display:none;">
-                <label>Notas</label>
-                <textarea id="condition-notes-provisiones" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('provisiones', this.value)"></textarea>
-              </div>
-            </div>
-
-            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
-              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
-              <button class="btn btn-primary" onclick="validateSectionAndNext('provisiones')" id="btn-step3-next" style="flex:1;">
-                Siguiente: Congelados →
+            <!-- Main Photo Button -->
+            <div class="segment-photo-cta">
+              <button class="btn btn-primary btn-lg segment-take-photo" onclick="captureWorkItemPhoto()">
+                📷 Tomar Foto
               </button>
+              <p class="meta">Tome una foto de la góndola para crear un trabajo</p>
+            </div>
+
+            <!-- Hidden file input for work item photo -->
+            <input type="file" accept="image/*" capture="environment" id="camera-work-item" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="camera-work-item-after" style="display:none">
+
+            <!-- Work Item Queue -->
+            <div class="work-item-queue" id="work-item-queue">
+              <h4>Trabajos</h4>
+              <div class="work-item-list" id="work-item-list">
+                <p class="meta">No hay trabajos aún. Tome una foto para comenzar.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Step 4: Congelados Section -->
+        <!-- Step 4: Work Item Detail -->
         <div id="visit-step-4" class="visit-step">
-          <div class="card">
-            <h3>Paso 4: Congelados</h3>
-            <p class="meta">Productos congelados. Seleccione SKUs y tome fotos de antes/después.</p>
-
-            <!-- Bulk Actions Toolbar -->
-            <div class="bulk-toolbar" id="bulk-toolbar-congelados">
-              <div class="bulk-info">
-                <span id="selected-count-congelados">0</span> SKU(s) seleccionados
-              </div>
-              <div class="bulk-actions">
-                <button class="btn btn-sm" onclick="captureGondolaBefore('congelados')" id="btn-gondola-before-congelados" disabled>
-                  📷 Foto ANTES
-                </button>
-                <button class="btn btn-sm" onclick="captureGondolaAfter('congelados')" id="btn-gondola-after-congelados" disabled>
-                  📷 Foto DESPUÉS
-                </button>
-                <button class="btn btn-sm btn-outline" onclick="clearSkuSelection('congelados')" id="btn-clear-selection-congelados" disabled>
-                  Limpiar
-                </button>
-              </div>
+          <div class="card work-item-detail-card">
+            <div class="work-item-header">
+              <button class="btn btn-outline btn-sm" onclick="exitWorkItem()">← Volver a la cola</button>
+              <span class="work-item-status-badge" id="work-item-status-badge">Pendiente</span>
             </div>
 
-            <!-- Pending After Photos Warning -->
-            <div class="pending-warning" id="pending-warning-congelados" style="display:none;">
-              <span class="warning-icon">⚠️</span>
-              <span id="pending-count-congelados">0</span> grupo(s) pendiente(s) de foto DESPUÉS
+            <!-- Before Photo -->
+            <div class="work-item-photo" id="work-item-before-photo">
+              <img src="" alt="Foto antes" id="work-item-photo-img">
             </div>
 
-            <!-- Hidden file inputs for gondola photos -->
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-before-congelados" style="display:none">
-            <input type="file" accept="image/*" capture="environment" id="camera-gondola-after-congelados" style="display:none">
+            <!-- SKU Selection List -->
+            <div class="work-item-skus">
+              <h4>SKUs en esta foto</h4>
+              <p class="meta">Seleccione los productos visibles en la foto.</p>
+              <ul class="sku-list work-item-sku-list" id="work-item-sku-list"></ul>
+            </div>
 
-            <!-- SKU List with Checkboxes -->
-            <ul class="sku-list sku-list-selectable" id="visit-sku-list-congelados"></ul>
-
-            <!-- Gondola Groups Summary -->
-            <div class="gondola-groups-summary" id="gondola-groups-summary-congelados"></div>
-
-            <!-- Section Conditions -->
-            <div class="section-conditions">
-              <h4>Condiciones - Congelados</h4>
+            <!-- Condition Checks -->
+            <div class="work-item-conditions">
+              <h4>Condiciones</h4>
               <div class="condition-check">
-                <label>¿Están todos los precios en góndola?</label>
+                <label>¿Están todos los precios?</label>
                 <div class="toggle-group">
-                  <button class="toggle-btn" data-section="congelados" data-field="prices" onclick="setSectionCondition('congelados', 'prices', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="congelados" data-field="prices" onclick="setSectionCondition('congelados', 'prices', false, this)">No</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('prices', true, this)">Sí</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('prices', false, this)">No</button>
                 </div>
               </div>
               <div class="condition-check">
-                <label>¿Está todo el material PoP?</label>
+                <label>¿Está el material PoP?</label>
                 <div class="toggle-group">
-                  <button class="toggle-btn" data-section="congelados" data-field="pop" onclick="setSectionCondition('congelados', 'pop', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="congelados" data-field="pop" onclick="setSectionCondition('congelados', 'pop', false, this)">No</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('pop', true, this)">Sí</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('pop', false, this)">No</button>
                 </div>
               </div>
               <div class="condition-check">
                 <label>¿Está limpio y presentable?</label>
                 <div class="toggle-group">
-                  <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="congelados" data-field="presentable" onclick="setSectionCondition('congelados', 'presentable', false, this)">No</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('presentable', true, this)">Sí</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('presentable', false, this)">No</button>
                 </div>
               </div>
               <div class="condition-check">
-                <label>¿Lograste coger más espacio en la góndola?</label>
+                <label>¿Más espacio en góndola?</label>
                 <div class="toggle-group">
-                  <button class="toggle-btn" data-section="congelados" data-field="gondola_space" onclick="setSectionCondition('congelados', 'gondola_space', true, this)">Sí</button>
-                  <button class="toggle-btn" data-section="congelados" data-field="gondola_space" onclick="setSectionCondition('congelados', 'gondola_space', false, this)">No</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', true, this)">Sí</button>
+                  <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', false, this)">No</button>
                 </div>
               </div>
-              <div class="form-group condition-notes-group" id="condition-notes-group-congelados" style="display:none;">
+              <div class="form-group" id="work-item-notes-group" style="display:none;">
                 <label>Notas</label>
-                <textarea id="condition-notes-congelados" rows="2" placeholder="Explique el problema..." onchange="updateSectionConditionNotes('congelados', this.value)"></textarea>
+                <textarea id="work-item-notes" rows="2" placeholder="Explique..."></textarea>
               </div>
             </div>
 
-            <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
-              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
-              <button class="btn btn-primary" onclick="validateSectionAndNext('congelados')" id="btn-step4-next" style="flex:1;">
-                Siguiente: Resumen →
+            <!-- Save & Take After Photo -->
+            <div class="work-item-actions">
+              <button class="btn btn-outline" onclick="saveWorkItemProgress()">Guardar Progreso</button>
+              <button class="btn btn-success" onclick="captureAfterPhoto()" id="btn-take-after-photo">
+                📷 Tomar Foto Después
               </button>
             </div>
           </div>

@@ -491,3 +491,90 @@ class AnnotatedReference(BaseModel):
     original_photo_url: Optional[str] = None
     annotation_preview_url: Optional[str] = None
     captured_at: Optional[datetime] = None
+
+
+# ── Work Items (New Workflow) ────────────────────────────────────────────
+
+class WorkItemCreate(BaseModel):
+    """Create a work item from a photo."""
+    segment: str  # produce | provisiones | congelados
+    photo_id: int  # The before photo that creates this work item
+
+
+class WorkItemSKUAction(BaseModel):
+    """SKU action within a work item."""
+    sku_id: int
+    estado_gondola: str  # llena | semi | agotada
+    trabajo: str  # organice | rellene | ordene
+    orden_cantidad_cajas: Optional[int] = None  # Only if trabajo = ordene
+    orden_fecha_llegada: Optional[datetime] = None  # Only if trabajo = ordene
+    notes: Optional[str] = None
+
+
+class WorkItemUpdate(BaseModel):
+    """Update a work item with SKU actions and condition checks."""
+    sku_actions: list[WorkItemSKUAction] = []
+    prices_on_gondola: Optional[bool] = None
+    pop_material_present: Optional[bool] = None
+    product_presentable: Optional[bool] = None
+    gondola_space_gained: Optional[bool] = None
+    condition_notes: Optional[str] = None
+
+
+class WorkItemComplete(BaseModel):
+    """Complete a work item by adding the after photo."""
+    after_photo_id: int
+
+
+class WorkItemSKUActionOut(BaseModel):
+    """SKU action output within a work item."""
+    id: int
+    sku_id: int
+    estado_gondola: Optional[str] = None
+    trabajo: Optional[str] = None
+    orden_cantidad_cajas: Optional[int] = None
+    orden_fecha_llegada: Optional[datetime] = None
+    notes: Optional[str] = None
+    sku: Optional[SKUOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WorkItemOut(BaseModel):
+    """Work item response."""
+    id: int
+    visit_id: int
+    segment: str
+    status: str  # created | in_progress | completed
+    before_photo_id: Optional[int] = None
+    after_photo_id: Optional[int] = None
+    before_photo: Optional[VisitPhotoOut] = None
+    after_photo: Optional[VisitPhotoOut] = None
+    sku_actions: list[WorkItemSKUActionOut] = []
+    prices_on_gondola: Optional[bool] = None
+    pop_material_present: Optional[bool] = None
+    product_presentable: Optional[bool] = None
+    gondola_space_gained: Optional[bool] = None
+    condition_notes: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SegmentAvailableSKUs(BaseModel):
+    """Available SKUs for a segment (excluding already assigned ones)."""
+    segment: str
+    skus: list[SKUOut]
+    assigned_sku_ids: list[int]  # SKUs already assigned to other work items
+
+
+class SegmentSummary(BaseModel):
+    """Summary of work items in a segment."""
+    segment: str
+    total_work_items: int
+    completed_work_items: int
+    pending_work_items: int
+    in_progress_work_items: int
