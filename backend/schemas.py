@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────
@@ -505,9 +505,9 @@ class WorkItemSKUAction(BaseModel):
     """SKU action within a work item."""
     sku_id: int
     estado_gondola: str  # llena | semi | agotada
-    trabajo: str  # organice | rellene | ordene
-    orden_cantidad_cajas: Optional[int] = None  # Only if trabajo = ordene
-    orden_fecha_llegada: Optional[datetime] = None  # Only if trabajo = ordene
+    trabajo: list[str]  # list of: organice | rellene | ordene
+    orden_cantidad_cajas: Optional[int] = None  # Required if ordene in trabajo
+    orden_fecha_llegada: Optional[datetime] = None  # Required if ordene in trabajo
     notes: Optional[str] = None
 
 
@@ -531,11 +531,20 @@ class WorkItemSKUActionOut(BaseModel):
     id: int
     sku_id: int
     estado_gondola: Optional[str] = None
-    trabajo: Optional[str] = None
+    trabajo: Optional[list[str]] = None
     orden_cantidad_cajas: Optional[int] = None
     orden_fecha_llegada: Optional[datetime] = None
     notes: Optional[str] = None
     sku: Optional[SKUOut] = None
+
+    @field_validator("trabajo", mode="before")
+    @classmethod
+    def parse_trabajo(cls, v):
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return v
+        return v.split(",")
 
     class Config:
         from_attributes = True

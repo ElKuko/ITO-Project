@@ -4347,9 +4347,14 @@ async function openWorkItem(workItemId) {
 
     workflowState.workItemSkuSelections = {};
     for (const action of currentSkus) {
+      // Handle trabajo as array (convert from string if needed for backward compat)
+      let trabajoArr = action.trabajo || [];
+      if (typeof trabajoArr === 'string' && trabajoArr) {
+        trabajoArr = [trabajoArr];
+      }
       workflowState.workItemSkuSelections[action.sku_id] = {
         estado_gondola: action.estado_gondola || '',
-        trabajo: action.trabajo || '',
+        trabajo: trabajoArr,
         orden_cantidad_cajas: action.orden_cantidad_cajas || '',
         orden_fecha_llegada: action.orden_fecha_llegada ? action.orden_fecha_llegada.split('T')[0] : '',
         notes: action.notes || '',
@@ -4404,12 +4409,12 @@ function renderWorkItemSkuList(skus, selectedIds) {
           </div>
           <div class="sku-chips-group">
             <label>Trabajo</label>
-            <div class="chip-buttons">
-              ${TRABAJO_OPTIONS.map(o => `<span class="chip chip-trabajo ${selection.trabajo === o.value ? 'active' : ''}" onclick="selectSkuChip(${sku.id}, 'trabajo', '${o.value}', this)">${o.label}</span>`).join('')}
+            <div class="chip-buttons chip-buttons-multi">
+              ${TRABAJO_OPTIONS.map(o => `<span class="chip chip-trabajo ${(selection.trabajo || []).includes(o.value) ? 'active' : ''}" onclick="selectSkuChip(${sku.id}, 'trabajo', '${o.value}', this)">${o.label}</span>`).join('')}
             </div>
           </div>
         </div>
-        <div class="ordene-fields" id="ordene-fields-${sku.id}" style="display:${selection.trabajo === 'ordene' ? 'flex' : 'none'};">
+        <div class="ordene-fields" id="ordene-fields-${sku.id}" style="display:${(selection.trabajo || []).includes('ordene') ? 'flex' : 'none'};">
           <div class="sku-field-group">
             <label>Cantidad cajas</label>
             <input type="number" min="1" value="${selection.orden_cantidad_cajas || ''}" onchange="updateSkuField(${sku.id}, 'orden_cantidad_cajas', this.value)">
@@ -4429,7 +4434,7 @@ function selectSkuChip(skuId, field, value, chipEl) {
   if (!workflowState.workItemSkuSelections[skuId]) {
     workflowState.workItemSkuSelections[skuId] = {
       estado_gondola: '',
-      trabajo: '',
+      trabajo: [],
       orden_cantidad_cajas: '',
       orden_fecha_llegada: '',
       notes: '',
@@ -4439,17 +4444,27 @@ function selectSkuChip(skuId, field, value, chipEl) {
     if (itemEl) itemEl.classList.add('selected');
   }
 
-  // Update selection state
-  workflowState.workItemSkuSelections[skuId][field] = value;
-
-  // Update chip styles - remove active from siblings, add to clicked
-  chipEl.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  chipEl.classList.add('active');
-
-  // Show/hide ordene fields
   if (field === 'trabajo') {
+    // Multi-select: toggle value in array
+    const trabajoArr = workflowState.workItemSkuSelections[skuId].trabajo || [];
+    const idx = trabajoArr.indexOf(value);
+    if (idx >= 0) {
+      trabajoArr.splice(idx, 1);
+      chipEl.classList.remove('active');
+    } else {
+      trabajoArr.push(value);
+      chipEl.classList.add('active');
+    }
+    workflowState.workItemSkuSelections[skuId].trabajo = trabajoArr;
+
+    // Show/hide ordene fields based on whether 'ordene' is selected
     const ordeneFieldsEl = document.getElementById(`ordene-fields-${skuId}`);
-    ordeneFieldsEl.style.display = value === 'ordene' ? 'flex' : 'none';
+    ordeneFieldsEl.style.display = trabajoArr.includes('ordene') ? 'flex' : 'none';
+  } else {
+    // Single-select for estado_gondola
+    workflowState.workItemSkuSelections[skuId][field] = value;
+    chipEl.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chipEl.classList.add('active');
   }
 }
 
@@ -4463,7 +4478,7 @@ function toggleWorkItemSku(skuId, isChecked) {
     if (!workflowState.workItemSkuSelections[skuId]) {
       workflowState.workItemSkuSelections[skuId] = {
         estado_gondola: '',
-        trabajo: '',
+        trabajo: [],
         orden_cantidad_cajas: '',
         orden_fecha_llegada: '',
         notes: '',
@@ -4482,11 +4497,6 @@ function updateSkuField(skuId, field, value) {
     workflowState.workItemSkuSelections[skuId] = {};
   }
   workflowState.workItemSkuSelections[skuId][field] = value;
-
-  if (field === 'trabajo') {
-    const ordeneFieldsEl = document.getElementById(`ordene-fields-${skuId}`);
-    ordeneFieldsEl.style.display = value === 'ordene' ? 'flex' : 'none';
-  }
 }
 
 function restoreWorkItemConditions(workItem) {
@@ -4548,18 +4558,19 @@ async function saveWorkItemProgress() {
   const skuActions = [];
   for (const [skuIdStr, data] of Object.entries(workflowState.workItemSkuSelections)) {
     const skuId = parseInt(skuIdStr);
-    if (!data.estado_gondola || !data.trabajo) {
+    const trabajoArr = data.trabajo || [];
+    if (!data.estado_gondola || trabajoArr.length === 0) {
       continue;
     }
 
     const action = {
       sku_id: skuId,
       estado_gondola: data.estado_gondola,
-      trabajo: data.trabajo,
+      trabajo: trabajoArr,
       notes: data.notes || null,
     };
 
-    if (data.trabajo === 'ordene') {
+    if (trabajoArr.includes('ordene')) {
       action.orden_cantidad_cajas = parseInt(data.orden_cantidad_cajas) || null;
       action.orden_fecha_llegada = data.orden_fecha_llegada ? new Date(data.orden_fecha_llegada).toISOString() : null;
     }

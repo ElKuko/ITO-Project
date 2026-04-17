@@ -217,13 +217,14 @@ def update_work_item(
     for action in req.sku_actions:
         if action.estado_gondola not in VALID_ESTADO:
             raise HTTPException(status_code=400, detail=f"Invalid estado_gondola: {action.estado_gondola}")
-        if action.trabajo not in VALID_TRABAJO:
-            raise HTTPException(status_code=400, detail=f"Invalid trabajo: {action.trabajo}")
-        if action.trabajo == "ordene":
+        for t in action.trabajo:
+            if t not in VALID_TRABAJO:
+                raise HTTPException(status_code=400, detail=f"Invalid trabajo: {t}")
+        if "ordene" in action.trabajo:
             if action.orden_cantidad_cajas is None:
-                raise HTTPException(status_code=400, detail="orden_cantidad_cajas required when trabajo is ordene")
+                raise HTTPException(status_code=400, detail="orden_cantidad_cajas required when trabajo includes ordene")
             if action.orden_fecha_llegada is None:
-                raise HTTPException(status_code=400, detail="orden_fecha_llegada required when trabajo is ordene")
+                raise HTTPException(status_code=400, detail="orden_fecha_llegada required when trabajo includes ordene")
 
     existing_action_ids = db.query(VisitSKUAction.sku_id).join(WorkItem).filter(
         WorkItem.visit_id == work_item.visit_id,
@@ -246,14 +247,16 @@ def update_work_item(
         if not sku:
             raise HTTPException(status_code=404, detail=f"SKU {action.sku_id} not found")
 
+        trabajo_str = ",".join(action.trabajo) if action.trabajo else ""
+        has_ordene = "ordene" in action.trabajo
         db.add(VisitSKUAction(
             visit_id=work_item.visit_id,
             work_item_id=work_item_id,
             sku_id=action.sku_id,
             estado_gondola=action.estado_gondola,
-            trabajo=action.trabajo,
-            orden_cantidad_cajas=action.orden_cantidad_cajas if action.trabajo == "ordene" else None,
-            orden_fecha_llegada=action.orden_fecha_llegada if action.trabajo == "ordene" else None,
+            trabajo=trabajo_str,
+            orden_cantidad_cajas=action.orden_cantidad_cajas if has_ordene else None,
+            orden_fecha_llegada=action.orden_fecha_llegada if has_ordene else None,
             notes=action.notes,
         ))
 
