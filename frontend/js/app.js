@@ -4332,13 +4332,10 @@ async function openWorkItem(workItemId) {
     workflowState.currentWorkItem = workItem;
 
     const photoImg = document.getElementById('work-item-photo-img');
-    console.log('Work item before_photo:', workItem.before_photo);
     if (workItem.before_photo && workItem.before_photo.file_path) {
       photoImg.src = workItem.before_photo.file_path;
-      console.log('Set photo src to:', workItem.before_photo.file_path);
     } else {
       photoImg.src = '';
-      console.log('No before_photo found');
     }
 
     const statusBadge = document.getElementById('work-item-status-badge');
