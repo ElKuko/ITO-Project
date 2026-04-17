@@ -215,7 +215,7 @@ def update_work_item(
         raise HTTPException(status_code=403, detail="Access denied")
 
     for action in req.sku_actions:
-        if action.estado_gondola not in VALID_ESTADO:
+        if action.estado_gondola and action.estado_gondola not in VALID_ESTADO:
             raise HTTPException(status_code=400, detail=f"Invalid estado_gondola: {action.estado_gondola}")
         for t in action.trabajo:
             if t not in VALID_TRABAJO:

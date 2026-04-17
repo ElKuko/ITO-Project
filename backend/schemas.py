@@ -504,8 +504,8 @@ class WorkItemCreate(BaseModel):
 class WorkItemSKUAction(BaseModel):
     """SKU action within a work item."""
     sku_id: int
-    estado_gondola: str  # llena | semi | agotada
-    trabajo: list[str]  # list of: organice | rellene | ordene
+    estado_gondola: Optional[str] = None  # llena | semi | agotada
+    trabajo: list[str] = []  # list of: organice | rellene | ordene
     orden_cantidad_cajas: Optional[int] = None  # Required if ordene in trabajo
     orden_fecha_llegada: Optional[datetime] = None  # Required if ordene in trabajo
     notes: Optional[str] = None

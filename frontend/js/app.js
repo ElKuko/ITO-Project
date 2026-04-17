@@ -4567,13 +4567,15 @@ async function saveWorkItemProgress() {
   for (const [skuIdStr, data] of Object.entries(workflowState.workItemSkuSelections)) {
     const skuId = parseInt(skuIdStr);
     const trabajoArr = data.trabajo || [];
-    if (!data.estado_gondola || trabajoArr.length === 0) {
+
+    // Save if any selection has been made (estado OR trabajo)
+    if (!data.estado_gondola && trabajoArr.length === 0) {
       continue;
     }
 
     const action = {
       sku_id: skuId,
-      estado_gondola: data.estado_gondola,
+      estado_gondola: data.estado_gondola || null,
       trabajo: trabajoArr,
       notes: data.notes || null,
     };
