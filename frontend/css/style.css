@@ -2805,8 +2805,17 @@ tr.inactive-row {
   background: #f0f7ff;
 }
 
+.work-item-sku-list .sku-item .sku-header {
+  margin-bottom: 8px;
+}
+
+.work-item-sku-list .sku-item .sku-header .sku-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .sku-estado-trabajo {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .sku-chips-group {

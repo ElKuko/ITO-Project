@@ -4389,14 +4389,13 @@ function renderWorkItemSkuList(skus, selectedIds) {
 
     return `
       <li class="sku-item ${isSelected ? 'selected' : ''}" data-sku-id="${sku.id}">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleWorkItemSku(${sku.id}, this.checked)">
+        <div class="sku-header">
           <div class="sku-info">
             <span class="sku-name">${sku.name}</span>
             <span class="sku-meta">${sku.brand || ''}</span>
           </div>
         </div>
-        <div class="sku-estado-trabajo" id="sku-fields-${sku.id}" style="display:${isSelected ? 'block' : 'none'};">
+        <div class="sku-estado-trabajo" id="sku-fields-${sku.id}">
           <div class="sku-chips-group">
             <label>Estado góndola</label>
             <div class="chip-buttons">
@@ -4426,10 +4425,21 @@ function renderWorkItemSkuList(skus, selectedIds) {
 }
 
 function selectSkuChip(skuId, field, value, chipEl) {
-  // Update selection state
+  // Auto-select the SKU when any chip is clicked
   if (!workflowState.workItemSkuSelections[skuId]) {
-    workflowState.workItemSkuSelections[skuId] = {};
+    workflowState.workItemSkuSelections[skuId] = {
+      estado_gondola: '',
+      trabajo: '',
+      orden_cantidad_cajas: '',
+      orden_fecha_llegada: '',
+      notes: '',
+    };
+    // Mark item as selected visually
+    const itemEl = chipEl.closest('.sku-item');
+    if (itemEl) itemEl.classList.add('selected');
   }
+
+  // Update selection state
   workflowState.workItemSkuSelections[skuId][field] = value;
 
   // Update chip styles - remove active from siblings, add to clicked
