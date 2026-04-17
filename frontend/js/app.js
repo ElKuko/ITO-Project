@@ -4371,8 +4371,10 @@ async function openWorkItem(workItemId) {
     }
 
     renderWorkItemSkuList(allSkus, currentSkuIds);
+    updateSkuSummary();
 
     restoreWorkItemConditions(workItem);
+    updateConditionsSummary();
 
     showStep(4);
 
@@ -4391,6 +4393,170 @@ function toggleWorkItemPhoto() {
   modal.innerHTML = `<img src="${photoImg.src}" alt="Foto ampliada">`;
   modal.onclick = () => modal.remove();
   document.body.appendChild(modal);
+}
+
+function openSkuModal() {
+  const content = document.getElementById('work-item-sku-list').outerHTML;
+
+  const modal = document.createElement('div');
+  modal.className = 'fullscreen-modal';
+  modal.id = 'sku-modal';
+  modal.innerHTML = `
+    <div class="fullscreen-modal-header">
+      <h3>SKUs en esta foto</h3>
+      <button class="fullscreen-modal-close" onclick="closeSkuModal()">×</button>
+    </div>
+    <div class="fullscreen-modal-body">
+      ${content}
+    </div>
+    <div class="fullscreen-modal-footer">
+      <button class="btn btn-primary" onclick="closeSkuModal()">Listo</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Re-bind event handlers for cloned elements
+  modal.querySelectorAll('.chip').forEach(chip => {
+    const onclick = chip.getAttribute('onclick');
+    if (onclick) {
+      chip.onclick = () => eval(onclick);
+    }
+  });
+
+  modal.querySelectorAll('input').forEach(input => {
+    const onchange = input.getAttribute('onchange');
+    if (onchange) {
+      input.onchange = () => eval(onchange);
+    }
+  });
+}
+
+function closeSkuModal() {
+  const modal = document.getElementById('sku-modal');
+  if (modal) {
+    // Sync changes back to original list
+    const modalList = modal.querySelector('.work-item-sku-list');
+    const originalList = document.getElementById('work-item-sku-list');
+    if (modalList && originalList) {
+      originalList.innerHTML = modalList.innerHTML;
+    }
+    modal.remove();
+    updateSkuSummary();
+  }
+}
+
+function updateSkuSummary() {
+  const count = Object.keys(workflowState.workItemSkuSelections).length;
+  const summaryEl = document.getElementById('sku-summary');
+  if (summaryEl) {
+    summaryEl.textContent = count > 0 ? `${count} seleccionado${count > 1 ? 's' : ''}` : '0 seleccionados';
+  }
+}
+
+function openConditionsModal() {
+  const content = document.getElementById('conditions-modal-content').innerHTML;
+
+  const modal = document.createElement('div');
+  modal.className = 'fullscreen-modal';
+  modal.id = 'conditions-modal';
+  modal.innerHTML = `
+    <div class="fullscreen-modal-header">
+      <h3>Condiciones</h3>
+      <button class="fullscreen-modal-close" onclick="closeConditionsModal()">×</button>
+    </div>
+    <div class="fullscreen-modal-body">
+      ${content}
+    </div>
+    <div class="fullscreen-modal-footer">
+      <button class="btn btn-primary" onclick="closeConditionsModal()">Listo</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Restore toggle button states
+  restoreConditionButtonStates(modal);
+
+  // Re-bind event handlers
+  modal.querySelectorAll('.toggle-btn').forEach(btn => {
+    const onclick = btn.getAttribute('onclick');
+    if (onclick) {
+      btn.onclick = function() { eval(onclick); };
+    }
+  });
+
+  // Handle notes textarea
+  const notesGroup = modal.querySelector('#work-item-notes-group');
+  const notesTextarea = modal.querySelector('#work-item-notes');
+  if (notesGroup && notesTextarea) {
+    notesGroup.id = 'modal-work-item-notes-group';
+    notesTextarea.id = 'modal-work-item-notes';
+    notesTextarea.value = document.getElementById('work-item-notes')?.value || '';
+    const anyNo = Object.values(workItemConditions).some(v => v === false);
+    notesGroup.style.display = anyNo ? 'block' : 'none';
+  }
+}
+
+function restoreConditionButtonStates(container) {
+  const conditions = [
+    { field: 'prices', labelMatch: 'precios' },
+    { field: 'pop', labelMatch: 'PoP' },
+    { field: 'presentable', labelMatch: 'presentable' },
+    { field: 'gondola_space', labelMatch: 'espacio' },
+  ];
+
+  for (const cond of conditions) {
+    const value = workItemConditions[cond.field];
+    if (value !== undefined) {
+      container.querySelectorAll('.condition-check').forEach(check => {
+        const label = check.querySelector('label').textContent;
+        if (label.includes(cond.labelMatch)) {
+          check.querySelectorAll('.toggle-btn').forEach(btn => {
+            const isYes = btn.textContent.trim() === 'Sí';
+            if ((value && isYes) || (!value && !isYes)) {
+              btn.classList.add(value ? 'selected-yes' : 'selected-no');
+            }
+          });
+        }
+      });
+    }
+  }
+}
+
+function closeConditionsModal() {
+  const modal = document.getElementById('conditions-modal');
+  if (modal) {
+    // Sync notes back
+    const modalNotes = modal.querySelector('#modal-work-item-notes');
+    const originalNotes = document.getElementById('work-item-notes');
+    if (modalNotes && originalNotes) {
+      originalNotes.value = modalNotes.value;
+    }
+
+    // Sync notes group visibility
+    const originalNotesGroup = document.getElementById('work-item-notes-group');
+    if (originalNotesGroup) {
+      const anyNo = Object.values(workItemConditions).some(v => v === false);
+      originalNotesGroup.style.display = anyNo ? 'block' : 'none';
+    }
+
+    modal.remove();
+    updateConditionsSummary();
+  }
+}
+
+function updateConditionsSummary() {
+  const total = 4;
+  const answered = Object.keys(workItemConditions).length;
+  const summaryEl = document.getElementById('conditions-summary');
+  if (summaryEl) {
+    if (answered === 0) {
+      summaryEl.textContent = 'Sin completar';
+    } else if (answered < total) {
+      summaryEl.textContent = `${answered}/${total} respondidas`;
+    } else {
+      summaryEl.textContent = 'Completado';
+    }
+  }
 }
 
 function renderWorkItemSkuList(skus, selectedIds) {

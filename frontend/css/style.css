@@ -2813,6 +2813,116 @@ tr.inactive-row {
   object-fit: contain;
 }
 
+/* Section Preview Bars */
+.section-preview {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.section-preview:hover {
+  background: var(--bg);
+}
+
+.section-preview-title {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+
+.section-preview-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+
+.section-preview-arrow {
+  font-size: 20px;
+  color: var(--text-secondary);
+}
+
+/* Fullscreen Modal */
+.fullscreen-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fullscreen-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fullscreen-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.fullscreen-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text);
+}
+
+.fullscreen-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.fullscreen-modal-footer {
+  padding: 16px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fullscreen-modal-footer .btn {
+  width: 100%;
+}
+
+/* SKU list in modal */
+.fullscreen-modal .sku-item {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.fullscreen-modal .sku-item.selected {
+  border-color: var(--primary);
+  background: #f0f7ff;
+}
+
+/* Conditions in modal */
+.fullscreen-modal .condition-check {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.fullscreen-modal .condition-check:last-of-type {
+  border-bottom: none;
+}
+
 .work-item-skus {
   padding: 16px;
   border-bottom: 1px solid var(--border);

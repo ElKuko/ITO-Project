@@ -180,16 +180,26 @@
               <span class="photo-expand-hint">Toca para ampliar</span>
             </div>
 
-            <!-- SKU Selection List -->
-            <div class="work-item-skus">
-              <h4>SKUs en esta foto</h4>
-              <p class="meta">Seleccione los productos visibles en la foto.</p>
+            <!-- SKU Selection (collapsible) -->
+            <div class="section-preview" onclick="openSkuModal()">
+              <span class="section-preview-title">SKUs en esta foto</span>
+              <span class="section-preview-summary" id="sku-summary">0 seleccionados</span>
+              <span class="section-preview-arrow">›</span>
+            </div>
+
+            <!-- Condition Checks (collapsible) -->
+            <div class="section-preview" onclick="openConditionsModal()">
+              <span class="section-preview-title">Condiciones</span>
+              <span class="section-preview-summary" id="conditions-summary">Sin completar</span>
+              <span class="section-preview-arrow">›</span>
+            </div>
+
+            <!-- Hidden containers for modal content -->
+            <div id="sku-modal-content" style="display:none;">
               <ul class="sku-list work-item-sku-list" id="work-item-sku-list"></ul>
             </div>
 
-            <!-- Condition Checks -->
-            <div class="work-item-conditions">
-              <h4>Condiciones</h4>
+            <div id="conditions-modal-content" style="display:none;">
               <div class="condition-check">
                 <label>¿Están todos los precios?</label>
                 <div class="toggle-group">
