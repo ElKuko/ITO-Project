@@ -4346,12 +4346,15 @@ async function openWorkItem(workItemId) {
     const currentSkuIds = workItem.sku_actions ? workItem.sku_actions.map(a => a.sku_id) : [];
     const currentSkus = workItem.sku_actions || [];
 
+    console.log('Loading work item, sku_actions from server:', JSON.stringify(workItem.sku_actions));
+
     workflowState.workItemSkuSelections = {};
     for (const action of currentSkus) {
       let trabajoArr = action.trabajo || [];
       if (typeof trabajoArr === 'string' && trabajoArr) {
         trabajoArr = [trabajoArr];
       }
+      console.log(`Restoring SKU ${action.sku_id}: estado=${action.estado_gondola}, trabajo=${JSON.stringify(trabajoArr)}`);
       workflowState.workItemSkuSelections[action.sku_id] = {
         estado_gondola: action.estado_gondola || '',
         trabajo: trabajoArr,
@@ -4360,6 +4363,8 @@ async function openWorkItem(workItemId) {
         notes: action.notes || '',
       };
     }
+
+    console.log('Restored workItemSkuSelections:', JSON.stringify(workflowState.workItemSkuSelections));
 
     const allSkus = [...workflowState.availableSkus];
     for (const action of currentSkus) {
@@ -4564,12 +4569,15 @@ async function saveWorkItemProgress() {
   if (!workItemId) return;
 
   const skuActions = [];
+  console.log('Saving workItemSkuSelections:', JSON.stringify(workflowState.workItemSkuSelections));
+
   for (const [skuIdStr, data] of Object.entries(workflowState.workItemSkuSelections)) {
     const skuId = parseInt(skuIdStr);
     const trabajoArr = data.trabajo || [];
 
     // Save if any selection has been made (estado OR trabajo)
     if (!data.estado_gondola && trabajoArr.length === 0) {
+      console.log(`Skipping SKU ${skuId}: no estado or trabajo`);
       continue;
     }
 
@@ -4585,8 +4593,11 @@ async function saveWorkItemProgress() {
       action.orden_fecha_llegada = data.orden_fecha_llegada ? new Date(data.orden_fecha_llegada).toISOString() : null;
     }
 
+    console.log(`Adding SKU action:`, action);
     skuActions.push(action);
   }
+
+  console.log('Final skuActions to save:', JSON.stringify(skuActions));
 
   const notes = document.getElementById('work-item-notes').value;
 
