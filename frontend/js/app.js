@@ -4325,6 +4325,7 @@ async function onWorkItemPhotoSelected(input) {
 
 async function openWorkItem(workItemId) {
   workflowState.currentWorkItemId = workItemId;
+  workItemConditions = {};
 
   try {
     const workItem = await getWorkItem(workItemId);
@@ -4347,7 +4348,6 @@ async function openWorkItem(workItemId) {
 
     workflowState.workItemSkuSelections = {};
     for (const action of currentSkus) {
-      // Handle trabajo as array (convert from string if needed for backward compat)
       let trabajoArr = action.trabajo || [];
       if (typeof trabajoArr === 'string' && trabajoArr) {
         trabajoArr = [trabajoArr];
@@ -4378,6 +4378,17 @@ async function openWorkItem(workItemId) {
     toast('Error al abrir trabajo: ' + err.message);
     console.error(err);
   }
+}
+
+function toggleWorkItemPhoto() {
+  const photoImg = document.getElementById('work-item-photo-img');
+  if (!photoImg.src) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'photo-modal';
+  modal.innerHTML = `<img src="${photoImg.src}" alt="Foto ampliada">`;
+  modal.onclick = () => modal.remove();
+  document.body.appendChild(modal);
 }
 
 function renderWorkItemSkuList(skus, selectedIds) {
@@ -4501,10 +4512,10 @@ function updateSkuField(skuId, field, value) {
 
 function restoreWorkItemConditions(workItem) {
   const conditions = [
-    { field: 'prices', value: workItem.prices_on_gondola },
-    { field: 'pop', value: workItem.pop_material_present },
-    { field: 'presentable', value: workItem.product_presentable },
-    { field: 'gondola_space', value: workItem.gondola_space_gained },
+    { field: 'prices', dbField: 'prices_on_gondola', value: workItem.prices_on_gondola, labelMatch: 'precios' },
+    { field: 'pop', dbField: 'pop_material_present', value: workItem.pop_material_present, labelMatch: 'PoP' },
+    { field: 'presentable', dbField: 'product_presentable', value: workItem.product_presentable, labelMatch: 'presentable' },
+    { field: 'gondola_space', dbField: 'gondola_space_gained', value: workItem.gondola_space_gained, labelMatch: 'espacio' },
   ];
 
   document.querySelectorAll('#visit-step-4 .work-item-conditions .toggle-btn').forEach(btn => {
@@ -4513,15 +4524,11 @@ function restoreWorkItemConditions(workItem) {
 
   for (const cond of conditions) {
     if (cond.value !== null) {
+      workItemConditions[cond.field] = cond.value;
       const btns = document.querySelectorAll(`#visit-step-4 .condition-check .toggle-btn`);
       btns.forEach(btn => {
         const label = btn.closest('.condition-check').querySelector('label').textContent;
-        if (
-          (cond.field === 'prices' && label.includes('precios')) ||
-          (cond.field === 'pop' && label.includes('PoP')) ||
-          (cond.field === 'presentable' && label.includes('presentable')) ||
-          (cond.field === 'gondola_space' && label.includes('espacio'))
-        ) {
+        if (label.includes(cond.labelMatch)) {
           const isYes = btn.textContent.trim() === 'Sí';
           if ((cond.value && isYes) || (!cond.value && !isYes)) {
             btn.classList.add(cond.value ? 'selected-yes' : 'selected-no');
@@ -4531,10 +4538,11 @@ function restoreWorkItemConditions(workItem) {
     }
   }
 
-  if (workItem.condition_notes) {
-    document.getElementById('work-item-notes').value = workItem.condition_notes;
-    document.getElementById('work-item-notes-group').style.display = 'block';
-  }
+  const notesEl = document.getElementById('work-item-notes');
+  const notesGroupEl = document.getElementById('work-item-notes-group');
+  notesEl.value = workItem.condition_notes || '';
+  const anyNo = Object.values(workItemConditions).some(v => v === false);
+  notesGroupEl.style.display = (anyNo || workItem.condition_notes) ? 'block' : 'none';
 }
 
 let workItemConditions = {};
