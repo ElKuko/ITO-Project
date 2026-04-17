@@ -4243,16 +4243,42 @@ function renderWorkItemList() {
     const photoUrl = item.before_photo ? item.before_photo.file_path : '';
 
     return `
-      <div class="work-item-card ${statusClass}" onclick="openWorkItem(${item.id})">
-        <img class="work-item-thumbnail" src="${photoUrl}" alt="Foto ${idx + 1}">
-        <div class="work-item-info">
+      <div class="work-item-card ${statusClass}">
+        <img class="work-item-thumbnail" src="${photoUrl}" alt="Foto ${idx + 1}" onclick="openWorkItem(${item.id})">
+        <div class="work-item-info" onclick="openWorkItem(${item.id})">
           <div class="work-item-title">Trabajo ${idx + 1}</div>
           <div class="work-item-meta">${skuCount} SKU(s) documentados</div>
         </div>
         <span class="work-item-status ${item.status}">${statusLabel}</span>
+        <button class="work-item-delete-btn" onclick="confirmDeleteWorkItem(${item.id}, event)" title="Eliminar">×</button>
       </div>
     `;
   }).join('');
+}
+
+async function confirmDeleteWorkItem(workItemId, event) {
+  event.stopPropagation();
+
+  if (!confirm('¿Eliminar este trabajo?')) {
+    return;
+  }
+
+  try {
+    await deleteWorkItem(workItemId);
+
+    // Remove from local state
+    workflowState.workItems = workflowState.workItems.filter(w => w.id !== workItemId);
+    renderWorkItemList();
+
+    // Update count
+    const countEl = document.getElementById('segment-work-item-count');
+    const completed = workflowState.workItems.filter(w => w.status === 'completed').length;
+    countEl.textContent = `${completed}/${workflowState.workItems.length} completados`;
+
+    toast('Trabajo eliminado');
+  } catch (err) {
+    toast('Error al eliminar: ' + err.message);
+  }
 }
 
 function captureWorkItemPhoto() {

@@ -2646,6 +2646,33 @@ tr.inactive-row {
   border-radius: var(--radius);
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
+}
+
+.work-item-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(0,0,0,0.1);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.work-item-delete-btn:hover {
+  background: var(--danger);
+  color: white;
+  opacity: 1;
 }
 
 .work-item-card:hover {
