@@ -4800,14 +4800,15 @@ function restoreWorkItemConditions(workItem) {
     { field: 'gondola_space', dbField: 'gondola_space_gained', value: workItem.gondola_space_gained, labelMatch: 'espacio' },
   ];
 
-  document.querySelectorAll('#visit-step-4 .work-item-conditions .toggle-btn').forEach(btn => {
+  // Clear all toggle buttons in the conditions modal content
+  document.querySelectorAll('#conditions-modal-content .toggle-btn').forEach(btn => {
     btn.classList.remove('selected-yes', 'selected-no');
   });
 
   for (const cond of conditions) {
     if (cond.value !== null) {
       workItemConditions[cond.field] = cond.value;
-      const btns = document.querySelectorAll(`#visit-step-4 .condition-check .toggle-btn`);
+      const btns = document.querySelectorAll(`#conditions-modal-content .condition-check .toggle-btn`);
       btns.forEach(btn => {
         const label = btn.closest('.condition-check').querySelector('label').textContent;
         if (label.includes(cond.labelMatch)) {
@@ -4838,7 +4839,12 @@ function setWorkItemCondition(field, value, btn) {
   btn.classList.add(value ? 'selected-yes' : 'selected-no');
 
   const anyNo = Object.values(workItemConditions).some(v => v === false);
-  document.getElementById('work-item-notes-group').style.display = anyNo ? 'block' : 'none';
+
+  // Update notes visibility in both modal and hidden content
+  const modalNotesGroup = document.getElementById('modal-work-item-notes-group');
+  const hiddenNotesGroup = document.getElementById('work-item-notes-group');
+  if (modalNotesGroup) modalNotesGroup.style.display = anyNo ? 'block' : 'none';
+  if (hiddenNotesGroup) hiddenNotesGroup.style.display = anyNo ? 'block' : 'none';
 }
 
 async function saveWorkItemProgress() {
