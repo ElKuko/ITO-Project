@@ -169,21 +169,102 @@ function resetVisitState() {
     photos: { arrival: null },
     gps: { lat: null, lng: null, accuracy: null },
   };
+  clearSavedVisitProgress();
 }
 
-async function loadVisitPage() {
-  resetVisitState();
-  resetWorkflowState();
-  showStep(0);
+// ── Visit State Persistence ─────────────────────────────────────────────────
 
+function saveVisitProgress() {
+  if (!visitState.visitId) return;
+
+  const toSave = {
+    visitState: {
+      ...visitState,
+      selectedSkus: {
+        produce: Array.from(visitState.selectedSkus.produce),
+        provisiones: Array.from(visitState.selectedSkus.provisiones),
+        congelados: Array.from(visitState.selectedSkus.congelados),
+      },
+    },
+    workflowState: workflowState,
+    workItemConditions: workItemConditions,
+    timestamp: Date.now(),
+  };
+  localStorage.setItem('ito_visit_progress', JSON.stringify(toSave));
+}
+
+function getSavedVisitProgress() {
   try {
-    const stores = await apiGet('/stores/');
-    const sel = document.getElementById('visit-store-select');
-    sel.innerHTML = '<option value="">Seleccione una tienda...</option>' +
-      stores.map(s => `<option value="${s.id}" data-name="${s.name}">${s.name} (${s.region})</option>`).join('');
+    const saved = localStorage.getItem('ito_visit_progress');
+    if (!saved) return null;
+    const data = JSON.parse(saved);
+    // Expire after 24 hours
+    if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
+      clearSavedVisitProgress();
+      return null;
+    }
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearSavedVisitProgress() {
+  localStorage.removeItem('ito_visit_progress');
+}
+
+function restoreVisitProgress(saved) {
+  const vs = saved.visitState;
+  visitState = {
+    ...vs,
+    selectedSkus: {
+      produce: new Set(vs.selectedSkus.produce || []),
+      provisiones: new Set(vs.selectedSkus.provisiones || []),
+      congelados: new Set(vs.selectedSkus.congelados || []),
+    },
+  };
+  workflowState = saved.workflowState || workflowState;
+  workItemConditions = saved.workItemConditions || {};
+}
+
+let allStores = [];
+
+async function loadVisitPage() {
+  // Load stores first
+  try {
+    allStores = await apiGet('/stores/');
+    renderStoreList(allStores);
   } catch (err) {
     toast('Error cargando tiendas');
   }
+
+  // Check for saved progress
+  const saved = getSavedVisitProgress();
+  if (saved && saved.visitState.visitId) {
+    restoreVisitProgress(saved);
+    showStep(visitState.step);
+
+    // Restore UI elements based on state
+    if (visitState.photos.arrival) {
+      const arrivalPreview = document.getElementById('arrival-preview');
+      if (arrivalPreview) {
+        arrivalPreview.innerHTML = `<img src="${visitState.photos.arrival}" alt="Llegada">`;
+      }
+      const btn1 = document.getElementById('btn-step1-next');
+      if (btn1) btn1.disabled = false;
+    }
+
+    // Update segment statuses
+    updateSegmentStatuses();
+
+    toast('Visita restaurada');
+    return;
+  }
+
+  // No saved progress - start fresh
+  resetVisitState();
+  resetWorkflowState();
+  showStep(0);
 
   // Clear arrival preview
   const arrivalPreview = document.getElementById('arrival-preview');
@@ -212,6 +293,26 @@ async function loadVisitPage() {
   // Disable step 1 next button
   const btn1 = document.getElementById('btn-step1-next');
   if (btn1) btn1.disabled = true;
+}
+
+function renderStoreList(stores) {
+  const sel = document.getElementById('visit-store-select');
+  sel.innerHTML = stores.map(s =>
+    `<option value="${s.id}" data-name="${s.name}">${s.name} (${s.region})</option>`
+  ).join('');
+}
+
+function filterStores(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    renderStoreList(allStores);
+    return;
+  }
+  const filtered = allStores.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    (s.region && s.region.toLowerCase().includes(q))
+  );
+  renderStoreList(filtered);
 }
 
 function showStep(stepNum) {
@@ -248,6 +349,25 @@ function nextStep() {
 }
 
 function prevStep() {
+  if (visitState.step === 1 && visitState.visitId) {
+    // Going back from step 1 to step 0 means changing store - confirm first
+    if (!confirm('¿Desea cambiar de tienda? Se perderá todo el progreso de esta visita.')) {
+      return;
+    }
+    // User confirmed - reset everything
+    resetVisitState();
+    resetWorkflowState();
+    workItemConditions = {};
+    showStep(0);
+
+    // Clear UI
+    const arrivalPreview = document.getElementById('arrival-preview');
+    if (arrivalPreview) arrivalPreview.innerHTML = '';
+    const btn1 = document.getElementById('btn-step1-next');
+    if (btn1) btn1.disabled = true;
+    return;
+  }
+
   if (visitState.step > 0) {
     showStep(visitState.step - 1);
   }
@@ -303,6 +423,7 @@ async function startVisit() {
     });
     visitState.visitId = resp.visit_id;
     showStep(1);
+    saveVisitProgress();
   } catch (err) {
     toast('Error iniciando visita: ' + err.message);
   }
@@ -338,11 +459,13 @@ async function onArrivalPhotoSelected(input) {
     formData.append('captured_at', new Date().toISOString());
     formData.append('run_cv', 'false');
 
-    await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+    const photoResp = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+    visitState.photos.arrival = photoResp.file_path;
     toast('Foto guardada');
 
     // Enable next button
     document.getElementById('btn-step1-next').disabled = false;
+    saveVisitProgress();
   } catch (err) {
     toast('Error subiendo foto: ' + err.message);
   }
@@ -975,6 +1098,7 @@ async function submitVisit() {
     });
 
     toast('¡Visita enviada exitosamente!');
+    clearSavedVisitProgress();
     loadVisitPage();
   } catch (err) {
     toast('Error: ' + err.message);
@@ -4888,6 +5012,7 @@ async function saveWorkItemProgress() {
     });
 
     toast('Progreso guardado');
+    saveVisitProgress();
   } catch (err) {
     toast('Error al guardar: ' + err.message);
     console.error(err);
@@ -4930,6 +5055,7 @@ async function onAfterPhotoSelected(input) {
 
     await loadWorkItemsForSegment();
     showStep(3);
+    saveVisitProgress();
 
   } catch (err) {
     toast('Error al completar trabajo: ' + err.message);

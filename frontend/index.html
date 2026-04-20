@@ -71,7 +71,10 @@
           <div class="card">
             <h3>Seleccionar Tienda</h3>
             <div class="form-group">
-              <select id="visit-store-select">
+              <input type="text" id="store-search" placeholder="Buscar tienda..." oninput="filterStores(this.value)">
+            </div>
+            <div class="form-group">
+              <select id="visit-store-select" size="8">
                 <option value="">Cargando tiendas...</option>
               </select>
             </div>

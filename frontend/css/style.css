@@ -140,6 +140,25 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 15px;
+}
+
+/* Store selection list */
+#visit-store-select {
+  height: 200px;
+}
+
+#visit-store-select option {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+#visit-store-select option:checked {
+  background: var(--primary);
+  color: white;
+}
+
+#store-search {
+  margin-bottom: 8px;
   background: var(--card-bg);
   color: var(--text);
 }
