@@ -316,27 +316,74 @@ function selectStore(storeId, storeName) {
   visitState.storeId = storeId;
   visitState.storeName = storeName;
 
-  // Update UI
+  // Update UI - highlight in browse list
   document.querySelectorAll('.store-item').forEach(el => {
     el.classList.toggle('selected', parseInt(el.dataset.id) === storeId);
   });
+
+  // Update search input and close dropdown
+  document.getElementById('store-search').value = storeName;
+  hideSearchDropdown();
 
   // Enable start button
   document.getElementById('btn-start-visit').disabled = false;
 }
 
-function filterStores(query) {
+function onStoreSearch(query) {
   const q = query.toLowerCase().trim();
+  const dropdown = document.getElementById('search-dropdown');
+
   if (!q) {
+    hideSearchDropdown();
     renderStoreList(allStores);
     return;
   }
+
   const filtered = allStores.filter(s =>
     s.name.toLowerCase().includes(q) ||
     (s.region && s.region.toLowerCase().includes(q))
   );
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div class="search-dropdown-empty">No se encontraron tiendas</div>';
+  } else {
+    dropdown.innerHTML = filtered.slice(0, 10).map(s =>
+      `<div class="search-dropdown-item" onclick="selectStore(${s.id}, '${s.name.replace(/'/g, "\\'")}')">
+        <div class="store-name">${highlightMatch(s.name, q)}</div>
+        <div class="store-region">${s.region || ''}</div>
+      </div>`
+    ).join('');
+  }
+
+  dropdown.classList.add('active');
+
+  // Also filter the browse list
   renderStoreList(filtered);
 }
+
+function highlightMatch(text, query) {
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return text;
+  return text.slice(0, idx) + '<strong>' + text.slice(idx, idx + query.length) + '</strong>' + text.slice(idx + query.length);
+}
+
+function onStoreSearchFocus() {
+  const query = document.getElementById('store-search').value.trim();
+  if (query) {
+    onStoreSearch(query);
+  }
+}
+
+function hideSearchDropdown() {
+  document.getElementById('search-dropdown').classList.remove('active');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-container')) {
+    hideSearchDropdown();
+  }
+});
 
 function showStep(stepNum) {
   visitState.step = stepNum;

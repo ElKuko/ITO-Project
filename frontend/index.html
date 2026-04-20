@@ -70,8 +70,9 @@
         <div id="visit-step-0" class="visit-step active">
           <div class="card">
             <h3>Seleccionar Tienda</h3>
-            <div class="form-group">
-              <input type="text" id="store-search" placeholder="Buscar tienda..." oninput="filterStores(this.value)">
+            <div class="search-container">
+              <input type="text" id="store-search" placeholder="Buscar tienda..." oninput="onStoreSearch(this.value)" onfocus="onStoreSearchFocus()" autocomplete="off">
+              <div class="search-dropdown" id="search-dropdown"></div>
             </div>
             <div class="store-list" id="store-list">
               <p class="meta">Cargando tiendas...</p>

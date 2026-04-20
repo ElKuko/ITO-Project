@@ -142,6 +142,69 @@ body {
   font-size: 15px;
 }
 
+/* Store search container */
+.search-container {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-container input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.search-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.search-dropdown.active {
+  display: block;
+}
+
+.search-dropdown-item {
+  padding: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.search-dropdown-item:hover, .search-dropdown-item:active {
+  background: var(--bg);
+}
+
+.search-dropdown-item .store-name {
+  font-weight: 500;
+}
+
+.search-dropdown-item .store-region {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.search-dropdown-empty {
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 /* Store selection list */
 .store-list {
   max-height: 300px;
