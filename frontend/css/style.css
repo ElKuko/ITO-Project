@@ -143,22 +143,43 @@ body {
 }
 
 /* Store selection list */
-#visit-store-select {
-  height: 200px;
+.store-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
-#visit-store-select option {
-  padding: 12px 10px;
+.store-item {
+  padding: 14px 12px;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-#visit-store-select option:checked {
+.store-item:last-child {
+  border-bottom: none;
+}
+
+.store-item:hover, .store-item:active {
+  background: var(--bg);
+}
+
+.store-item.selected {
   background: var(--primary);
   color: white;
 }
 
-#store-search {
-  margin-bottom: 8px;
+.store-item .store-name {
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.store-item .store-region {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-top: 2px;
   background: var(--card-bg);
   color: var(--text);
 }

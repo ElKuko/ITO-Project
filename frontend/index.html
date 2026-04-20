@@ -73,12 +73,10 @@
             <div class="form-group">
               <input type="text" id="store-search" placeholder="Buscar tienda..." oninput="filterStores(this.value)">
             </div>
-            <div class="form-group">
-              <select id="visit-store-select" size="8">
-                <option value="">Cargando tiendas...</option>
-              </select>
+            <div class="store-list" id="store-list">
+              <p class="meta">Cargando tiendas...</p>
             </div>
-            <button class="btn btn-primary btn-block" onclick="startVisit()">
+            <button class="btn btn-primary btn-block" onclick="startVisit()" id="btn-start-visit" disabled>
               Iniciar Visita
             </button>
           </div>

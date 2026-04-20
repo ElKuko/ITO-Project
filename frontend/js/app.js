@@ -295,11 +295,34 @@ async function loadVisitPage() {
   if (btn1) btn1.disabled = true;
 }
 
+let selectedStoreId = null;
+
 function renderStoreList(stores) {
-  const sel = document.getElementById('visit-store-select');
-  sel.innerHTML = stores.map(s =>
-    `<option value="${s.id}" data-name="${s.name}">${s.name} (${s.region})</option>`
+  const listEl = document.getElementById('store-list');
+  if (stores.length === 0) {
+    listEl.innerHTML = '<p class="meta" style="padding:16px;">No se encontraron tiendas</p>';
+    return;
+  }
+  listEl.innerHTML = stores.map(s =>
+    `<div class="store-item ${selectedStoreId === s.id ? 'selected' : ''}" data-id="${s.id}" data-name="${s.name}" onclick="selectStore(${s.id}, '${s.name.replace(/'/g, "\\'")}')">
+      <div class="store-name">${s.name}</div>
+      <div class="store-region">${s.region || ''}</div>
+    </div>`
   ).join('');
+}
+
+function selectStore(storeId, storeName) {
+  selectedStoreId = storeId;
+  visitState.storeId = storeId;
+  visitState.storeName = storeName;
+
+  // Update UI
+  document.querySelectorAll('.store-item').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.id) === storeId);
+  });
+
+  // Enable start button
+  document.getElementById('btn-start-visit').disabled = false;
 }
 
 function filterStores(query) {
@@ -358,6 +381,7 @@ function prevStep() {
     resetVisitState();
     resetWorkflowState();
     workItemConditions = {};
+    selectedStoreId = null;
     showStep(0);
 
     // Clear UI
@@ -365,6 +389,9 @@ function prevStep() {
     if (arrivalPreview) arrivalPreview.innerHTML = '';
     const btn1 = document.getElementById('btn-step1-next');
     if (btn1) btn1.disabled = true;
+    const btnStart = document.getElementById('btn-start-visit');
+    if (btnStart) btnStart.disabled = true;
+    renderStoreList(allStores);
     return;
   }
 
@@ -394,12 +421,7 @@ function validateSectionAndNext(section) {
 // ── Step 0 → 1: Start Visit ─────────────────────────────────────────────
 
 async function startVisit() {
-  const sel = document.getElementById('visit-store-select');
-  const storeId = sel.value;
-  if (!storeId) { toast('Seleccione una tienda'); return; }
-
-  visitState.storeId = parseInt(storeId);
-  visitState.storeName = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].text;
+  if (!selectedStoreId) { toast('Seleccione una tienda'); return; }
 
   // Get GPS
   try {
