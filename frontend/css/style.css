@@ -2887,6 +2887,13 @@ tr.inactive-row {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  min-height: 0;
+}
+
+.fullscreen-modal-body .sku-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .fullscreen-modal-footer {

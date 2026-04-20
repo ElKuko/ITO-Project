@@ -4396,7 +4396,17 @@ function toggleWorkItemPhoto() {
 }
 
 function openSkuModal() {
-  const content = document.getElementById('work-item-sku-list').outerHTML;
+  const skus = [...workflowState.availableSkus];
+  const currentSkuIds = Object.keys(workflowState.workItemSkuSelections).map(id => parseInt(id));
+
+  // Add any SKUs from current selections that aren't in available
+  if (workflowState.currentWorkItem && workflowState.currentWorkItem.sku_actions) {
+    for (const action of workflowState.currentWorkItem.sku_actions) {
+      if (!skus.find(s => s.id === action.sku_id) && action.sku) {
+        skus.push(action.sku);
+      }
+    }
+  }
 
   const modal = document.createElement('div');
   modal.className = 'fullscreen-modal';
@@ -4407,7 +4417,7 @@ function openSkuModal() {
       <button class="fullscreen-modal-close" onclick="closeSkuModal()">×</button>
     </div>
     <div class="fullscreen-modal-body">
-      ${content}
+      <ul class="sku-list" id="modal-sku-list"></ul>
     </div>
     <div class="fullscreen-modal-footer">
       <button class="btn btn-primary" onclick="closeSkuModal()">Listo</button>
@@ -4415,33 +4425,137 @@ function openSkuModal() {
   `;
   document.body.appendChild(modal);
 
-  // Re-bind event handlers for cloned elements
-  modal.querySelectorAll('.chip').forEach(chip => {
-    const onclick = chip.getAttribute('onclick');
-    if (onclick) {
-      chip.onclick = () => eval(onclick);
-    }
-  });
+  // Render SKU list directly in modal
+  renderModalSkuList(skus, currentSkuIds);
+}
 
-  modal.querySelectorAll('input').forEach(input => {
-    const onchange = input.getAttribute('onchange');
-    if (onchange) {
-      input.onchange = () => eval(onchange);
+function renderModalSkuList(skus, selectedIds) {
+  const listEl = document.getElementById('modal-sku-list');
+  if (!listEl) return;
+
+  if (skus.length === 0) {
+    listEl.innerHTML = '<p class="meta">No hay SKUs disponibles para este segmento.</p>';
+    return;
+  }
+
+  listEl.innerHTML = skus.map(sku => {
+    const isSelected = selectedIds.includes(sku.id) || !!workflowState.workItemSkuSelections[sku.id];
+    const selection = workflowState.workItemSkuSelections[sku.id] || {};
+
+    return `
+      <li class="sku-item ${isSelected ? 'selected' : ''}" data-sku-id="${sku.id}">
+        <div class="sku-header">
+          <div class="sku-info">
+            <span class="sku-name">${sku.name}</span>
+            <span class="sku-meta">${sku.brand || ''}</span>
+          </div>
+        </div>
+        <div class="sku-estado-trabajo">
+          <div class="sku-chips-group">
+            <label>Estado góndola</label>
+            <div class="chip-buttons">
+              ${ESTADO_OPTIONS.map(o => `<span class="chip chip-estado ${selection.estado_gondola === o.value ? 'active' : ''}" data-sku="${sku.id}" data-field="estado_gondola" data-value="${o.value}">${o.label}</span>`).join('')}
+            </div>
+          </div>
+          <div class="sku-chips-group">
+            <label>Trabajo</label>
+            <div class="chip-buttons chip-buttons-multi">
+              ${TRABAJO_OPTIONS.map(o => `<span class="chip chip-trabajo ${(selection.trabajo || []).includes(o.value) ? 'active' : ''}" data-sku="${sku.id}" data-field="trabajo" data-value="${o.value}">${o.label}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="ordene-fields" id="modal-ordene-fields-${sku.id}" style="display:${(selection.trabajo || []).includes('ordene') ? 'flex' : 'none'};">
+          <div class="sku-field-group">
+            <label>Cantidad cajas</label>
+            <input type="number" min="1" value="${selection.orden_cantidad_cajas || ''}" data-sku="${sku.id}" data-field="orden_cantidad_cajas">
+          </div>
+          <div class="sku-field-group">
+            <label>Fecha llegada</label>
+            <input type="date" value="${selection.orden_fecha_llegada || ''}" data-sku="${sku.id}" data-field="orden_fecha_llegada">
+          </div>
+        </div>
+      </li>
+    `;
+  }).join('');
+
+  // Attach event listeners using delegation
+  listEl.addEventListener('click', handleModalSkuClick);
+  listEl.addEventListener('change', handleModalSkuChange);
+}
+
+function handleModalSkuClick(e) {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+
+  const skuId = parseInt(chip.dataset.sku);
+  const field = chip.dataset.field;
+  const value = chip.dataset.value;
+
+  // Initialize selection if needed
+  if (!workflowState.workItemSkuSelections[skuId]) {
+    workflowState.workItemSkuSelections[skuId] = {
+      estado_gondola: '',
+      trabajo: [],
+      orden_cantidad_cajas: '',
+      orden_fecha_llegada: '',
+      notes: '',
+    };
+    const itemEl = chip.closest('.sku-item');
+    if (itemEl) itemEl.classList.add('selected');
+  }
+
+  if (field === 'trabajo') {
+    const trabajoArr = workflowState.workItemSkuSelections[skuId].trabajo || [];
+    const idx = trabajoArr.indexOf(value);
+    if (idx >= 0) {
+      trabajoArr.splice(idx, 1);
+      chip.classList.remove('active');
+    } else {
+      trabajoArr.push(value);
+      chip.classList.add('active');
     }
-  });
+    workflowState.workItemSkuSelections[skuId].trabajo = trabajoArr;
+
+    const ordeneFieldsEl = document.getElementById(`modal-ordene-fields-${skuId}`);
+    if (ordeneFieldsEl) {
+      ordeneFieldsEl.style.display = trabajoArr.includes('ordene') ? 'flex' : 'none';
+    }
+  } else {
+    workflowState.workItemSkuSelections[skuId][field] = value;
+    chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  }
+}
+
+function handleModalSkuChange(e) {
+  const input = e.target;
+  if (!input.dataset.sku) return;
+
+  const skuId = parseInt(input.dataset.sku);
+  const field = input.dataset.field;
+
+  if (!workflowState.workItemSkuSelections[skuId]) {
+    workflowState.workItemSkuSelections[skuId] = {};
+  }
+  workflowState.workItemSkuSelections[skuId][field] = input.value;
 }
 
 function closeSkuModal() {
   const modal = document.getElementById('sku-modal');
   if (modal) {
-    // Sync changes back to original list
-    const modalList = modal.querySelector('.work-item-sku-list');
-    const originalList = document.getElementById('work-item-sku-list');
-    if (modalList && originalList) {
-      originalList.innerHTML = modalList.innerHTML;
-    }
     modal.remove();
     updateSkuSummary();
+    // Re-render the hidden original list to stay in sync
+    const allSkus = [...workflowState.availableSkus];
+    if (workflowState.currentWorkItem && workflowState.currentWorkItem.sku_actions) {
+      for (const action of workflowState.currentWorkItem.sku_actions) {
+        if (!allSkus.find(s => s.id === action.sku_id) && action.sku) {
+          allSkus.push(action.sku);
+        }
+      }
+    }
+    const currentSkuIds = Object.keys(workflowState.workItemSkuSelections).map(id => parseInt(id));
+    renderWorkItemSkuList(allSkus, currentSkuIds);
   }
 }
 
