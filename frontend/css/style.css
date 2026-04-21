@@ -3197,3 +3197,638 @@ tr.inactive-row {
   padding: 6px 12px;
   font-size: 12px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* ═══ VISIT ADMINISTRATION (Por Ruta) ══════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* Swiper Container */
+.visit-swiper {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 120px);
+  overflow: hidden;
+  touch-action: pan-y pinch-zoom;
+}
+
+.visit-swiper-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.3s ease-out;
+}
+
+.visit-swiper-track.swiping {
+  transition: none;
+}
+
+/* Individual Visit Card */
+.visit-card {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  -webkit-overflow-scrolling: touch;
+}
+
+.visit-card-content {
+  padding: 16px;
+  padding-bottom: 80px;
+}
+
+/* Visit Header */
+.visit-header {
+  background: var(--card-bg);
+  padding: 16px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.visit-store-name {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.visit-datetime {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.visit-datetime span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Arrival Photo Section */
+.visit-arrival-photo {
+  margin-bottom: 16px;
+}
+
+.arrival-photo-preview {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.arrival-photo-header {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.arrival-photo-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.arrival-photo-toggle {
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.arrival-photo-image {
+  display: none;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.arrival-photo-image.expanded {
+  display: block;
+}
+
+.arrival-photo-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Before/After Photo Pairs */
+.visit-work-items {
+  margin-bottom: 16px;
+}
+
+.work-item-section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.work-item-section-header {
+  padding: 12px 16px;
+  background: var(--bg);
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.photo-pair {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.photo-pair:last-child {
+  border-bottom: none;
+}
+
+.photo-pair-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.photo-pair-item {
+  position: relative;
+  aspect-ratio: 4/3;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #000;
+}
+
+.photo-pair-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-pair-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  color: white;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* SKU Actions in Work Item */
+.work-item-skus-list {
+  padding: 8px 0;
+}
+
+.sku-action-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.sku-action-item:last-child {
+  border-bottom: none;
+}
+
+.sku-action-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.sku-action-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sku-action-tag {
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.sku-action-tag.estado-llena { background: #d4edda; color: #155724; }
+.sku-action-tag.estado-semi { background: #fff3cd; color: #856404; }
+.sku-action-tag.estado-agotada { background: #f8d7da; color: #721c24; }
+
+/* Segment Sections */
+.segment-section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.segment-section-header {
+  padding: 14px 16px;
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.segment-section-header.produce { background: #28a745; }
+.segment-section-header.provisiones { background: #17a2b8; }
+.segment-section-header.congelados { background: #6f42c1; }
+
+.segment-section-body {
+  padding: 12px;
+}
+
+.segment-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Segment Header Colors */
+.segment-header {
+  padding: 14px 16px;
+  font-weight: 600;
+  font-size: 15px;
+  color: white;
+  background: var(--primary);
+}
+
+.segment-produce .segment-header { background: #28a745; }
+.segment-provisiones .segment-header { background: #17a2b8; }
+.segment-congelados .segment-header { background: #6f42c1; }
+
+/* Visit Meta in Header */
+.visit-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.visit-merchandiser {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Arrival Photo Section */
+.arrival-photo-section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.arrival-photo-section .section-title {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.arrival-photo-section .collapse-icon {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.arrival-photo-section.collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.arrival-photo-section .arrival-photo-container {
+  padding: 12px;
+  max-height: 220px;
+  overflow: hidden;
+  transition: max-height 0.3s, padding 0.3s;
+}
+
+.arrival-photo-section.collapsed .arrival-photo-container {
+  max-height: 0;
+  padding: 0 12px;
+}
+
+.arrival-photo-section .arrival-photo {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Subsection Titles */
+.subsection-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Photo Pairs Container */
+.photo-pairs-container,
+.sku-actions-container,
+.conditions-container {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.photo-pairs-container:last-child,
+.sku-actions-container:last-child,
+.conditions-container:last-child {
+  border-bottom: none;
+}
+
+/* Photo Pair Grid */
+.photo-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.photo-pair:last-child {
+  margin-bottom: 0;
+}
+
+.photo-slot {
+  position: relative;
+  aspect-ratio: 4/3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #111;
+}
+
+.photo-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.photo-slot.empty {
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  color: white;
+  padding: 6px;
+  font-size: 11px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.photo-empty {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* SKU Action List */
+.sku-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sku-action-item {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.sku-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.sku-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sku-estado, .sku-trabajo {
+  display: inline-block;
+}
+
+/* Conditions List */
+.conditions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.condition-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 6px 0;
+}
+
+.condition-icon {
+  font-size: 16px;
+}
+
+.condition-yes {
+  color: var(--success);
+}
+
+.condition-no {
+  color: var(--danger);
+}
+
+.condition-notes {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Visit Notes Section */
+.visit-notes-section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.visit-notes-section .section-title {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.visit-notes-text {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+/* Navigation Hint */
+.visit-nav-hint {
+  position: fixed;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  z-index: 10;
+}
+
+.swipe-hint-left, .swipe-hint-right {
+  color: var(--text-secondary);
+}
+
+.visit-counter {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Loading State */
+.visit-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 150px);
+  color: var(--text-secondary);
+}
+
+.visit-loading .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+/* Empty State */
+.visit-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 150px);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+}
+
+/* Fullscreen Image Viewer with Zoom */
+.image-viewer-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.95);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+
+.image-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  color: white;
+}
+
+.image-viewer-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.image-viewer-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: pinch-zoom;
+}
+
+.image-viewer-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 0.1s ease-out;
+}
+
+.image-viewer-footer {
+  padding: 16px;
+  color: white;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* Alternative image viewer structure for dynamic modal */
+.image-viewer-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.image-viewer-content .image-viewer-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  background: rgba(0,0,0,0.5);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.image-viewer-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 0.15s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}

@@ -1406,13 +1406,417 @@ function closeVisitDetail() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// ═══ ROUTE HISTORY PAGE (Admin only - Notifications Queue) ════════════════
+// ═══ ROUTE HISTORY PAGE (Admin Visit Administration) ══════════════════════
 // ══════════════════════════════════════════════════════════════════════════
 
+let routeHistoryState = {
+  visits: [],
+  currentIndex: 0,
+  touchStartX: 0,
+  touchCurrentX: 0,
+  isDragging: false,
+};
+
 async function loadRouteHistoryPage() {
-  // Load notification panels for admins (notifications serve as the visit queue)
-  if (getUserRole() === 'admin') {
-    loadNotificationPanels();
+  if (getUserRole() !== 'admin') return;
+
+  const loading = document.getElementById('visit-loading');
+  const empty = document.getElementById('visit-empty');
+  const swiper = document.getElementById('visit-swiper');
+  const navHint = document.getElementById('visit-nav-hint');
+
+  loading.style.display = 'flex';
+  empty.style.display = 'none';
+  swiper.style.display = 'none';
+  navHint.style.display = 'none';
+
+  try {
+    const visits = await apiGet('/visits/?status=submitted&limit=50');
+    routeHistoryState.visits = visits;
+    routeHistoryState.currentIndex = 0;
+
+    if (visits.length === 0) {
+      loading.style.display = 'none';
+      empty.style.display = 'flex';
+      return;
+    }
+
+    // Fetch work items for each visit
+    for (const visit of visits) {
+      try {
+        visit.workItems = await apiGet(`/work-items/visit/${visit.id}`);
+      } catch (e) {
+        visit.workItems = [];
+      }
+    }
+
+    renderVisitCards();
+    initVisitSwiper();
+
+    loading.style.display = 'none';
+    swiper.style.display = 'block';
+    navHint.style.display = 'flex';
+    updateVisitCounter();
+  } catch (err) {
+    loading.style.display = 'none';
+    empty.style.display = 'flex';
+    toast('Error cargando visitas');
+  }
+}
+
+function renderVisitCards() {
+  const track = document.getElementById('visit-swiper-track');
+  track.innerHTML = routeHistoryState.visits.map((visit, index) => renderVisitCard(visit, index)).join('');
+}
+
+function renderVisitCard(visit, index) {
+  const storeName = visit.store?.name || 'Tienda Desconocida';
+  const submissionDate = new Date(visit.end_time || visit.start_time);
+  const dateStr = submissionDate.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timeStr = submissionDate.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  const userName = visit.user?.full_name || 'Usuario';
+
+  // Find arrival photo
+  const arrivalPhoto = visit.photos?.find(p => p.photo_type === 'arrival_proof');
+
+  // Group work items by segment
+  const segments = { produce: [], provisiones: [], congelados: [] };
+  (visit.workItems || []).forEach(wi => {
+    if (segments[wi.segment]) {
+      segments[wi.segment].push(wi);
+    }
+  });
+
+  return `
+    <div class="visit-card" data-index="${index}">
+      <!-- Visit Header -->
+      <div class="visit-header">
+        <h2 class="visit-store-name">${storeName}</h2>
+        <div class="visit-meta">
+          <span class="visit-merchandiser">${userName}</span>
+          <span class="visit-datetime">${dateStr} • ${timeStr}</span>
+        </div>
+      </div>
+
+      <!-- Arrival Photo Section -->
+      ${arrivalPhoto ? `
+        <div class="arrival-photo-section">
+          <div class="section-title" onclick="toggleArrivalPhoto(this)">
+            <span>Foto de Llegada</span>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="arrival-photo-container">
+            <img src="${arrivalPhoto.file_path}" alt="Llegada" class="arrival-photo" onclick="openImageViewer('${arrivalPhoto.file_path}')">
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Segments -->
+      ${renderSegmentSection('produce', 'Produce', segments.produce)}
+      ${renderSegmentSection('provisiones', 'Provisiones', segments.provisiones)}
+      ${renderSegmentSection('congelados', 'Congelados', segments.congelados)}
+
+      <!-- Visit Notes -->
+      ${visit.notes ? `
+        <div class="visit-notes-section">
+          <div class="section-title">Notas de Visita</div>
+          <p class="visit-notes-text">${visit.notes}</p>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderSegmentSection(segment, label, workItems) {
+  if (workItems.length === 0) return '';
+
+  const photoPairs = workItems
+    .filter(wi => wi.before_photo || wi.after_photo)
+    .map(wi => renderPhotoPair(wi))
+    .join('');
+
+  const skuActions = workItems
+    .flatMap(wi => wi.sku_actions || [])
+    .map(action => renderSKUAction(action))
+    .join('');
+
+  const conditions = workItems.find(wi =>
+    wi.prices_on_gondola !== null ||
+    wi.pop_material_present !== null ||
+    wi.product_presentable !== null ||
+    wi.gondola_space_gained !== null
+  );
+
+  return `
+    <div class="segment-section segment-${segment}">
+      <div class="segment-header">${label}</div>
+
+      ${photoPairs ? `
+        <div class="photo-pairs-container">
+          <div class="subsection-title">Fotos Antes/Después</div>
+          <div class="photo-pair-grid">
+            ${photoPairs}
+          </div>
+        </div>
+      ` : ''}
+
+      ${skuActions ? `
+        <div class="sku-actions-container">
+          <div class="subsection-title">SKUs Trabajados</div>
+          <div class="sku-action-list">
+            ${skuActions}
+          </div>
+        </div>
+      ` : ''}
+
+      ${conditions ? `
+        <div class="conditions-container">
+          <div class="subsection-title">Condiciones</div>
+          <div class="conditions-list">
+            ${renderConditionItem('Precios en Góndola', conditions.prices_on_gondola)}
+            ${renderConditionItem('Material POP', conditions.pop_material_present)}
+            ${renderConditionItem('Producto Presentable', conditions.product_presentable)}
+            ${renderConditionItem('Espacio en Góndola', conditions.gondola_space_gained)}
+          </div>
+          ${conditions.condition_notes ? `<p class="condition-notes">${conditions.condition_notes}</p>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderPhotoPair(workItem) {
+  const beforeSrc = workItem.before_photo?.file_path || '';
+  const afterSrc = workItem.after_photo?.file_path || '';
+
+  return `
+    <div class="photo-pair">
+      <div class="photo-slot ${beforeSrc ? '' : 'empty'}">
+        ${beforeSrc ? `
+          <img src="${beforeSrc}" alt="Antes" onclick="openImageViewer('${beforeSrc}')">
+          <span class="photo-label">Antes</span>
+        ` : '<span class="photo-empty">Sin foto</span>'}
+      </div>
+      <div class="photo-slot ${afterSrc ? '' : 'empty'}">
+        ${afterSrc ? `
+          <img src="${afterSrc}" alt="Después" onclick="openImageViewer('${afterSrc}')">
+          <span class="photo-label">Después</span>
+        ` : '<span class="photo-empty">Sin foto</span>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderSKUAction(action) {
+  const sku = action.sku || {};
+  const estado = action.estado_gondola || '-';
+  const trabajo = action.trabajo ? action.trabajo.split(',').join(', ') : '-';
+
+  return `
+    <div class="sku-action-item">
+      <div class="sku-name">${sku.name || 'SKU'}</div>
+      <div class="sku-details">
+        <span class="sku-estado">Estado: ${estado}</span>
+        <span class="sku-trabajo">Trabajo: ${trabajo}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderConditionItem(label, value) {
+  if (value === null || value === undefined) return '';
+  const icon = value ? '✓' : '✗';
+  const cls = value ? 'condition-yes' : 'condition-no';
+  return `<div class="condition-item ${cls}"><span class="condition-icon">${icon}</span> ${label}</div>`;
+}
+
+function toggleArrivalPhoto(el) {
+  const section = el.closest('.arrival-photo-section');
+  section.classList.toggle('collapsed');
+}
+
+// ── Visit Swiper Navigation ─────────────────────────────────────────────────
+
+function initVisitSwiper() {
+  const swiper = document.getElementById('visit-swiper');
+  const track = document.getElementById('visit-swiper-track');
+
+  swiper.addEventListener('touchstart', handleSwiperTouchStart, { passive: true });
+  swiper.addEventListener('touchmove', handleSwiperTouchMove, { passive: false });
+  swiper.addEventListener('touchend', handleSwiperTouchEnd);
+
+  // Keyboard navigation
+  document.addEventListener('keydown', handleSwiperKeydown);
+
+  goToVisit(0);
+}
+
+function handleSwiperTouchStart(e) {
+  routeHistoryState.touchStartX = e.touches[0].clientX;
+  routeHistoryState.touchCurrentX = routeHistoryState.touchStartX;
+  routeHistoryState.isDragging = true;
+}
+
+function handleSwiperTouchMove(e) {
+  if (!routeHistoryState.isDragging) return;
+
+  routeHistoryState.touchCurrentX = e.touches[0].clientX;
+  const diff = routeHistoryState.touchCurrentX - routeHistoryState.touchStartX;
+  const track = document.getElementById('visit-swiper-track');
+  const cardWidth = document.getElementById('visit-swiper').offsetWidth;
+  const baseOffset = -routeHistoryState.currentIndex * cardWidth;
+
+  track.style.transition = 'none';
+  track.style.transform = `translateX(${baseOffset + diff}px)`;
+}
+
+function handleSwiperTouchEnd(e) {
+  if (!routeHistoryState.isDragging) return;
+  routeHistoryState.isDragging = false;
+
+  const diff = routeHistoryState.touchCurrentX - routeHistoryState.touchStartX;
+  const threshold = 80;
+
+  if (diff < -threshold && routeHistoryState.currentIndex < routeHistoryState.visits.length - 1) {
+    goToVisit(routeHistoryState.currentIndex + 1);
+  } else if (diff > threshold && routeHistoryState.currentIndex > 0) {
+    goToVisit(routeHistoryState.currentIndex - 1);
+  } else {
+    goToVisit(routeHistoryState.currentIndex);
+  }
+}
+
+function handleSwiperKeydown(e) {
+  const page = document.getElementById('page-route-history');
+  if (!page.classList.contains('active')) return;
+
+  if (e.key === 'ArrowLeft') {
+    goToVisit(Math.max(0, routeHistoryState.currentIndex - 1));
+  } else if (e.key === 'ArrowRight') {
+    goToVisit(Math.min(routeHistoryState.visits.length - 1, routeHistoryState.currentIndex + 1));
+  }
+}
+
+function goToVisit(index) {
+  routeHistoryState.currentIndex = index;
+  const track = document.getElementById('visit-swiper-track');
+  const cardWidth = document.getElementById('visit-swiper').offsetWidth;
+
+  track.style.transition = 'transform 0.3s ease-out';
+  track.style.transform = `translateX(${-index * cardWidth}px)`;
+
+  updateVisitCounter();
+}
+
+function updateVisitCounter() {
+  const counter = document.getElementById('visit-counter');
+  const total = routeHistoryState.visits.length;
+  const current = routeHistoryState.currentIndex + 1;
+  counter.textContent = `${current} / ${total}`;
+
+  const leftHint = document.querySelector('.swipe-hint-left');
+  const rightHint = document.querySelector('.swipe-hint-right');
+  if (leftHint) leftHint.style.opacity = routeHistoryState.currentIndex > 0 ? '1' : '0.3';
+  if (rightHint) rightHint.style.opacity = routeHistoryState.currentIndex < total - 1 ? '1' : '0.3';
+}
+
+// ── Image Viewer Modal ──────────────────────────────────────────────────────
+
+let imageViewerState = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+  initialDistance: 0,
+  initialScale: 1,
+};
+
+function openImageViewer(src) {
+  let modal = document.getElementById('image-viewer-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'image-viewer-modal';
+    modal.className = 'image-viewer-modal';
+    modal.innerHTML = `
+      <div class="image-viewer-content">
+        <button class="image-viewer-close" onclick="closeImageViewer()">×</button>
+        <img class="image-viewer-img" src="" alt="Vista ampliada">
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const content = modal.querySelector('.image-viewer-content');
+    content.addEventListener('touchstart', handleImageTouchStart, { passive: false });
+    content.addEventListener('touchmove', handleImageTouchMove, { passive: false });
+    content.addEventListener('touchend', handleImageTouchEnd);
+    content.addEventListener('dblclick', handleImageDoubleTap);
+  }
+
+  imageViewerState = { scale: 1, translateX: 0, translateY: 0, initialDistance: 0, initialScale: 1 };
+  const img = modal.querySelector('.image-viewer-img');
+  img.src = src;
+  img.style.transform = 'scale(1) translate(0, 0)';
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeImageViewer() {
+  const modal = document.getElementById('image-viewer-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
+function handleImageTouchStart(e) {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    imageViewerState.initialDistance = Math.sqrt(dx * dx + dy * dy);
+    imageViewerState.initialScale = imageViewerState.scale;
+  }
+}
+
+function handleImageTouchMove(e) {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const scaleChange = distance / imageViewerState.initialDistance;
+
+    imageViewerState.scale = Math.max(0.5, Math.min(5, imageViewerState.initialScale * scaleChange));
+    updateImageTransform();
+  }
+}
+
+function handleImageTouchEnd(e) {
+  if (imageViewerState.scale < 1) {
+    imageViewerState.scale = 1;
+    imageViewerState.translateX = 0;
+    imageViewerState.translateY = 0;
+    updateImageTransform();
+  }
+}
+
+function handleImageDoubleTap(e) {
+  e.preventDefault();
+  if (imageViewerState.scale > 1) {
+    imageViewerState.scale = 1;
+    imageViewerState.translateX = 0;
+    imageViewerState.translateY = 0;
+  } else {
+    imageViewerState.scale = 2.5;
+  }
+  updateImageTransform();
+}
+
+function updateImageTransform() {
+  const modal = document.getElementById('image-viewer-modal');
+  const img = modal?.querySelector('.image-viewer-img');
+  if (img) {
+    img.style.transform = `scale(${imageViewerState.scale}) translate(${imageViewerState.translateX}px, ${imageViewerState.translateY}px)`;
   }
 }
 
