@@ -4795,18 +4795,57 @@ async function updateSegmentStatuses() {
 
 async function enterSegment(segment) {
   workflowState.currentSegment = segment;
+  workflowState.expandedWorkItemId = null;
 
   document.getElementById('segment-title').textContent = SEGMENT_LABELS_NEW[segment];
 
+  updateSegmentTabs();
   await loadWorkItemsForSegment();
+  await updateSegmentTabStatuses();
 
   showStep(3);
 }
 
+async function switchSegment(segment) {
+  if (workflowState.currentSegment === segment) return;
+  await enterSegment(segment);
+}
+
 function exitSegment() {
   workflowState.currentSegment = null;
+  workflowState.expandedWorkItemId = null;
   updateSegmentStatuses();
   showStep(2);
+}
+
+function updateSegmentTabs() {
+  const tabs = document.querySelectorAll('.segment-tab');
+  tabs.forEach(tab => {
+    const seg = tab.dataset.segment;
+    tab.classList.toggle('active', seg === workflowState.currentSegment);
+  });
+}
+
+async function updateSegmentTabStatuses() {
+  if (!visitState.visitId) return;
+
+  try {
+    const summaries = await getSegmentSummaries(visitState.visitId);
+    for (const summary of summaries) {
+      const statusEl = document.getElementById(`segment-tab-status-${summary.segment}`);
+      if (statusEl) {
+        const total = summary.total_work_items;
+        const completed = summary.completed_work_items;
+        if (total === 0) {
+          statusEl.textContent = '0';
+        } else {
+          statusEl.textContent = `${completed}/${total}`;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error updating segment tab statuses:', err);
+  }
 }
 
 async function loadWorkItemsForSegment() {
@@ -5024,7 +5063,17 @@ async function onAfterPhotoSelectedForItem(input, workItemId) {
 function updateSegmentCount() {
   const countEl = document.getElementById('segment-work-item-count');
   const completed = workflowState.workItems.filter(w => w.status === 'completed').length;
-  countEl.textContent = `${completed}/${workflowState.workItems.length} completados`;
+  const total = workflowState.workItems.length;
+  countEl.textContent = `${completed}/${total} completados`;
+
+  // Also update the tab status for current segment
+  const segment = workflowState.currentSegment;
+  if (segment) {
+    const tabStatusEl = document.getElementById(`segment-tab-status-${segment}`);
+    if (tabStatusEl) {
+      tabStatusEl.textContent = total === 0 ? '0' : `${completed}/${total}`;
+    }
+  }
 }
 
 async function confirmDeleteWorkItem(workItemId, event) {

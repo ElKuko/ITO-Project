@@ -2677,6 +2677,85 @@ tr.inactive-row {
 }
 
 /* Segment Work Area */
+/* Segment Quick Navigation Tabs */
+.segment-quick-nav {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+.segment-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.segment-tab.active {
+  border-color: var(--primary);
+  background: #e8f4fc;
+}
+
+.segment-tab[data-segment="produce"].active {
+  border-color: #28a745;
+  background: #e8f5e9;
+}
+
+.segment-tab[data-segment="provisiones"].active {
+  border-color: #17a2b8;
+  background: #e0f7fa;
+}
+
+.segment-tab[data-segment="congelados"].active {
+  border-color: #6f42c1;
+  background: #f3e5f5;
+}
+
+.segment-tab-icon {
+  font-size: 20px;
+}
+
+.segment-tab-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.segment-tab-status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--border);
+  color: var(--text-secondary);
+}
+
+.segment-tab.active .segment-tab-status {
+  background: var(--primary);
+  color: white;
+}
+
+.segment-tab[data-segment="produce"].active .segment-tab-status {
+  background: #28a745;
+}
+
+.segment-tab[data-segment="provisiones"].active .segment-tab-status {
+  background: #17a2b8;
+}
+
+.segment-tab[data-segment="congelados"].active .segment-tab-status {
+  background: #6f42c1;
+}
+
 .segment-work-card {
   padding: 0;
 }

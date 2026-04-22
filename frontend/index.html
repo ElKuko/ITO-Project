@@ -139,6 +139,25 @@
 
         <!-- Step 3: Segment Work Area (Photo-first) -->
         <div id="visit-step-3" class="visit-step">
+          <!-- Segment Quick Nav Tabs -->
+          <div class="segment-quick-nav" id="segment-quick-nav">
+            <button class="segment-tab" data-segment="produce" onclick="switchSegment('produce')">
+              <span class="segment-tab-icon">🥬</span>
+              <span class="segment-tab-label">Produce</span>
+              <span class="segment-tab-status" id="segment-tab-status-produce">0</span>
+            </button>
+            <button class="segment-tab" data-segment="provisiones" onclick="switchSegment('provisiones')">
+              <span class="segment-tab-icon">🥫</span>
+              <span class="segment-tab-label">Provisiones</span>
+              <span class="segment-tab-status" id="segment-tab-status-provisiones">0</span>
+            </button>
+            <button class="segment-tab" data-segment="congelados" onclick="switchSegment('congelados')">
+              <span class="segment-tab-icon">🧊</span>
+              <span class="segment-tab-label">Congelados</span>
+              <span class="segment-tab-status" id="segment-tab-status-congelados">0</span>
+            </button>
+          </div>
+
           <div class="card segment-work-card">
             <div class="segment-header">
               <button class="btn btn-outline btn-sm" onclick="exitSegment()">← Volver</button>
