@@ -4870,7 +4870,7 @@ function renderWorkItemList() {
             <span class="section-preview-arrow">›</span>
           </div>
           <div class="work-item-inline-actions">
-            <button class="btn btn-secondary" onclick="saveWorkItemProgress(${item.id})">Guardar</button>
+            <button class="btn btn-secondary" onclick="saveExpandedWorkItem(${item.id})">Guardar</button>
             <button class="btn btn-primary" onclick="captureAfterPhotoForItem(${item.id})">📷 Foto Después</button>
           </div>
         </div>
@@ -4957,11 +4957,11 @@ async function openConditionsModalForItem(workItemId) {
   openConditionsModal();
 }
 
-async function saveWorkItemProgress(workItemId) {
+async function saveExpandedWorkItem(workItemId) {
   if (workflowState.currentWorkItemId !== workItemId) return;
 
   try {
-    await saveCurrentWorkItem();
+    await doSaveWorkItem();
     toast('Progreso guardado');
 
     const updatedItem = await getWorkItem(workItemId);
@@ -4989,7 +4989,7 @@ async function onAfterPhotoSelectedForItem(input, workItemId) {
   if (!file) return;
 
   try {
-    await saveCurrentWorkItem();
+    await doSaveWorkItem();
 
     const formData = new FormData();
     formData.append('file', file);
@@ -5643,7 +5643,7 @@ function setWorkItemCondition(field, value, btn) {
   if (hiddenNotesGroup) hiddenNotesGroup.style.display = anyNo ? 'block' : 'none';
 }
 
-async function saveWorkItemProgress() {
+async function doSaveWorkItem() {
   const workItemId = workflowState.currentWorkItemId;
   if (!workItemId) return;
 
@@ -5671,20 +5671,25 @@ async function saveWorkItemProgress() {
     skuActions.push(action);
   }
 
-  const notes = document.getElementById('work-item-notes').value;
+  const notesEl = document.getElementById('work-item-notes');
+  const notes = notesEl ? notesEl.value : '';
 
+  await updateWorkItem(workItemId, {
+    sku_actions: skuActions,
+    prices_on_gondola: workItemConditions.prices ?? null,
+    pop_material_present: workItemConditions.pop ?? null,
+    product_presentable: workItemConditions.presentable ?? null,
+    gondola_space_gained: workItemConditions.gondola_space ?? null,
+    condition_notes: notes || null,
+  });
+
+  saveVisitProgress();
+}
+
+async function saveWorkItemProgress() {
   try {
-    await updateWorkItem(workItemId, {
-      sku_actions: skuActions,
-      prices_on_gondola: workItemConditions.prices ?? null,
-      pop_material_present: workItemConditions.pop ?? null,
-      product_presentable: workItemConditions.presentable ?? null,
-      gondola_space_gained: workItemConditions.gondola_space ?? null,
-      condition_notes: notes || null,
-    });
-
+    await doSaveWorkItem();
     toast('Progreso guardado');
-    saveVisitProgress();
   } catch (err) {
     toast('Error al guardar: ' + err.message);
     console.error(err);
