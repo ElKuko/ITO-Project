@@ -107,7 +107,7 @@
         <!-- Step 2: Segment Selection -->
         <div id="visit-step-2" class="visit-step">
           <div class="card">
-            <h3>Paso 2: Seleccionar Segmento</h3>
+            <h3>Paso 2: Trabajar Segmento</h3>
             <p class="meta">Seleccione el área de la tienda donde va a trabajar.</p>
 
             <div class="segment-grid" id="segment-grid">
@@ -266,10 +266,10 @@
           </div>
         </div>
 
-        <!-- Step 5: Submit -->
+        <!-- Step 3: Submit -->
         <div id="visit-step-5" class="visit-step">
           <div class="card">
-            <h3>Paso 5: Enviar Visita</h3>
+            <h3>Paso 3: Enviar Visita</h3>
             <div class="form-group">
               <label>Notas adicionales (opcional)</label>
               <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>
@@ -278,7 +278,7 @@
             <div class="visit-summary" id="visit-summary"></div>
 
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
-              <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
+              <button class="btn btn-outline" onclick="backToSegmentWork()">← Volver</button>
               <button id="btn-submit-visit" class="btn btn-success" onclick="submitVisit()" style="flex:1;">
                 ✓ Enviar Visita
               </button>

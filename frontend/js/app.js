@@ -5801,6 +5801,10 @@ function goToSubmit() {
   showStep(5);
 }
 
+function backToSegmentWork() {
+  enterSegment('produce');
+}
+
 async function showVisitSummaryNew() {
   const summaryEl = document.getElementById('visit-summary');
 
