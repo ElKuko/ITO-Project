@@ -3004,10 +3004,22 @@ tr.inactive-row {
   background: var(--card-bg);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  gap: 12px;
 }
 
 .fullscreen-modal-footer .btn {
-  width: 100%;
+  flex: 1;
+}
+
+.fullscreen-modal-footer .btn-secondary {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.fullscreen-modal-footer .btn-secondary:hover {
+  background: var(--border);
 }
 
 /* SKU list in modal */

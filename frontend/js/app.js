@@ -5017,6 +5017,7 @@ function openSkuModal() {
       <ul class="sku-list" id="modal-sku-list"></ul>
     </div>
     <div class="fullscreen-modal-footer">
+      <button class="btn btn-secondary" onclick="goToConditionsFromSku()">Condiciones →</button>
       <button class="btn btn-primary" onclick="closeSkuModal()">Listo</button>
     </div>
   `;
@@ -5154,6 +5155,11 @@ function closeSkuModal() {
     const currentSkuIds = Object.keys(workflowState.workItemSkuSelections).map(id => parseInt(id));
     renderWorkItemSkuList(allSkus, currentSkuIds);
   }
+}
+
+function goToConditionsFromSku() {
+  closeSkuModal();
+  openConditionsModal();
 }
 
 function updateSkuSummary() {
