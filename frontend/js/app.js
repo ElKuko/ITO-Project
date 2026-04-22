@@ -4753,6 +4753,7 @@ let workflowState = {
   workItems: [],
   currentWorkItemId: null,
   currentWorkItem: null,
+  expandedWorkItemId: null,
   availableSkus: [],
   workItemSkuSelections: {},
 };
@@ -4763,6 +4764,7 @@ function resetWorkflowState() {
     workItems: [],
     currentWorkItemId: null,
     currentWorkItem: null,
+    expandedWorkItemId: null,
     availableSkus: [],
     workItemSkuSelections: {},
   };
@@ -4838,19 +4840,191 @@ function renderWorkItemList() {
     const statusLabel = item.status === 'completed' ? 'Completado' : item.status === 'in_progress' ? 'En progreso' : 'Pendiente';
     const skuCount = item.sku_actions ? item.sku_actions.length : 0;
     const photoUrl = item.before_photo ? item.before_photo.file_path : '';
+    const isExpanded = workflowState.expandedWorkItemId === item.id;
 
     return `
-      <div class="work-item-card ${statusClass}">
-        <img class="work-item-thumbnail" src="${photoUrl}" alt="Foto ${idx + 1}" onclick="openWorkItem(${item.id})">
-        <div class="work-item-info" onclick="openWorkItem(${item.id})">
-          <div class="work-item-title">Trabajo ${idx + 1}</div>
-          <div class="work-item-meta">${skuCount} SKU(s) documentados</div>
+      <div class="work-item-card ${statusClass} ${isExpanded ? 'expanded' : ''}" data-work-item-id="${item.id}">
+        <div class="work-item-card-header" onclick="toggleWorkItemExpand(${item.id})">
+          <img class="work-item-thumbnail" src="${photoUrl}" alt="Foto ${idx + 1}">
+          <div class="work-item-info">
+            <div class="work-item-title">Trabajo ${idx + 1}</div>
+            <div class="work-item-meta">${skuCount} SKU(s) documentados</div>
+          </div>
+          <span class="work-item-status ${item.status}">${statusLabel}</span>
+          <button class="work-item-delete-btn" onclick="confirmDeleteWorkItem(${item.id}, event)" title="Eliminar">×</button>
+          <span class="work-item-expand-icon">${isExpanded ? '▼' : '›'}</span>
         </div>
-        <span class="work-item-status ${item.status}">${statusLabel}</span>
-        <button class="work-item-delete-btn" onclick="confirmDeleteWorkItem(${item.id}, event)" title="Eliminar">×</button>
+        <div class="work-item-card-body" style="display: ${isExpanded ? 'block' : 'none'};">
+          <div class="work-item-photo-inline" onclick="openWorkItemPhotoViewer(${item.id})">
+            <img src="${photoUrl}" alt="Foto antes">
+            <span class="photo-expand-hint">Toca para ampliar</span>
+          </div>
+          <div class="section-preview" onclick="openSkuModalForItem(${item.id})">
+            <span class="section-preview-title">SKUs en esta foto</span>
+            <span class="section-preview-summary" id="sku-summary-${item.id}">${skuCount} seleccionados</span>
+            <span class="section-preview-arrow">›</span>
+          </div>
+          <div class="section-preview" onclick="openConditionsModalForItem(${item.id})">
+            <span class="section-preview-title">Condiciones</span>
+            <span class="section-preview-summary" id="conditions-summary-${item.id}">${getConditionsSummaryText(item)}</span>
+            <span class="section-preview-arrow">›</span>
+          </div>
+          <div class="work-item-inline-actions">
+            <button class="btn btn-secondary" onclick="saveWorkItemProgress(${item.id})">Guardar</button>
+            <button class="btn btn-primary" onclick="captureAfterPhotoForItem(${item.id})">📷 Foto Después</button>
+          </div>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+function getConditionsSummaryText(item) {
+  const conditions = [
+    item.prices_on_gondola,
+    item.pop_material_present,
+    item.product_presentable,
+    item.gondola_space_gained
+  ];
+  const answered = conditions.filter(c => c !== null && c !== undefined).length;
+  if (answered === 0) return 'Sin completar';
+  if (answered === 4) return 'Completado';
+  return `${answered}/4 respondidas`;
+}
+
+async function toggleWorkItemExpand(workItemId) {
+  const wasExpanded = workflowState.expandedWorkItemId === workItemId;
+
+  if (wasExpanded) {
+    workflowState.expandedWorkItemId = null;
+    workflowState.currentWorkItemId = null;
+    workflowState.currentWorkItem = null;
+  } else {
+    workflowState.expandedWorkItemId = workItemId;
+    workflowState.currentWorkItemId = workItemId;
+    workItemConditions = {};
+
+    try {
+      const workItem = await getWorkItem(workItemId);
+      workflowState.currentWorkItem = workItem;
+
+      const availableData = await getAvailableSKUs(visitState.visitId, workflowState.currentSegment);
+      workflowState.availableSkus = availableData.skus;
+
+      const currentSkus = workItem.sku_actions || [];
+      workflowState.workItemSkuSelections = {};
+      for (const action of currentSkus) {
+        let trabajoArr = action.trabajo || [];
+        if (typeof trabajoArr === 'string' && trabajoArr) {
+          trabajoArr = [trabajoArr];
+        }
+        workflowState.workItemSkuSelections[action.sku_id] = {
+          estado_gondola: action.estado_gondola || '',
+          trabajo: trabajoArr,
+          orden_cantidad_cajas: action.orden_cantidad_cajas || '',
+          orden_fecha_llegada: action.orden_fecha_llegada ? action.orden_fecha_llegada.split('T')[0] : '',
+          notes: action.notes || '',
+        };
+      }
+
+      restoreWorkItemConditions(workItem);
+    } catch (err) {
+      toast('Error al cargar trabajo: ' + err.message);
+      return;
+    }
+  }
+
+  renderWorkItemList();
+}
+
+function openWorkItemPhotoViewer(workItemId) {
+  const item = workflowState.workItems.find(w => w.id === workItemId);
+  if (!item || !item.before_photo) return;
+  openImageViewer(item.before_photo.file_path);
+}
+
+async function openSkuModalForItem(workItemId) {
+  if (workflowState.currentWorkItemId !== workItemId) {
+    await toggleWorkItemExpand(workItemId);
+  }
+  openSkuModal();
+}
+
+async function openConditionsModalForItem(workItemId) {
+  if (workflowState.currentWorkItemId !== workItemId) {
+    await toggleWorkItemExpand(workItemId);
+  }
+  openConditionsModal();
+}
+
+async function saveWorkItemProgress(workItemId) {
+  if (workflowState.currentWorkItemId !== workItemId) return;
+
+  try {
+    await saveCurrentWorkItem();
+    toast('Progreso guardado');
+
+    const updatedItem = await getWorkItem(workItemId);
+    const idx = workflowState.workItems.findIndex(w => w.id === workItemId);
+    if (idx >= 0) {
+      workflowState.workItems[idx] = updatedItem;
+      workflowState.currentWorkItem = updatedItem;
+    }
+    renderWorkItemList();
+    updateSegmentCount();
+  } catch (err) {
+    toast('Error al guardar: ' + err.message);
+  }
+}
+
+function captureAfterPhotoForItem(workItemId) {
+  workflowState.currentWorkItemId = workItemId;
+  const input = document.getElementById('camera-work-item-after');
+  input.onchange = (e) => onAfterPhotoSelectedForItem(e.target, workItemId);
+  input.click();
+}
+
+async function onAfterPhotoSelectedForItem(input, workItemId) {
+  const file = input.files[0];
+  if (!file) return;
+
+  try {
+    await saveCurrentWorkItem();
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photo_type', 'work_item_after');
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+
+    const photo = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+    await completeWorkItem(workItemId, photo.id);
+
+    const updatedItem = await getWorkItem(workItemId);
+    const idx = workflowState.workItems.findIndex(w => w.id === workItemId);
+    if (idx >= 0) {
+      workflowState.workItems[idx] = updatedItem;
+    }
+
+    workflowState.expandedWorkItemId = null;
+    renderWorkItemList();
+    updateSegmentCount();
+    saveVisitProgress();
+
+    toast('Trabajo completado');
+    input.value = '';
+  } catch (err) {
+    toast('Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+function updateSegmentCount() {
+  const countEl = document.getElementById('segment-work-item-count');
+  const completed = workflowState.workItems.filter(w => w.status === 'completed').length;
+  countEl.textContent = `${completed}/${workflowState.workItems.length} completados`;
 }
 
 async function confirmDeleteWorkItem(workItemId, event) {
@@ -5164,9 +5338,18 @@ function goToConditionsFromSku() {
 
 function updateSkuSummary() {
   const count = Object.keys(workflowState.workItemSkuSelections).length;
+  const text = count > 0 ? `${count} seleccionado${count > 1 ? 's' : ''}` : '0 seleccionados';
+
   const summaryEl = document.getElementById('sku-summary');
   if (summaryEl) {
-    summaryEl.textContent = count > 0 ? `${count} seleccionado${count > 1 ? 's' : ''}` : '0 seleccionados';
+    summaryEl.textContent = text;
+  }
+
+  if (workflowState.currentWorkItemId) {
+    const itemSummaryEl = document.getElementById(`sku-summary-${workflowState.currentWorkItemId}`);
+    if (itemSummaryEl) {
+      itemSummaryEl.textContent = text;
+    }
   }
 }
 
@@ -5264,14 +5447,24 @@ function closeConditionsModal() {
 function updateConditionsSummary() {
   const total = 4;
   const answered = Object.keys(workItemConditions).length;
+  let text;
+  if (answered === 0) {
+    text = 'Sin completar';
+  } else if (answered < total) {
+    text = `${answered}/${total} respondidas`;
+  } else {
+    text = 'Completado';
+  }
+
   const summaryEl = document.getElementById('conditions-summary');
   if (summaryEl) {
-    if (answered === 0) {
-      summaryEl.textContent = 'Sin completar';
-    } else if (answered < total) {
-      summaryEl.textContent = `${answered}/${total} respondidas`;
-    } else {
-      summaryEl.textContent = 'Completado';
+    summaryEl.textContent = text;
+  }
+
+  if (workflowState.currentWorkItemId) {
+    const itemSummaryEl = document.getElementById(`conditions-summary-${workflowState.currentWorkItemId}`);
+    if (itemSummaryEl) {
+      itemSummaryEl.textContent = text;
     }
   }
 }

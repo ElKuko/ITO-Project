@@ -2740,16 +2740,79 @@ tr.inactive-row {
 }
 
 .work-item-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.work-item-card-header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   cursor: pointer;
-  transition: all 0.2s;
+}
+
+.work-item-expand-icon {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.work-item-card.expanded .work-item-expand-icon {
+  transform: rotate(0deg);
+}
+
+.work-item-card-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.work-item-photo-inline {
   position: relative;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.work-item-photo-inline img {
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.work-item-photo-inline .photo-expand-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  color: white;
+  padding: 8px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.work-item-card-body .section-preview {
+  margin-bottom: 8px;
+}
+
+.work-item-inline-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.work-item-inline-actions .btn {
+  flex: 1;
+  padding: 12px;
 }
 
 .work-item-delete-btn {
