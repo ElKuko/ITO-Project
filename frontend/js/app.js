@@ -413,10 +413,10 @@ function showStep(stepNum) {
   if (stepNum === 2) updateSegmentStatuses();
   if (stepNum === 5) showVisitSummary();
 
-  // Show/hide "Completar Visita" button (visible during segment work steps)
+  // Show/hide "Completar Visita" button (visible only during segment work)
   const completeBtn = document.getElementById('btn-complete-visit');
   if (completeBtn) {
-    completeBtn.style.display = (stepNum === 2 || stepNum === 3 || stepNum === 4) ? 'block' : 'none';
+    completeBtn.style.display = (stepNum === 3 || stepNum === 4) ? 'block' : 'none';
   }
 }
 
