@@ -5353,7 +5353,11 @@ function renderModalSkuList(skus, selectedIds) {
         <div class="ordene-fields" id="modal-ordene-fields-${sku.id}" style="display:${(selection.trabajo || []).includes('ordene') ? 'flex' : 'none'};">
           <div class="sku-field-group">
             <label>Cantidad cajas</label>
-            <input type="number" min="1" value="${selection.orden_cantidad_cajas || ''}" data-sku="${sku.id}" data-field="orden_cantidad_cajas">
+            <div class="filas-counter ordene-counter" data-sku="${sku.id}" data-field="orden_cantidad_cajas">
+              <button class="filas-btn minus" onclick="adjustFilas(${sku.id}, 'orden_cantidad_cajas', -1, event)">−</button>
+              <span class="filas-value">${selection.orden_cantidad_cajas > 0 ? selection.orden_cantidad_cajas : 'cajas'}</span>
+              <button class="filas-btn plus" onclick="adjustFilas(${sku.id}, 'orden_cantidad_cajas', 1, event)">+</button>
+            </div>
           </div>
           <div class="sku-field-group">
             <label>Fecha llegada</label>
@@ -5376,7 +5380,7 @@ function adjustFilas(skuId, field, delta, event) {
     workflowState.workItemSkuSelections[skuId] = {
       estado_gondola: '',
       trabajo: [],
-      orden_cantidad_cajas: '',
+      orden_cantidad_cajas: 0,
       orden_fecha_llegada: '',
       filas_estado: 0,
       filas_nuevas: 0,
@@ -5393,7 +5397,12 @@ function adjustFilas(skuId, field, delta, event) {
   // Update display
   const counter = event.target.closest('.filas-counter');
   const valueEl = counter.querySelector('.filas-value');
-  const placeholder = field === 'filas_estado' ? 'filas' : 'mas filas';
+  const placeholders = {
+    filas_estado: 'filas',
+    filas_nuevas: 'mas filas',
+    orden_cantidad_cajas: 'cajas'
+  };
+  const placeholder = placeholders[field] || '0';
   valueEl.textContent = newValue > 0 ? newValue : placeholder;
 }
 
@@ -5410,7 +5419,7 @@ function handleModalSkuClick(e) {
     workflowState.workItemSkuSelections[skuId] = {
       estado_gondola: '',
       trabajo: [],
-      orden_cantidad_cajas: '',
+      orden_cantidad_cajas: 0,
       orden_fecha_llegada: '',
       filas_estado: 0,
       filas_nuevas: 0,
