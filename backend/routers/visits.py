@@ -17,6 +17,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 from ..database import get_db
 from ..models import StoreVisit, VisitSKUAction, VisitPhoto, PhotoSKULink, Store, SKU, User
@@ -83,6 +84,21 @@ def start_visit(
     """Start a new store visit. Creates the visit record with start time and GPS."""
     if not db.query(Store).filter(Store.id == req.store_id).first():
         raise HTTPException(status_code=404, detail="Store not found")
+
+    # Check for duplicate visit to same store today
+    today = datetime.utcnow().date()
+    existing_visit = db.query(StoreVisit).filter(
+        StoreVisit.store_id == req.store_id,
+        StoreVisit.user_id == current_user.id,
+        func.date(StoreVisit.start_time) == today,
+        StoreVisit.status == "submitted",
+    ).first()
+
+    if existing_visit:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una visita completada para esta tienda hoy"
+        )
 
     visit = StoreVisit(
         store_id=req.store_id,
