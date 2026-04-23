@@ -5021,7 +5021,38 @@ async function saveExpandedWorkItem(workItemId) {
   }
 }
 
+function validateWorkItemCompletion() {
+  // Check 1: At least one SKU has both estado_gondola AND trabajo selected
+  const skuSelections = workflowState.workItemSkuSelections;
+  const hasCompleteSku = Object.values(skuSelections).some(sel => {
+    const hasEstado = sel.estado_gondola && sel.estado_gondola.length > 0;
+    const hasTrabajo = sel.trabajo && sel.trabajo.length > 0;
+    return hasEstado && hasTrabajo;
+  });
+
+  if (!hasCompleteSku) {
+    return { valid: false, message: 'Seleccione al menos un SKU con estado de góndola y trabajo' };
+  }
+
+  // Check 2: All 4 conditions have been answered
+  const requiredConditions = ['prices', 'pop', 'presentable', 'gondola_space'];
+  const answeredConditions = requiredConditions.filter(c => workItemConditions[c] !== undefined && workItemConditions[c] !== null);
+
+  if (answeredConditions.length < 4) {
+    return { valid: false, message: 'Complete todas las condiciones antes de tomar la foto' };
+  }
+
+  return { valid: true };
+}
+
 function captureAfterPhotoForItem(workItemId) {
+  // Validate before allowing photo capture
+  const validation = validateWorkItemCompletion();
+  if (!validation.valid) {
+    toast(validation.message);
+    return;
+  }
+
   workflowState.currentWorkItemId = workItemId;
   const input = document.getElementById('camera-work-item-after');
   input.onchange = (e) => onAfterPhotoSelectedForItem(e.target, workItemId);
