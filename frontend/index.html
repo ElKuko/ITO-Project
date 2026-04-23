@@ -226,37 +226,45 @@
             </div>
 
             <div id="conditions-modal-content" style="display:none;">
-              <div class="condition-check">
+              <div class="condition-check" data-field="prices">
                 <label>¿Están todos los precios?</label>
                 <div class="toggle-group">
                   <button class="toggle-btn" onclick="setWorkItemCondition('prices', true, this)">Sí</button>
                   <button class="toggle-btn" onclick="setWorkItemCondition('prices', false, this)">No</button>
                 </div>
+                <div class="condition-notes-inline" id="condition-notes-prices" style="display:none;">
+                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('prices', this.value)"></textarea>
+                </div>
               </div>
-              <div class="condition-check">
+              <div class="condition-check" data-field="pop">
                 <label>¿Está el material PoP?</label>
                 <div class="toggle-group">
                   <button class="toggle-btn" onclick="setWorkItemCondition('pop', true, this)">Sí</button>
                   <button class="toggle-btn" onclick="setWorkItemCondition('pop', false, this)">No</button>
                 </div>
+                <div class="condition-notes-inline" id="condition-notes-pop" style="display:none;">
+                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('pop', this.value)"></textarea>
+                </div>
               </div>
-              <div class="condition-check">
+              <div class="condition-check" data-field="presentable">
                 <label>¿Está limpio y presentable?</label>
                 <div class="toggle-group">
                   <button class="toggle-btn" onclick="setWorkItemCondition('presentable', true, this)">Sí</button>
                   <button class="toggle-btn" onclick="setWorkItemCondition('presentable', false, this)">No</button>
                 </div>
+                <div class="condition-notes-inline" id="condition-notes-presentable" style="display:none;">
+                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('presentable', this.value)"></textarea>
+                </div>
               </div>
-              <div class="condition-check">
+              <div class="condition-check" data-field="gondola_space">
                 <label>¿Más espacio en góndola?</label>
                 <div class="toggle-group">
                   <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', true, this)">Sí</button>
                   <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', false, this)">No</button>
                 </div>
-              </div>
-              <div class="form-group" id="work-item-notes-group" style="display:none;">
-                <label>Notas</label>
-                <textarea id="work-item-notes" rows="2" placeholder="Explique..."></textarea>
+                <div class="condition-notes-inline" id="condition-notes-gondola_space" style="display:none;">
+                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('gondola_space', this.value)"></textarea>
+                </div>
               </div>
             </div>
 

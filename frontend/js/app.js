@@ -5529,10 +5529,10 @@ function openConditionsModal() {
   `;
   document.body.appendChild(modal);
 
-  // Restore toggle button states
+  // Restore toggle button states and inline notes
   restoreConditionButtonStates(modal);
 
-  // Re-bind event handlers
+  // Re-bind event handlers for toggle buttons
   modal.querySelectorAll('.toggle-btn').forEach(btn => {
     const onclick = btn.getAttribute('onclick');
     if (onclick) {
@@ -5540,16 +5540,13 @@ function openConditionsModal() {
     }
   });
 
-  // Handle notes textarea
-  const notesGroup = modal.querySelector('#work-item-notes-group');
-  const notesTextarea = modal.querySelector('#work-item-notes');
-  if (notesGroup && notesTextarea) {
-    notesGroup.id = 'modal-work-item-notes-group';
-    notesTextarea.id = 'modal-work-item-notes';
-    notesTextarea.value = document.getElementById('work-item-notes')?.value || '';
-    const anyNo = Object.values(workItemConditions).some(v => v === false);
-    notesGroup.style.display = anyNo ? 'block' : 'none';
-  }
+  // Re-bind event handlers for inline notes textareas
+  modal.querySelectorAll('.condition-notes-inline textarea').forEach(textarea => {
+    const oninput = textarea.getAttribute('oninput');
+    if (oninput) {
+      textarea.oninput = function() { eval(oninput); };
+    }
+  });
 }
 
 function restoreConditionButtonStates(container) {
@@ -5572,6 +5569,16 @@ function restoreConditionButtonStates(container) {
               btn.classList.add(value ? 'selected-yes' : 'selected-no');
             }
           });
+
+          // Show/hide and populate inline notes
+          const inlineNotes = check.querySelector('.condition-notes-inline');
+          if (inlineNotes) {
+            inlineNotes.style.display = value === false ? 'block' : 'none';
+            const textarea = inlineNotes.querySelector('textarea');
+            if (textarea && workItemConditionNotes[cond.field]) {
+              textarea.value = workItemConditionNotes[cond.field];
+            }
+          }
         }
       });
     }
@@ -5581,19 +5588,19 @@ function restoreConditionButtonStates(container) {
 function closeConditionsModal() {
   const modal = document.getElementById('conditions-modal');
   if (modal) {
-    // Sync notes back
-    const modalNotes = modal.querySelector('#modal-work-item-notes');
-    const originalNotes = document.getElementById('work-item-notes');
-    if (modalNotes && originalNotes) {
-      originalNotes.value = modalNotes.value;
-    }
-
-    // Sync notes group visibility
-    const originalNotesGroup = document.getElementById('work-item-notes-group');
-    if (originalNotesGroup) {
-      const anyNo = Object.values(workItemConditions).some(v => v === false);
-      originalNotesGroup.style.display = anyNo ? 'block' : 'none';
-    }
+    // Sync inline notes from modal to state
+    const fields = ['prices', 'pop', 'presentable', 'gondola_space'];
+    fields.forEach(field => {
+      const inlineNotes = modal.querySelector(`#condition-notes-${field} textarea`);
+      if (inlineNotes) {
+        workItemConditionNotes[field] = inlineNotes.value;
+      }
+      // Also sync back to hidden template
+      const originalInlineNotes = document.querySelector(`#conditions-modal-content #condition-notes-${field} textarea`);
+      if (originalInlineNotes && inlineNotes) {
+        originalInlineNotes.value = inlineNotes.value;
+      }
+    });
 
     modal.remove();
     updateConditionsSummary();
@@ -5749,16 +5756,27 @@ function updateSkuField(skuId, field, value) {
 
 function restoreWorkItemConditions(workItem) {
   const conditions = [
-    { field: 'prices', dbField: 'prices_on_gondola', value: workItem.prices_on_gondola, labelMatch: 'precios' },
-    { field: 'pop', dbField: 'pop_material_present', value: workItem.pop_material_present, labelMatch: 'PoP' },
-    { field: 'presentable', dbField: 'product_presentable', value: workItem.product_presentable, labelMatch: 'presentable' },
-    { field: 'gondola_space', dbField: 'gondola_space_gained', value: workItem.gondola_space_gained, labelMatch: 'espacio' },
+    { field: 'prices', dbField: 'prices_on_gondola', value: workItem.prices_on_gondola, labelMatch: 'precios', noteLabel: 'Precios' },
+    { field: 'pop', dbField: 'pop_material_present', value: workItem.pop_material_present, labelMatch: 'PoP', noteLabel: 'Material PoP' },
+    { field: 'presentable', dbField: 'product_presentable', value: workItem.product_presentable, labelMatch: 'presentable', noteLabel: 'Presentable' },
+    { field: 'gondola_space', dbField: 'gondola_space_gained', value: workItem.gondola_space_gained, labelMatch: 'espacio', noteLabel: 'Espacio góndola' },
   ];
 
-  // Clear all toggle buttons in the conditions modal content
+  // Clear all toggle buttons and notes
   document.querySelectorAll('#conditions-modal-content .toggle-btn').forEach(btn => {
     btn.classList.remove('selected-yes', 'selected-no');
   });
+  workItemConditionNotes = {};
+
+  // Parse combined notes back into individual fields
+  const combinedNotes = workItem.condition_notes || '';
+  for (const cond of conditions) {
+    const regex = new RegExp(`${cond.noteLabel}: (.+?)(?=\\n|$)`);
+    const match = combinedNotes.match(regex);
+    if (match) {
+      workItemConditionNotes[cond.field] = match[1];
+    }
+  }
 
   for (const cond of conditions) {
     if (cond.value !== null) {
@@ -5773,17 +5791,22 @@ function restoreWorkItemConditions(workItem) {
           }
         }
       });
+
+      // Show/hide inline notes
+      const inlineNotesEl = document.getElementById(`condition-notes-${cond.field}`);
+      if (inlineNotesEl) {
+        inlineNotesEl.style.display = cond.value === false ? 'block' : 'none';
+        const textarea = inlineNotesEl.querySelector('textarea');
+        if (textarea) {
+          textarea.value = workItemConditionNotes[cond.field] || '';
+        }
+      }
     }
   }
-
-  const notesEl = document.getElementById('work-item-notes');
-  const notesGroupEl = document.getElementById('work-item-notes-group');
-  notesEl.value = workItem.condition_notes || '';
-  const anyNo = Object.values(workItemConditions).some(v => v === false);
-  notesGroupEl.style.display = (anyNo || workItem.condition_notes) ? 'block' : 'none';
 }
 
 let workItemConditions = {};
+let workItemConditionNotes = {};
 
 function setWorkItemCondition(field, value, btn) {
   workItemConditions[field] = value;
@@ -5793,16 +5816,24 @@ function setWorkItemCondition(field, value, btn) {
   });
   btn.classList.add(value ? 'selected-yes' : 'selected-no');
 
-  const anyNo = Object.values(workItemConditions).some(v => v === false);
-
-  // Update notes visibility in both modal and hidden content
-  const modalNotesGroup = document.getElementById('modal-work-item-notes-group');
-  const hiddenNotesGroup = document.getElementById('work-item-notes-group');
-  if (modalNotesGroup) modalNotesGroup.style.display = anyNo ? 'block' : 'none';
-  if (hiddenNotesGroup) hiddenNotesGroup.style.display = anyNo ? 'block' : 'none';
+  // Show/hide inline notes field for this specific condition
+  const inlineNotesEl = document.getElementById(`condition-notes-${field}`);
+  if (inlineNotesEl) {
+    inlineNotesEl.style.display = value === false ? 'block' : 'none';
+    if (value !== false) {
+      // Clear notes when switching to Yes
+      workItemConditionNotes[field] = '';
+      const textarea = inlineNotesEl.querySelector('textarea');
+      if (textarea) textarea.value = '';
+    }
+  }
 
   // Auto-save
   autoSaveWorkItem();
+}
+
+function updateConditionNote(field, value) {
+  workItemConditionNotes[field] = value;
 }
 
 let autoSaveTimeout = null;
@@ -5863,8 +5894,17 @@ async function doSaveWorkItem() {
     skuActions.push(action);
   }
 
-  const notesEl = document.getElementById('work-item-notes');
-  const notes = notesEl ? notesEl.value : '';
+  // Combine all condition notes into a single string
+  const noteLabels = {
+    prices: 'Precios',
+    pop: 'Material PoP',
+    presentable: 'Presentable',
+    gondola_space: 'Espacio góndola'
+  };
+  const combinedNotes = Object.entries(workItemConditionNotes)
+    .filter(([field, note]) => note && note.trim())
+    .map(([field, note]) => `${noteLabels[field]}: ${note}`)
+    .join('\n');
 
   await updateWorkItem(workItemId, {
     sku_actions: skuActions,
@@ -5872,7 +5912,7 @@ async function doSaveWorkItem() {
     pop_material_present: workItemConditions.pop ?? null,
     product_presentable: workItemConditions.presentable ?? null,
     gondola_space_gained: workItemConditions.gondola_space ?? null,
-    condition_notes: notes || null,
+    condition_notes: combinedNotes || null,
   });
 
   saveVisitProgress();

@@ -656,6 +656,40 @@ th {
   color: white;
 }
 
+/* ── Inline Condition Notes ───────────────────────────────────────────── */
+.condition-notes-inline {
+  margin-top: 10px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.condition-notes-inline textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  resize: vertical;
+  min-height: 50px;
+  font-family: inherit;
+}
+
+.condition-notes-inline textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
 /* ── Section Conditions Container ─────────────────────────────────────── */
 .section-conditions {
   margin-top: 20px;
