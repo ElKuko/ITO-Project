@@ -5022,19 +5022,36 @@ async function saveExpandedWorkItem(workItemId) {
 }
 
 function validateWorkItemCompletion() {
-  // Check 1: At least one SKU has both estado_gondola AND trabajo selected
   const skuSelections = workflowState.workItemSkuSelections;
-  const hasCompleteSku = Object.values(skuSelections).some(sel => {
-    const hasEstado = sel.estado_gondola && sel.estado_gondola.length > 0;
-    const hasTrabajo = sel.trabajo && sel.trabajo.length > 0;
-    return hasEstado && hasTrabajo;
-  });
+  const skuEntries = Object.entries(skuSelections);
 
-  if (!hasCompleteSku) {
-    return { valid: false, message: 'Seleccione al menos un SKU con estado de góndola y trabajo' };
+  // Check 1: At least one SKU must be selected
+  if (skuEntries.length === 0) {
+    return { valid: false, message: 'Seleccione al menos un SKU' };
   }
 
-  // Check 2: All 4 conditions have been answered
+  // Check 2: Every selected SKU must have all required fields
+  for (const [skuId, sel] of skuEntries) {
+    const hasEstado = sel.estado_gondola && sel.estado_gondola.length > 0;
+    const hasTrabajo = sel.trabajo && sel.trabajo.length > 0;
+    const hasFilasEstado = sel.filas_estado && sel.filas_estado > 0;
+    const hasFilasNuevas = sel.filas_nuevas && sel.filas_nuevas > 0;
+
+    if (!hasEstado) {
+      return { valid: false, message: 'Cada SKU debe tener un estado de góndola seleccionado' };
+    }
+    if (!hasTrabajo) {
+      return { valid: false, message: 'Cada SKU debe tener al menos un trabajo seleccionado' };
+    }
+    if (!hasFilasEstado) {
+      return { valid: false, message: 'Ingrese el número de filas en estado de góndola para cada SKU' };
+    }
+    if (!hasFilasNuevas) {
+      return { valid: false, message: 'Ingrese el número de filas adicionales (mas filas) para cada SKU' };
+    }
+  }
+
+  // Check 3: All 4 conditions have been answered
   const requiredConditions = ['prices', 'pop', 'presentable', 'gondola_space'];
   const answeredConditions = requiredConditions.filter(c => workItemConditions[c] !== undefined && workItemConditions[c] !== null);
 
