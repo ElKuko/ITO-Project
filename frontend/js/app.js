@@ -412,6 +412,12 @@ function showStep(stepNum) {
   // Load step-specific data
   if (stepNum === 2) updateSegmentStatuses();
   if (stepNum === 5) showVisitSummary();
+
+  // Show/hide "Completar Visita" button (visible during segment work steps)
+  const completeBtn = document.getElementById('btn-complete-visit');
+  if (completeBtn) {
+    completeBtn.style.display = (stepNum === 2 || stepNum === 3 || stepNum === 4) ? 'block' : 'none';
+  }
 }
 
 function nextStep() {

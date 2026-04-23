@@ -60,10 +60,15 @@
       <div class="container">
 
         <!-- Step Indicator (3 main steps: Llegada, Segmentos, Enviar) -->
-        <div class="step-indicator" id="step-indicator">
-          <span class="step active" data-step="1">1</span>
-          <span class="step" data-step="2">2</span>
-          <span class="step" data-step="5">3</span>
+        <div class="step-indicator-row">
+          <div class="step-indicator" id="step-indicator">
+            <span class="step active" data-step="1">1</span>
+            <span class="step" data-step="2">2</span>
+            <span class="step" data-step="5">3</span>
+          </div>
+          <button class="btn btn-success btn-sm btn-complete-visit" id="btn-complete-visit" onclick="goToSubmit()" style="display:none;">
+            Completar Visita →
+          </button>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -269,7 +274,7 @@
         <!-- Step 3: Submit -->
         <div id="visit-step-5" class="visit-step">
           <div class="card">
-            <h3>Paso 3: Enviar Visita</h3>
+            <h3>Paso 3: Completar Visita</h3>
             <div class="form-group">
               <label>Notas adicionales (opcional)</label>
               <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>
