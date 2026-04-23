@@ -1158,6 +1158,13 @@ function showVisitSummary() {
 }
 
 async function submitVisit() {
+  // Check for pending work items
+  const pendingItems = workflowState.workItems.filter(item => item.status !== 'completed');
+  if (pendingItems.length > 0) {
+    toast(`Hay ${pendingItems.length} trabajo(s) pendiente(s). Complete todos los trabajos antes de enviar.`);
+    return;
+  }
+
   const btn = document.getElementById('btn-submit-visit');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
