@@ -5446,9 +5446,18 @@ function handleModalSkuClick(e) {
       ordeneFieldsEl.style.display = trabajoArr.includes('ordene') ? 'flex' : 'none';
     }
   } else {
-    workflowState.workItemSkuSelections[skuId][field] = value;
-    chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
+    // Single-select for estado_gondola - toggle off if clicking same value
+    const currentValue = workflowState.workItemSkuSelections[skuId][field];
+    if (currentValue === value) {
+      // Clicking same chip - deselect it
+      workflowState.workItemSkuSelections[skuId][field] = '';
+      chip.classList.remove('active');
+    } else {
+      // Selecting a different chip
+      workflowState.workItemSkuSelections[skuId][field] = value;
+      chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    }
   }
 }
 
@@ -5716,10 +5725,18 @@ function selectSkuChip(skuId, field, value, chipEl) {
     const ordeneFieldsEl = document.getElementById(`ordene-fields-${skuId}`);
     ordeneFieldsEl.style.display = trabajoArr.includes('ordene') ? 'flex' : 'none';
   } else {
-    // Single-select for estado_gondola
-    workflowState.workItemSkuSelections[skuId][field] = value;
-    chipEl.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chipEl.classList.add('active');
+    // Single-select for estado_gondola - toggle off if clicking same value
+    const currentValue = workflowState.workItemSkuSelections[skuId][field];
+    if (currentValue === value) {
+      // Clicking same chip - deselect it
+      workflowState.workItemSkuSelections[skuId][field] = '';
+      chipEl.classList.remove('active');
+    } else {
+      // Selecting a different chip
+      workflowState.workItemSkuSelections[skuId][field] = value;
+      chipEl.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chipEl.classList.add('active');
+    }
   }
 }
 
