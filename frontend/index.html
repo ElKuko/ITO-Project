@@ -73,6 +73,17 @@
 
         <!-- Step 0: Store Selection (before starting) -->
         <div id="visit-step-0" class="visit-step active">
+          <!-- Today's Route Progress -->
+          <div class="card route-progress-card" id="todays-route-card" style="display:none;">
+            <div class="route-progress-header">
+              <h3 id="todays-route-title">Ruta de Hoy</h3>
+              <span class="route-progress-badge" id="route-progress-badge">0/0</span>
+            </div>
+            <div class="route-progress-list" id="todays-route-list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
           <div class="card">
             <h3>Seleccionar Tienda</h3>
             <div class="search-container">

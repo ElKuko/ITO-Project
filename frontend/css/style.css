@@ -119,6 +119,99 @@ body {
   color: var(--text-secondary);
 }
 
+/* ── Route Progress Card ─────────────────────────────────────────────── */
+.route-progress-card {
+  background: linear-gradient(135deg, #e8f0fe 0%, #f5f7fa 100%);
+  border-left: 4px solid var(--primary);
+}
+
+.route-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.route-progress-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.route-progress-badge {
+  background: var(--primary);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.route-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-stop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.route-stop-item:hover {
+  background: #f0f4f9;
+}
+
+.route-stop-item.completed {
+  opacity: 0.7;
+}
+
+.route-stop-item.completed .route-stop-name {
+  text-decoration: line-through;
+}
+
+.route-stop-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: white;
+}
+
+.route-stop-item.completed .route-stop-check {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.route-stop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-stop-name {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-stop-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 /* ── Forms ────────────────────────────────────────────────────────────── */
 .form-group {
   margin-bottom: 16px;

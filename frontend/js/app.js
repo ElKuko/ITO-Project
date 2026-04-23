@@ -230,10 +230,15 @@ function restoreVisitProgress(saved) {
 let allStores = [];
 
 async function loadVisitPage() {
-  // Load stores first
+  // Load stores and today's route in parallel
   try {
-    allStores = await apiGet('/stores/');
+    const [stores, todaysRoute] = await Promise.all([
+      apiGet('/stores/'),
+      apiGet('/routes/my-route/today').catch(() => null),
+    ]);
+    allStores = stores;
     renderStoreList(allStores);
+    renderTodaysRoute(todaysRoute);
   } catch (err) {
     toast('Error cargando tiendas');
   }
@@ -309,6 +314,37 @@ function renderStoreList(stores) {
       <div class="store-region">${s.region || ''}</div>
     </div>`
   ).join('');
+}
+
+function renderTodaysRoute(routeData) {
+  const card = document.getElementById('todays-route-card');
+  const list = document.getElementById('todays-route-list');
+  const badge = document.getElementById('route-progress-badge');
+  const title = document.getElementById('todays-route-title');
+
+  if (!routeData || !routeData.stores || routeData.stores.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = 'block';
+  title.textContent = `Ruta de Hoy — ${routeData.day}`;
+  badge.textContent = `${routeData.completed_count}/${routeData.total_count}`;
+
+  list.innerHTML = routeData.stores.map(store => `
+    <div class="route-stop-item ${store.completed ? 'completed' : ''}" onclick="selectStoreFromRoute(${store.store_id}, '${store.name.replace(/'/g, "\\'")}')">
+      <div class="route-stop-check">${store.completed ? '✓' : ''}</div>
+      <div class="route-stop-info">
+        <div class="route-stop-name">${store.name}</div>
+        <div class="route-stop-detail">${store.chain || ''} ${store.pueblo ? '· ' + store.pueblo : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectStoreFromRoute(storeId, storeName) {
+  selectStore(storeId, storeName);
+  document.getElementById('store-search').value = storeName;
 }
 
 function selectStore(storeId, storeName) {

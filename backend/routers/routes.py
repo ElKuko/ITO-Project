@@ -1,5 +1,6 @@
 """Route management and route-specific visit history endpoints."""
 
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -9,6 +10,16 @@ from ..models import Route, RouteStop, Store, StoreVisit, User, VisitSKUAction
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/routes", tags=["routes"])
+
+DAYS_SPANISH = {
+    0: "Lunes",
+    1: "Martes",
+    2: "Miércoles",
+    3: "Jueves",
+    4: "Viernes",
+    5: "Sábado",
+    6: "Domingo",
+}
 
 
 @router.get("/my-route")
@@ -32,6 +43,63 @@ def get_my_route(
         "name": route.name,
         "merchandiser_id": route.merchandiser_id,
         "store_count": len(route.stops),
+    }
+
+
+@router.get("/my-route/today")
+def get_my_route_today(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get today's scheduled stores for the current merchandiser with completion status."""
+    today = date.today()
+    day_name = DAYS_SPANISH[today.weekday()]
+
+    route = db.query(Route).options(
+        joinedload(Route.stops).joinedload(RouteStop.store),
+    ).filter(
+        Route.merchandiser_id == current_user.id,
+        Route.is_active == True
+    ).first()
+
+    if not route:
+        return {
+            "day": day_name,
+            "date": today.isoformat(),
+            "route_name": None,
+            "stores": [],
+            "completed_count": 0,
+            "total_count": 0,
+        }
+
+    today_stops = [s for s in route.stops if s.day == day_name]
+    today_stops.sort(key=lambda s: s.visit_order)
+
+    today_visits = db.query(StoreVisit).filter(
+        StoreVisit.user_id == current_user.id,
+        func.date(StoreVisit.start_time) == today,
+        StoreVisit.status == "completed",
+    ).all()
+    completed_store_ids = {v.store_id for v in today_visits}
+
+    stores = []
+    for stop in today_stops:
+        stores.append({
+            "store_id": stop.store.id,
+            "name": stop.store.name,
+            "chain": stop.store.chain,
+            "pueblo": stop.store.pueblo,
+            "visit_order": stop.visit_order,
+            "completed": stop.store.id in completed_store_ids,
+        })
+
+    return {
+        "day": day_name,
+        "date": today.isoformat(),
+        "route_name": route.name,
+        "stores": stores,
+        "completed_count": len([s for s in stores if s["completed"]]),
+        "total_count": len(stores),
     }
 
 
