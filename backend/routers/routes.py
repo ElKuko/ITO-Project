@@ -78,7 +78,7 @@ def get_my_route_today(
     today_visits = db.query(StoreVisit).filter(
         StoreVisit.user_id == current_user.id,
         func.date(StoreVisit.start_time) == today,
-        StoreVisit.status == "completed",
+        StoreVisit.status == "submitted",
     ).all()
     completed_store_ids = {v.store_id for v in today_visits}
 
