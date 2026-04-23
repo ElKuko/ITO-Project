@@ -194,6 +194,12 @@ body {
   border-color: var(--success);
 }
 
+.route-stop-item.selected-for-visit {
+  background: #e8f0fe;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+}
+
 .route-stop-info {
   flex: 1;
   min-width: 0;

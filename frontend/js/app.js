@@ -237,10 +237,9 @@ async function loadVisitPage() {
       apiGet('/routes/my-route/today').catch(() => null),
     ]);
     allStores = stores;
-    renderStoreList(allStores);
     renderTodaysRoute(todaysRoute);
   } catch (err) {
-    toast('Error cargando tiendas');
+    toast('Error cargando datos');
   }
 
   // Check for saved progress
@@ -317,18 +316,19 @@ function renderStoreList(stores) {
 }
 
 function renderTodaysRoute(routeData) {
-  const card = document.getElementById('todays-route-card');
   const list = document.getElementById('todays-route-list');
   const badge = document.getElementById('route-progress-badge');
   const title = document.getElementById('todays-route-title');
 
   if (!routeData || !routeData.stores || routeData.stores.length === 0) {
-    card.style.display = 'none';
+    title.textContent = 'Seleccionar Tienda';
+    badge.style.display = 'none';
+    list.innerHTML = '<p class="meta">No hay tiendas programadas para hoy. Use la búsqueda para encontrar una tienda.</p>';
     return;
   }
 
-  card.style.display = 'block';
   title.textContent = `Ruta de Hoy — ${routeData.day}`;
+  badge.style.display = 'inline-block';
   badge.textContent = `${routeData.completed_count}/${routeData.total_count}`;
 
   list.innerHTML = routeData.stores.map(store => `
@@ -345,17 +345,18 @@ function renderTodaysRoute(routeData) {
 function selectStoreFromRoute(storeId, storeName) {
   selectStore(storeId, storeName);
   document.getElementById('store-search').value = storeName;
+
+  // Highlight in route list
+  document.querySelectorAll('.route-stop-item').forEach(el => {
+    el.classList.remove('selected-for-visit');
+  });
+  event.currentTarget.classList.add('selected-for-visit');
 }
 
 function selectStore(storeId, storeName) {
   selectedStoreId = storeId;
   visitState.storeId = storeId;
   visitState.storeName = storeName;
-
-  // Update UI - highlight in browse list
-  document.querySelectorAll('.store-item').forEach(el => {
-    el.classList.toggle('selected', parseInt(el.dataset.id) === storeId);
-  });
 
   // Update search input and close dropdown
   document.getElementById('store-search').value = storeName;
