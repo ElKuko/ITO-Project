@@ -220,11 +220,7 @@ def update_work_item(
         for t in action.trabajo:
             if t not in VALID_TRABAJO:
                 raise HTTPException(status_code=400, detail=f"Invalid trabajo: {t}")
-        if "ordene" in action.trabajo:
-            if action.orden_cantidad_cajas is None:
-                raise HTTPException(status_code=400, detail="orden_cantidad_cajas required when trabajo includes ordene")
-            if action.orden_fecha_llegada is None:
-                raise HTTPException(status_code=400, detail="orden_fecha_llegada required when trabajo includes ordene")
+        # orden_cantidad_cajas and orden_fecha_llegada are optional even when ordene is selected
 
     existing_action_ids = db.query(VisitSKUAction.sku_id).join(WorkItem).filter(
         WorkItem.visit_id == work_item.visit_id,

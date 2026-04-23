@@ -506,8 +506,8 @@ class WorkItemSKUAction(BaseModel):
     sku_id: int
     estado_gondola: Optional[str] = None  # llena | semi | agotada
     trabajo: list[str] = []  # list of: organice | rellene | ordene
-    orden_cantidad_cajas: Optional[int] = None  # Required if ordene in trabajo
-    orden_fecha_llegada: Optional[datetime] = None  # Required if ordene in trabajo
+    orden_cantidad_cajas: Optional[int] = None  # Optional, used with ordene
+    orden_fecha_llegada: Optional[datetime] = None  # Optional, used with ordene
     notes: Optional[str] = None
 
 
