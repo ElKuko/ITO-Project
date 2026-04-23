@@ -3291,6 +3291,54 @@ tr.inactive-row {
   border-color: var(--primary);
 }
 
+/* Filas Counter */
+.filas-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.filas-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.filas-btn:hover {
+  background: var(--border);
+}
+
+.filas-btn:active {
+  background: var(--primary);
+  color: white;
+}
+
+.filas-value {
+  min-width: 50px;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.filas-counter:has(.filas-value:not(:empty)) .filas-value {
+  color: var(--text);
+}
+
 .sku-field-group {
   flex: 1;
   min-width: 120px;

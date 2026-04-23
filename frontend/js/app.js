@@ -5298,6 +5298,8 @@ function renderModalSkuList(skus, selectedIds) {
   listEl.innerHTML = skus.map(sku => {
     const isSelected = selectedIds.includes(sku.id) || !!workflowState.workItemSkuSelections[sku.id];
     const selection = workflowState.workItemSkuSelections[sku.id] || {};
+    const filasEstado = selection.filas_estado || 0;
+    const filasNuevas = selection.filas_nuevas || 0;
 
     return `
       <li class="sku-item ${isSelected ? 'selected' : ''}" data-sku-id="${sku.id}">
@@ -5312,12 +5314,22 @@ function renderModalSkuList(skus, selectedIds) {
             <label>Estado góndola</label>
             <div class="chip-buttons">
               ${ESTADO_OPTIONS.map(o => `<span class="chip chip-estado ${selection.estado_gondola === o.value ? 'active' : ''}" data-sku="${sku.id}" data-field="estado_gondola" data-value="${o.value}">${o.label}</span>`).join('')}
+              <div class="filas-counter" data-sku="${sku.id}" data-field="filas_estado">
+                <button class="filas-btn minus" onclick="adjustFilas(${sku.id}, 'filas_estado', -1, event)">−</button>
+                <span class="filas-value">${filasEstado > 0 ? filasEstado : 'filas'}</span>
+                <button class="filas-btn plus" onclick="adjustFilas(${sku.id}, 'filas_estado', 1, event)">+</button>
+              </div>
             </div>
           </div>
           <div class="sku-chips-group">
             <label>Trabajo</label>
             <div class="chip-buttons chip-buttons-multi">
               ${TRABAJO_OPTIONS.map(o => `<span class="chip chip-trabajo ${(selection.trabajo || []).includes(o.value) ? 'active' : ''}" data-sku="${sku.id}" data-field="trabajo" data-value="${o.value}">${o.label}</span>`).join('')}
+              <div class="filas-counter" data-sku="${sku.id}" data-field="filas_nuevas">
+                <button class="filas-btn minus" onclick="adjustFilas(${sku.id}, 'filas_nuevas', -1, event)">−</button>
+                <span class="filas-value">${filasNuevas > 0 ? filasNuevas : 'mas filas'}</span>
+                <button class="filas-btn plus" onclick="adjustFilas(${sku.id}, 'filas_nuevas', 1, event)">+</button>
+              </div>
             </div>
           </div>
         </div>
@@ -5340,6 +5352,34 @@ function renderModalSkuList(skus, selectedIds) {
   listEl.addEventListener('change', handleModalSkuChange);
 }
 
+function adjustFilas(skuId, field, delta, event) {
+  event.stopPropagation();
+
+  if (!workflowState.workItemSkuSelections[skuId]) {
+    workflowState.workItemSkuSelections[skuId] = {
+      estado_gondola: '',
+      trabajo: [],
+      orden_cantidad_cajas: '',
+      orden_fecha_llegada: '',
+      filas_estado: 0,
+      filas_nuevas: 0,
+      notes: '',
+    };
+    const itemEl = event.target.closest('.sku-item');
+    if (itemEl) itemEl.classList.add('selected');
+  }
+
+  const current = workflowState.workItemSkuSelections[skuId][field] || 0;
+  const newValue = Math.max(0, current + delta);
+  workflowState.workItemSkuSelections[skuId][field] = newValue;
+
+  // Update display
+  const counter = event.target.closest('.filas-counter');
+  const valueEl = counter.querySelector('.filas-value');
+  const placeholder = field === 'filas_estado' ? 'filas' : 'mas filas';
+  valueEl.textContent = newValue > 0 ? newValue : placeholder;
+}
+
 function handleModalSkuClick(e) {
   const chip = e.target.closest('.chip');
   if (!chip) return;
@@ -5355,6 +5395,8 @@ function handleModalSkuClick(e) {
       trabajo: [],
       orden_cantidad_cajas: '',
       orden_fecha_llegada: '',
+      filas_estado: 0,
+      filas_nuevas: 0,
       notes: '',
     };
     const itemEl = chip.closest('.sku-item');
