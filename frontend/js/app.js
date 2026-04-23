@@ -5817,7 +5817,9 @@ function setWorkItemCondition(field, value, btn) {
   btn.classList.add(value ? 'selected-yes' : 'selected-no');
 
   // Show/hide inline notes field for this specific condition
-  const inlineNotesEl = document.getElementById(`condition-notes-${field}`);
+  // Find the inline notes element relative to the button's condition-check container
+  const conditionCheck = btn.closest('.condition-check');
+  const inlineNotesEl = conditionCheck ? conditionCheck.querySelector('.condition-notes-inline') : null;
   if (inlineNotesEl) {
     inlineNotesEl.style.display = value === false ? 'block' : 'none';
     if (value !== false) {
