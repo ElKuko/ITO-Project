@@ -4915,7 +4915,6 @@ function renderWorkItemList() {
             <span class="section-preview-arrow">›</span>
           </div>
           <div class="work-item-inline-actions">
-            <button class="btn btn-secondary" onclick="saveExpandedWorkItem(${item.id})">Guardar</button>
             <button class="btn btn-primary" onclick="captureAfterPhotoForItem(${item.id})">📷 Foto Después</button>
           </div>
         </div>
@@ -5383,6 +5382,9 @@ function closeSkuModal() {
     }
     const currentSkuIds = Object.keys(workflowState.workItemSkuSelections).map(id => parseInt(id));
     renderWorkItemSkuList(allSkus, currentSkuIds);
+
+    // Auto-save when closing modal
+    autoSaveWorkItem();
   }
 }
 
@@ -5496,6 +5498,9 @@ function closeConditionsModal() {
 
     modal.remove();
     updateConditionsSummary();
+
+    // Auto-save when closing modal
+    autoSaveWorkItem();
   }
 }
 
@@ -5696,6 +5701,39 @@ function setWorkItemCondition(field, value, btn) {
   const hiddenNotesGroup = document.getElementById('work-item-notes-group');
   if (modalNotesGroup) modalNotesGroup.style.display = anyNo ? 'block' : 'none';
   if (hiddenNotesGroup) hiddenNotesGroup.style.display = anyNo ? 'block' : 'none';
+
+  // Auto-save
+  autoSaveWorkItem();
+}
+
+let autoSaveTimeout = null;
+
+async function autoSaveWorkItem() {
+  if (!workflowState.currentWorkItemId) return;
+
+  // Debounce: wait 500ms after last action before saving
+  if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+
+  autoSaveTimeout = setTimeout(async () => {
+    try {
+      await doSaveWorkItem();
+
+      // Update the work item in local state
+      const workItemId = workflowState.currentWorkItemId;
+      const updatedItem = await getWorkItem(workItemId);
+      const idx = workflowState.workItems.findIndex(w => w.id === workItemId);
+      if (idx >= 0) {
+        workflowState.workItems[idx] = updatedItem;
+        workflowState.currentWorkItem = updatedItem;
+      }
+
+      // Re-render to update status
+      renderWorkItemList();
+      updateSegmentCount();
+    } catch (err) {
+      console.error('Auto-save error:', err);
+    }
+  }, 500);
 }
 
 async function doSaveWorkItem() {
