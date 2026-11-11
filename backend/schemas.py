@@ -171,6 +171,7 @@ class VisitPhotoOut(BaseModel):
     id: int
     photo_type: str
     file_path: str
+    segment: Optional[str] = None
     gondola_group_id: Optional[str] = None
     captured_at: datetime
     latitude: Optional[float] = None
@@ -196,13 +197,30 @@ class VisitSKUActionCreate(BaseModel):
 class VisitSKUActionOut(BaseModel):
     id: int
     sku_id: int
-    action_type: str
+    action_type: Optional[str] = None
+    segment: Optional[str] = None
+    cajas_puestas: Optional[int] = None
+    cajas_faltaron: Optional[int] = None
     facings_count: Optional[int] = None
     notes: Optional[str] = None
     sku: Optional[SKUOut] = None
 
     class Config:
         from_attributes = True
+
+
+# ── Per-SKU Box Report (segment level) ───────────────────────────────────
+
+class SkuReportItem(BaseModel):
+    sku_id: int
+    cajas_puestas: int = 0
+    cajas_faltaron: int = 0
+    photo_ids: list[int] = []
+
+
+class SkuReportSave(BaseModel):
+    segment: str
+    items: list[SkuReportItem] = []
 
 
 # ── Store Visits ─────────────────────────────────────────────────────────

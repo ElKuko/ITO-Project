@@ -6,12 +6,35 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import inspect, text
+
 from .database import engine, Base, SessionLocal
 from .models import SKU, User, Store
 from .routers import auth, stores, skus, approvals, visits, dashboard, users, routes, notifications, chat, annotations, reports, work_items
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
+
+
+def add_missing_columns():
+    """create_all() never alters existing tables, so add columns introduced after a DB was created."""
+    new_columns = {
+        "visit_sku_actions": {
+            "segment": "VARCHAR(30)",
+            "cajas_puestas": "INTEGER",
+            "cajas_faltaron": "INTEGER",
+        },
+    }
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in new_columns.items():
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, sql_type in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+add_missing_columns()
 
 
 def seed_if_empty():

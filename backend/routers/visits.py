@@ -20,16 +20,18 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from ..database import get_db
-from ..models import StoreVisit, VisitSKUAction, VisitPhoto, PhotoSKULink, Store, SKU, User
+from ..models import StoreVisit, VisitSKUAction, VisitPhoto, PhotoSKULink, Store, SKU, StoreSKUApproval, User
 from ..schemas import (
     StoreVisitOut, VisitPhotoOut, VisitStartRequest, VisitStartResponse,
-    VisitCompleteRequest, VisitConditionChecks
+    VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave
 )
 from ..auth import get_current_user
 from ..cv.void_detector import analyze_shelf_image
 from ..storage import storage
 
 router = APIRouter(prefix="/api/visits", tags=["visits"])
+
+SEGMENTS = ("produce", "provisiones", "congelados")
 
 
 def _visit_query(db: Session):
@@ -129,6 +131,7 @@ async def upload_photo(
     photo_type: str = Form(default="shelf"),  # arrival_proof | gondola_before | gondola_after
     gondola_group_id: str = Form(default=None),  # UUID linking before/after photos
     sku_ids: str = Form(default=""),  # Comma-separated SKU IDs this photo represents
+    segment: str = Form(default=None),
     latitude: str = Form(default=None),
     longitude: str = Form(default=None),
     gps_accuracy: str = Form(default=None),
@@ -160,9 +163,12 @@ async def upload_photo(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate photo type
-    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after")
+    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after", "sku_photo")
     if photo_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid photo_type. Must be one of: {valid_types}")
+    photo_segment = segment if segment and segment.strip() else None
+    if photo_segment and photo_segment not in SEGMENTS:
+        raise HTTPException(status_code=400, detail=f"Invalid segment. Must be one of: {SEGMENTS}")
 
     ext = os.path.splitext(file.filename or "photo.jpg")[1] or ".jpg"
     filename = f"{visit_id}_{photo_type}_{uuid.uuid4().hex}{ext}"
@@ -198,6 +204,7 @@ async def upload_photo(
         visit_id=visit_id,
         photo_type=photo_type,
         file_path=file_url,
+        segment=photo_segment,
         gondola_group_id=group_id,
         captured_at=photo_captured_at,
         latitude=lat,
@@ -270,6 +277,147 @@ def get_gondola_groups(
     }
 
 
+# ── Per-SKU Box Report ───────────────────────────────────────────────────
+
+def _get_own_visit(db: Session, visit_id: int, current_user: User) -> StoreVisit:
+    visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    if current_user.role == "merchandiser" and visit.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return visit
+
+
+def _check_segment(segment: str):
+    if segment not in SEGMENTS:
+        raise HTTPException(status_code=400, detail=f"Invalid segment. Must be one of: {SEGMENTS}")
+
+
+def _current_quarter() -> str:
+    now = datetime.utcnow()
+    return f"{now.year}-Q{(now.month - 1) // 3 + 1}"
+
+
+def _report_actions(db: Session, visit_id: int, segment: str):
+    return db.query(VisitSKUAction).filter(
+        VisitSKUAction.visit_id == visit_id,
+        VisitSKUAction.segment == segment,
+        VisitSKUAction.work_item_id == None,
+    )
+
+
+def _segment_photos(db: Session, visit_id: int, segment: str):
+    return db.query(VisitPhoto).filter(
+        VisitPhoto.visit_id == visit_id,
+        VisitPhoto.photo_type == "sku_photo",
+        VisitPhoto.segment == segment,
+    )
+
+
+@router.get("/{visit_id}/sku-report")
+def get_sku_report(
+    visit_id: int,
+    segment: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The store's approved SKUs for a segment, with the box counts and photos reported so far."""
+    _check_segment(segment)
+    visit = _get_own_visit(db, visit_id, current_user)
+
+    skus = db.query(SKU).join(StoreSKUApproval).filter(
+        StoreSKUApproval.store_id == visit.store_id,
+        StoreSKUApproval.quarter == _current_quarter(),
+        SKU.section == segment,
+        SKU.is_active == True,
+    ).order_by(SKU.name).all()
+
+    counts = {a.sku_id: a for a in _report_actions(db, visit_id, segment).all()}
+    photos = _segment_photos(db, visit_id, segment).options(joinedload(VisitPhoto.sku_links)).all()
+
+    return {
+        "segment": segment,
+        "skus": [
+            {
+                **SKUOut.model_validate(s).model_dump(),
+                "cajas_puestas": (counts[s.id].cajas_puestas or 0) if s.id in counts else 0,
+                "cajas_faltaron": (counts[s.id].cajas_faltaron or 0) if s.id in counts else 0,
+            }
+            for s in skus
+        ],
+        "photos": [
+            {"id": p.id, "file_path": p.file_path, "sku_ids": [link.sku_id for link in p.sku_links]}
+            for p in photos
+        ],
+    }
+
+
+@router.put("/{visit_id}/sku-report")
+def save_sku_report(
+    visit_id: int,
+    req: SkuReportSave,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace a segment's box counts and photo-to-SKU links with the given report."""
+    _check_segment(req.segment)
+    visit = _get_own_visit(db, visit_id, current_user)
+    if visit.status == "submitted":
+        raise HTTPException(status_code=400, detail="La visita ya fue enviada")
+
+    sku_ids = {item.sku_id for item in req.items}
+    valid_sku_ids = {
+        s.id for s in db.query(SKU.id).filter(SKU.id.in_(sku_ids), SKU.section == req.segment).all()
+    } if sku_ids else set()
+    unknown = sku_ids - valid_sku_ids
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"SKUs not in segment {req.segment}: {sorted(unknown)}")
+
+    _report_actions(db, visit_id, req.segment).delete(synchronize_session=False)
+    for item in req.items:
+        puestas = max(0, item.cajas_puestas)
+        faltaron = max(0, item.cajas_faltaron)
+        if puestas or faltaron:
+            db.add(VisitSKUAction(
+                visit_id=visit_id,
+                sku_id=item.sku_id,
+                segment=req.segment,
+                cajas_puestas=puestas,
+                cajas_faltaron=faltaron,
+            ))
+
+    segment_photo_ids = {p.id for p in _segment_photos(db, visit_id, req.segment).all()}
+    if segment_photo_ids:
+        db.query(PhotoSKULink).filter(PhotoSKULink.photo_id.in_(segment_photo_ids)).delete(synchronize_session=False)
+    for item in req.items:
+        for photo_id in set(item.photo_ids) & segment_photo_ids:
+            db.add(PhotoSKULink(photo_id=photo_id, sku_id=item.sku_id))
+
+    db.commit()
+    return {"detail": "Reporte guardado"}
+
+
+@router.get("/{visit_id}/sku-report/summary")
+def get_sku_report_summary(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Per-segment totals of the box report."""
+    _get_own_visit(db, visit_id, current_user)
+    summary = []
+    for segment in SEGMENTS:
+        actions = _report_actions(db, visit_id, segment).all()
+        summary.append({
+            "segment": segment,
+            "skus_reported": len(actions),
+            "cajas_puestas": sum(a.cajas_puestas or 0 for a in actions),
+            "cajas_faltaron": sum(a.cajas_faltaron or 0 for a in actions),
+            "photos": _segment_photos(db, visit_id, segment).count(),
+        })
+    return summary
+
+
 # ── Condition Checks ─────────────────────────────────────────────────────
 
 @router.put("/{visit_id}/conditions")
@@ -334,8 +482,13 @@ async def complete_visit(
     visit.end_time = datetime.utcnow()
     visit.status = "submitted"
 
-    # Clear existing SKU actions and add new ones
-    db.query(VisitSKUAction).filter(VisitSKUAction.visit_id == visit_id).delete()
+    # Replace legacy whole-visit SKU actions only; work-item and box-report rows are kept
+    if req.sku_actions:
+        db.query(VisitSKUAction).filter(
+            VisitSKUAction.visit_id == visit_id,
+            VisitSKUAction.work_item_id == None,
+            VisitSKUAction.segment == None,
+        ).delete(synchronize_session=False)
 
     valid_actions = ("gondola_llena", "se_relleno", "orden", "agotado", "unknown")
     for action in req.sku_actions:
@@ -372,11 +525,14 @@ async def complete_visit(
         if has_before and has_after:
             complete_groups += 1
 
+    report_actions = [a for a in completed_visit.sku_actions if a.segment]
     summary_data = {
         "photo_groups_complete": complete_groups,
         "photo_groups_total": len(gondola_groups),
         "photo_count": len(photos),
-        "sku_actions_count": len(req.sku_actions),
+        "sku_actions_count": len(req.sku_actions) or len(report_actions),
+        "cajas_puestas": sum(a.cajas_puestas or 0 for a in report_actions),
+        "cajas_faltaron": sum(a.cajas_faltaron or 0 for a in report_actions),
     }
 
     # Create and broadcast notification

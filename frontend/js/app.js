@@ -246,7 +246,11 @@ async function loadVisitPage() {
   const saved = getSavedVisitProgress();
   if (saved && saved.visitState.visitId) {
     restoreVisitProgress(saved);
-    showStep(visitState.step);
+    if (visitState.step === 3 || visitState.step === 4) {
+      enterSegment(workflowState.currentSegment || 'produce');
+    } else {
+      showStep(visitState.step);
+    }
 
     // Restore UI elements based on state
     if (visitState.photos.arrival) {
@@ -1131,99 +1135,63 @@ function confirmOrdenQty() {
 
 // ── Step 5: Summary & Submit ────────────────────────────────────────────
 
-function showVisitSummary() {
-  // Count actions from Sets (multi-select)
-  const actionCounts = { gondola_llena: 0, se_relleno: 0, orden: 0, agotado: 0 };
-  Object.values(visitState.skuActions).forEach(actionsSet => {
-    actionsSet.forEach(action => {
-      if (actionCounts[action] !== undefined) actionCounts[action]++;
-    });
-  });
-
-  // Calculate total boxes ordered
-  const totalBoxesOrdered = Object.values(visitState.ordenQuantities).reduce((sum, qty) => sum + qty, 0);
-
-  // Count photos across all sections: 1 arrival + gondola groups (before + after)
-  const arrivalCount = visitState.photos.arrival ? 1 : 0;
-  let gondolaBeforeCount = 0;
-  let gondolaAfterCount = 0;
-  let totalGroups = 0;
-
-  SECTIONS.forEach(section => {
-    const groups = visitState.gondolaGroups[section] || [];
-    totalGroups += groups.length;
-    gondolaBeforeCount += groups.filter(g => g.beforePhoto).length;
-    gondolaAfterCount += groups.filter(g => g.afterPhoto).length;
-  });
-
-  const totalPhotos = arrivalCount + gondolaBeforeCount + gondolaAfterCount;
-  const pendingAfter = gondolaBeforeCount - gondolaAfterCount;
-
-  // Build conditions summary per section
-  const condIcon = (val) => val === true ? '✓' : val === false ? '✗' : '—';
-  const condClass = (val) => val === true ? 'cond-ok' : val === false ? 'cond-no' : 'cond-na';
-
-  let conditionsHtml = '';
-  SECTIONS.forEach(section => {
-    const cond = visitState.sectionConditions[section];
-    const label = SECTION_LABELS[section];
-    conditionsHtml += `
-      <div class="summary-section-conditions">
-        <strong>${label}:</strong>
-        <span class="${condClass(cond.prices)}">Precios ${condIcon(cond.prices)}</span>
-        <span class="${condClass(cond.pop)}">PoP ${condIcon(cond.pop)}</span>
-        <span class="${condClass(cond.presentable)}">Presentable ${condIcon(cond.presentable)}</span>
-        <span class="${condClass(cond.gondola_space)}">+Espacio ${condIcon(cond.gondola_space)}</span>
-        ${cond.notes ? `<span class="cond-notes">(${cond.notes})</span>` : ''}
-      </div>
-    `;
-  });
-
+async function showVisitSummary() {
   const summaryEl = document.getElementById('visit-summary');
+  summaryEl.innerHTML = '<p class="meta">Cargando resumen…</p>';
+
+  let summaries;
+  try {
+    summaries = await getSkuReportSummary();
+  } catch (err) {
+    summaryEl.innerHTML = '<p class="meta">Error cargando resumen</p>';
+    return;
+  }
+
+  const totals = summaries.reduce((t, s) => ({
+    skus: t.skus + s.skus_reported,
+    p: t.p + s.cajas_puestas,
+    f: t.f + s.cajas_faltaron,
+    photos: t.photos + s.photos,
+  }), { skus: 0, p: 0, f: 0, photos: 0 });
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const stats = t => `${plural(t.skus, 'SKU')} · <span class="skr-p">${t.p} puestas</span> · <span class="skr-f">${t.f} faltaron</span> · ${plural(t.photos, 'foto')}`;
+  const rows = summaries.map(s => `
+    <div class="skr-summary-row">
+      <strong>${SEGMENT_LABELS_NEW[s.segment]}</strong>
+      <span>${stats({ skus: s.skus_reported, p: s.cajas_puestas, f: s.cajas_faltaron, photos: s.photos })}</span>
+    </div>`).join('');
+
   summaryEl.innerHTML = `
-    <div class="summary-item"><span>Tienda:</span><span>${visitState.storeName}</span></div>
-    <div class="summary-item"><span>Fotos:</span><span>${totalPhotos} (${arrivalCount} llegada, ${gondolaBeforeCount} antes, ${gondolaAfterCount} después)</span></div>
-    <div class="summary-item"><span>Grupos Góndola:</span><span>${totalGroups}${pendingAfter > 0 ? ` (${pendingAfter} pendiente)` : ''}</span></div>
-    <div class="summary-item"><span>Góndola Llena:</span><span>${actionCounts.gondola_llena}</span></div>
-    <div class="summary-item"><span>Se Rellenó:</span><span>${actionCounts.se_relleno}</span></div>
-    <div class="summary-item"><span>Orden:</span><span>${actionCounts.orden} SKU(s)${totalBoxesOrdered > 0 ? ` — ${totalBoxesOrdered} cajas` : ''}</span></div>
-    <div class="summary-item"><span>Agotado:</span><span>${actionCounts.agotado}</span></div>
+    <div class="summary-item"><span>Tienda:</span><span>${escapeHtml(visitState.storeName)}</span></div>
+    <div class="summary-item"><span>Foto de llegada:</span><span>${visitState.photos.arrival ? '✓' : '—'}</span></div>
     <div class="summary-divider"></div>
-    <div class="summary-conditions-header">Condiciones por Sección:</div>
-    ${conditionsHtml}
+    ${rows}
+    <div class="summary-divider"></div>
+    <div class="skr-summary-row"><strong>Total</strong><strong>${stats(totals)}</strong></div>
   `;
 }
 
 async function submitVisit() {
-  // Check for pending work items
-  const pendingItems = workflowState.workItems.filter(item => item.status !== 'completed');
-  if (pendingItems.length > 0) {
-    toast(`Hay ${pendingItems.length} trabajo(s) pendiente(s). Complete todos los trabajos antes de enviar.`);
-    return;
-  }
-
   const btn = document.getElementById('btn-submit-visit');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
-    const notes = document.getElementById('visit-notes').value;
-
-    // In the new workflow, SKU actions are saved in work items
-    // Just submit the visit with notes
+    await saveSkuReports();
     await apiPut(`/visits/${visitState.visitId}/complete`, {
-      sku_actions: [], // SKU actions are now in work items
-      notes: notes,
+      notes: document.getElementById('visit-notes').value,
     });
 
-    toast('¡Visita enviada exitosamente!');
+    toast('¡Visita completada!');
+    document.getElementById('visit-notes').value = '';
     clearSavedVisitProgress();
     loadVisitPage();
   } catch (err) {
     toast('Error: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✓ Enviar Visita';
+    btn.textContent = '✓ Completar visita';
   }
 }
 
@@ -4818,24 +4786,22 @@ function resetWorkflowState() {
     availableSkus: [],
     workItemSkuSelections: {},
   };
+  resetSkuReport();
 }
 
 async function updateSegmentStatuses() {
   if (!visitState.visitId) return;
 
   try {
-    const summaries = await getSegmentSummaries(visitState.visitId);
+    const summaries = await getSkuReportSummary();
     for (const summary of summaries) {
       const statusEl = document.getElementById(`segment-status-${summary.segment}`);
       if (statusEl) {
-        const total = summary.total_work_items;
-        const completed = summary.completed_work_items;
-        statusEl.textContent = total === 0 ? '0 fotos' : `${completed}/${total} completados`;
-
-        const card = statusEl.closest('.segment-card');
-        if (card) {
-          card.classList.toggle('has-items', total > 0);
-        }
+        const reported = summary.skus_reported > 0 || summary.photos > 0;
+        statusEl.textContent = reported
+          ? `${summary.skus_reported} SKUs · ${summary.photos} fotos`
+          : 'Sin reportar';
+        statusEl.closest('.segment-card')?.classList.toggle('has-items', reported);
       }
     }
   } catch (err) {
@@ -4845,26 +4811,45 @@ async function updateSegmentStatuses() {
 
 async function enterSegment(segment) {
   workflowState.currentSegment = segment;
-  workflowState.expandedWorkItemId = null;
-
-  document.getElementById('segment-title').textContent = SEGMENT_LABELS_NEW[segment];
+  skuReport.filter = 'all';
+  skuReport.query = '';
+  document.getElementById('skr-search').hidden = true;
+  document.getElementById('skr-search-input').value = '';
 
   updateSegmentTabs();
-  await loadWorkItemsForSegment();
-  await updateSegmentTabStatuses();
-
+  renderSkuReportHeader();
   showStep(3);
+  saveVisitProgress();
+  updateSegmentTabStatuses();
+
+  if (!skuReport.bySegment[segment]) {
+    document.getElementById('skr-list').innerHTML = '<p class="skr-empty">Cargando SKUs…</p>';
+    try {
+      skuReport.bySegment[segment] = await loadSkuReport(segment);
+    } catch (err) {
+      if (workflowState.currentSegment === segment) {
+        document.getElementById('skr-list').innerHTML =
+          `<p class="skr-empty">No se pudieron cargar los SKUs: ${escapeHtml(err.message)}</p>`;
+      }
+      return;
+    }
+  }
+  if (workflowState.currentSegment === segment) renderSkuReport();
 }
 
 async function switchSegment(segment) {
   if (workflowState.currentSegment === segment) return;
+  saveSkuReports().catch(err => console.error('Error saving SKU report:', err));
   await enterSegment(segment);
 }
 
-function exitSegment() {
+async function exitSegment() {
+  try {
+    await saveSkuReports();
+  } catch (err) {
+    toast('Error guardando el reporte: ' + err.message);
+  }
   workflowState.currentSegment = null;
-  workflowState.expandedWorkItemId = null;
-  updateSegmentStatuses();
   showStep(2);
 }
 
@@ -4880,22 +4865,20 @@ async function updateSegmentTabStatuses() {
   if (!visitState.visitId) return;
 
   try {
-    const summaries = await getSegmentSummaries(visitState.visitId);
+    const summaries = await getSkuReportSummary();
     for (const summary of summaries) {
-      const statusEl = document.getElementById(`segment-tab-status-${summary.segment}`);
-      if (statusEl) {
-        const total = summary.total_work_items;
-        const completed = summary.completed_work_items;
-        if (total === 0) {
-          statusEl.textContent = '0';
-        } else {
-          statusEl.textContent = `${completed}/${total}`;
-        }
+      if (!skuReport.bySegment[summary.segment]) {
+        setSegmentTabStatus(summary.segment, summary.skus_reported);
       }
     }
   } catch (err) {
     console.error('Error updating segment tab statuses:', err);
   }
+}
+
+function setSegmentTabStatus(segment, count) {
+  const statusEl = document.getElementById(`segment-tab-status-${segment}`);
+  if (statusEl) statusEl.textContent = String(count);
 }
 
 async function loadWorkItemsForSegment() {
@@ -6042,55 +6025,340 @@ function exitWorkItem() {
   showStep(3);
 }
 
-function goToSubmit() {
-  updateSegmentStatuses();
+async function goToSubmit() {
+  try {
+    await saveSkuReports();
+  } catch (err) {
+    toast('Error guardando el reporte: ' + err.message);
+    return;
+  }
   showStep(5);
+  saveVisitProgress();
 }
 
 function backToSegmentWork() {
-  enterSegment('produce');
+  enterSegment(workflowState.currentSegment || 'produce');
 }
 
-async function showVisitSummaryNew() {
-  const summaryEl = document.getElementById('visit-summary');
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ SEGMENT SKU REPORT (cajas puestas / cajas que faltaron + fotos) ═════
+// ══════════════════════════════════════════════════════════════════════════
 
-  try {
-    const summaries = await getSegmentSummaries(visitState.visitId);
+let skuReport = { filter: 'all', query: '', bySegment: {} };
+let skuReportSaveTimer = null;
+let skuReportSaving = Promise.resolve();
+let photoSheet = null;
 
-    let html = '<div class="summary-sections">';
-    let totalWorkItems = 0;
-    let completedWorkItems = 0;
+const SKR_ICON_MINUS = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"></path></svg>';
+const SKR_ICON_PLUS = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>';
+const SKR_ICON_CAMERA = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"></path><circle cx="12" cy="13.5" r="3.5"></circle></svg>';
 
-    for (const summary of summaries) {
-      totalWorkItems += summary.total_work_items;
-      completedWorkItems += summary.completed_work_items;
+function resetSkuReport() {
+  clearTimeout(skuReportSaveTimer);
+  skuReport = { filter: 'all', query: '', bySegment: {} };
+}
 
-      html += `
-        <div class="summary-section">
-          <strong>${SEGMENT_LABELS_NEW[summary.segment]}</strong>
-          <span>${summary.completed_work_items}/${summary.total_work_items} trabajos completados</span>
-        </div>
-      `;
+function currentSkuReport() {
+  return skuReport.bySegment[workflowState.currentSegment];
+}
+
+function getSkuReportSummary() {
+  return apiGet(`/visits/${visitState.visitId}/sku-report/summary`);
+}
+
+async function loadSkuReport(segment) {
+  const data = await apiGet(`/visits/${visitState.visitId}/sku-report?segment=${segment}`);
+  return {
+    skus: data.skus,
+    counts: Object.fromEntries(data.skus.map(s => [s.id, { p: s.cajas_puestas, f: s.cajas_faltaron }])),
+    photos: data.photos.map(p => ({ id: p.id, url: p.file_path, skuIds: p.sku_ids })),
+    dirty: false,
+  };
+}
+
+function skuReportItems(report) {
+  return report.skus.map(sku => {
+    const c = report.counts[sku.id];
+    const photoIds = report.photos.filter(p => p.skuIds.includes(sku.id)).map(p => p.id);
+    return { sku_id: sku.id, cajas_puestas: c.p, cajas_faltaron: c.f, photo_ids: photoIds };
+  }).filter(item => item.cajas_puestas || item.cajas_faltaron || item.photo_ids.length);
+}
+
+async function saveDirtySkuReports() {
+  for (const [segment, report] of Object.entries(skuReport.bySegment)) {
+    if (!report.dirty) continue;
+    report.dirty = false;
+    try {
+      await apiPut(`/visits/${visitState.visitId}/sku-report`, { segment, items: skuReportItems(report) });
+    } catch (err) {
+      report.dirty = true;
+      throw err;
     }
-
-    html += '</div>';
-
-    if (completedWorkItems < totalWorkItems) {
-      html += `<div class="pending-warning" style="margin-top:12px;">
-        <span class="warning-icon">⚠️</span>
-        ${totalWorkItems - completedWorkItems} trabajo(s) pendiente(s) de completar
-      </div>`;
-    }
-
-    summaryEl.innerHTML = html;
-
-  } catch (err) {
-    summaryEl.innerHTML = '<p class="meta">Error cargando resumen</p>';
-    console.error(err);
   }
 }
 
-const originalShowVisitSummary = typeof showVisitSummary === 'function' ? showVisitSummary : null;
-function showVisitSummary() {
-  showVisitSummaryNew();
+// Saves run one after another so a debounced save never races an explicit one.
+function saveSkuReports() {
+  clearTimeout(skuReportSaveTimer);
+  skuReportSaving = skuReportSaving.catch(() => {}).then(saveDirtySkuReports);
+  return skuReportSaving;
+}
+
+function markSkuReportDirty() {
+  currentSkuReport().dirty = true;
+  clearTimeout(skuReportSaveTimer);
+  skuReportSaveTimer = setTimeout(() => {
+    saveSkuReports().catch(err => console.error('Error saving SKU report:', err));
+  }, 1200);
+}
+
+async function guardarVisita(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  await goToSubmit();
+  btn.disabled = false;
+  btn.textContent = 'Guardar visita';
+}
+
+function renderSkuReportHeader() {
+  const date = new Date().toLocaleDateString('es-PR', { weekday: 'short', day: 'numeric', month: 'short' });
+  document.getElementById('skr-eyebrow').textContent = `Visita · ${date}`;
+  document.getElementById('skr-store').textContent = visitState.storeName || '';
+  document.getElementById('skr-sub').textContent = SEGMENT_LABELS_NEW[workflowState.currentSegment] || '';
+}
+
+function skuCode(sku) {
+  return sku.barcode || String(sku.id);
+}
+
+function skuMatchesQuery(sku, query) {
+  if (!query) return true;
+  return sku.name.toLowerCase().includes(query) || skuCode(sku).toLowerCase().includes(query);
+}
+
+function renderSkuReport() {
+  const report = currentSkuReport();
+  if (!report) return;
+
+  let totP = 0, totF = 0, nMissing = 0, nTouched = 0;
+  report.skus.forEach(sku => {
+    const c = report.counts[sku.id];
+    totP += c.p;
+    totF += c.f;
+    if (c.f > 0) nMissing++;
+    if (c.p > 0 || c.f > 0) nTouched++;
+  });
+
+  document.getElementById('skr-tot-p').textContent = totP;
+  document.getElementById('skr-tot-f').textContent = totF;
+  document.getElementById('skr-n-all').textContent = report.skus.length;
+  document.getElementById('skr-n-missing').textContent = nMissing;
+  document.getElementById('skr-touched').textContent = `${nTouched} de ${report.skus.length} SKUs registrados`;
+  document.getElementById('skr-foot-p').textContent = `${totP} puestas`;
+  document.getElementById('skr-foot-f').textContent = `${totF} faltaron`;
+  document.getElementById('skr-chip-all').setAttribute('aria-pressed', String(skuReport.filter === 'all'));
+  document.getElementById('skr-chip-missing').setAttribute('aria-pressed', String(skuReport.filter === 'missing'));
+  setSegmentTabStatus(workflowState.currentSegment, nTouched);
+
+  const query = skuReport.query.trim().toLowerCase();
+  const visible = report.skus.filter(sku =>
+    (skuReport.filter === 'all' || report.counts[sku.id].f > 0) && skuMatchesQuery(sku, query)
+  );
+
+  const listEl = document.getElementById('skr-list');
+  const focusKey = document.activeElement?.dataset?.focusKey;
+
+  if (report.skus.length === 0) {
+    listEl.innerHTML = `<p class="skr-empty">Esta tienda no tiene SKUs aprobados en ${escapeHtml(SEGMENT_LABELS_NEW[workflowState.currentSegment])} este trimestre. Apruébelos en la pestaña SKUs.</p>`;
+  } else if (visible.length === 0) {
+    listEl.innerHTML = `<p class="skr-empty">${query ? 'Ningún SKU coincide con la búsqueda.' : 'Ningún SKU tiene cajas faltantes.'}</p>`;
+  } else {
+    listEl.innerHTML = visible.map(sku => renderSkuCard(sku, report)).join('');
+  }
+
+  if (focusKey) listEl.querySelector(`[data-focus-key="${focusKey}"]`)?.focus();
+}
+
+function renderSkuCard(sku, report) {
+  const c = report.counts[sku.id];
+  const name = escapeHtml(sku.name);
+  const pack = escapeHtml([sku.brand, sku.category].filter(Boolean).join(' · '));
+  const photos = report.photos.filter(p => p.skuIds.includes(sku.id));
+  const missing = c.f > 0;
+
+  const stepper = (key, label, decLabel, incLabel) => `
+    <div class="skr-stepper skr-stepper-${key}">
+      <div class="skr-stepper-label">${label}</div>
+      <div class="skr-stepper-row">
+        <button class="skr-dec" data-focus-key="${sku.id}-${key}-dec" aria-label="${decLabel}" ${c[key] === 0 ? 'disabled' : ''} onclick="bumpSkuCount(${sku.id}, '${key}', -1)">${SKR_ICON_MINUS}</button>
+        <span class="skr-val" aria-live="polite">${c[key]}</span>
+        <button class="skr-inc" data-focus-key="${sku.id}-${key}-inc" aria-label="${incLabel}" onclick="bumpSkuCount(${sku.id}, '${key}', 1)">${SKR_ICON_PLUS}</button>
+      </div>
+    </div>`;
+
+  const thumbs = photos.map(p => `
+    <button class="skr-thumb" aria-label="Ver foto${p.skuIds.length > 1 ? `, compartida con ${p.skuIds.length - 1} SKU más` : ''}" onclick="editSkuPhoto(${p.id})">
+      <img src="${escapeHtml(p.url)}" alt="">
+      ${p.skuIds.length > 1 ? `<span class="skr-thumb-shared">+${p.skuIds.length - 1}</span>` : ''}
+    </button>`).join('');
+
+  return `
+    <section class="skr-card ${missing ? 'is-missing' : ''}" aria-label="${name}">
+      <div class="skr-card-top">
+        <div class="skr-card-id">
+          <div class="skr-code">SKU ${escapeHtml(skuCode(sku))}</div>
+          <div class="skr-name">${name}</div>
+          ${pack ? `<div class="skr-pack">${pack}</div>` : ''}
+        </div>
+        ${missing ? '<div class="skr-badge">Faltante</div>' : ''}
+      </div>
+      <div class="skr-steppers">
+        ${stepper('p', 'Cajas puestas', 'Restar caja puesta', 'Sumar caja puesta')}
+        ${stepper('f', 'Cajas que faltaron', 'Restar caja faltante', 'Sumar caja faltante')}
+      </div>
+      <div class="skr-photos">
+        <button class="skr-cam ${photos.length ? 'has-photo' : ''}" data-focus-key="${sku.id}-cam" onclick="captureSkuPhoto(${sku.id})">
+          ${SKR_ICON_CAMERA}<span>${photos.length ? `${photos.length} foto${photos.length > 1 ? 's' : ''}` : 'Foto'}</span>
+        </button>
+        <div class="skr-thumbs">${thumbs}</div>
+      </div>
+    </section>`;
+}
+
+function bumpSkuCount(skuId, key, delta) {
+  const counts = currentSkuReport().counts[skuId];
+  counts[key] = Math.max(0, counts[key] + delta);
+  markSkuReportDirty();
+  renderSkuReport();
+}
+
+function setSkuFilter(filter) {
+  skuReport.filter = filter;
+  renderSkuReport();
+}
+
+function toggleSkuSearch() {
+  const box = document.getElementById('skr-search');
+  box.hidden = !box.hidden;
+  if (box.hidden) {
+    skuReport.query = '';
+    document.getElementById('skr-search-input').value = '';
+    renderSkuReport();
+  } else {
+    document.getElementById('skr-search-input').focus();
+  }
+}
+
+function onSkuSearch(value) {
+  skuReport.query = value;
+  renderSkuReport();
+}
+
+// ── Photo → multiple SKUs ───────────────────────────────────────────────
+
+function captureSkuPhoto(skuId) {
+  const input = document.getElementById('camera-sku-photo');
+  input.value = '';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (file) openPhotoSheet({ mode: 'new', file, url: URL.createObjectURL(file), originSkuId: skuId, selected: new Set([skuId]) });
+  };
+  input.click();
+}
+
+function editSkuPhoto(photoId) {
+  const photo = currentSkuReport().photos.find(p => p.id === photoId);
+  openPhotoSheet({ mode: 'edit', photoId, url: photo.url, selected: new Set(photo.skuIds) });
+}
+
+function openPhotoSheet(sheet) {
+  const report = currentSkuReport();
+  // Pre-selected SKUs go first so the one the photo was taken for is always in view.
+  sheet.order = [
+    ...report.skus.filter(s => sheet.selected.has(s.id)),
+    ...report.skus.filter(s => !sheet.selected.has(s.id)),
+  ];
+  photoSheet = sheet;
+
+  document.getElementById('skr-sheet-title').textContent =
+    sheet.mode === 'new' ? '¿Qué SKUs aparecen en la foto?' : 'SKUs en esta foto';
+  document.getElementById('skr-sheet-photo').src = sheet.url;
+  document.getElementById('skr-sheet-list').innerHTML = sheet.order.map(sku => `
+    <li>
+      <label class="skr-check">
+        <input type="checkbox" ${sheet.selected.has(sku.id) ? 'checked' : ''} onchange="togglePhotoSheetSku(${sku.id}, this.checked)">
+        <span class="skr-check-text">
+          <span class="skr-check-name">${escapeHtml(sku.name)}</span>
+          <span class="skr-check-code">SKU ${escapeHtml(skuCode(sku))}${sku.id === sheet.originSkuId ? ' · Tomada para este SKU' : ''}</span>
+        </span>
+      </label>
+    </li>`).join('');
+
+  updatePhotoSheetConfirm();
+  document.getElementById('skr-photo-sheet').hidden = false;
+  document.body.classList.add('skr-sheet-open');
+}
+
+function togglePhotoSheetSku(skuId, checked) {
+  if (checked) photoSheet.selected.add(skuId);
+  else photoSheet.selected.delete(skuId);
+  updatePhotoSheetConfirm();
+}
+
+function updatePhotoSheetConfirm() {
+  const btn = document.getElementById('skr-sheet-confirm');
+  const n = photoSheet.selected.size;
+  if (photoSheet.mode === 'edit' && n === 0) {
+    btn.textContent = 'Quitar foto';
+    btn.disabled = false;
+  } else {
+    btn.textContent = `Asociar a ${n} SKU${n === 1 ? '' : 's'}`;
+    btn.disabled = n === 0;
+  }
+}
+
+function closePhotoSheet() {
+  if (photoSheet?.mode === 'new') URL.revokeObjectURL(photoSheet.url);
+  photoSheet = null;
+  document.getElementById('skr-photo-sheet').hidden = true;
+  document.body.classList.remove('skr-sheet-open');
+}
+
+async function confirmPhotoSheet() {
+  const sheet = photoSheet;
+  const report = currentSkuReport();
+  const skuIds = [...sheet.selected];
+
+  if (sheet.mode === 'edit') {
+    report.photos.find(p => p.id === sheet.photoId).skuIds = skuIds;
+    markSkuReportDirty();
+    closePhotoSheet();
+    renderSkuReport();
+    toast(skuIds.length ? `Foto asociada a ${skuIds.length} SKU${skuIds.length === 1 ? '' : 's'}` : 'Foto quitada');
+    return;
+  }
+
+  const btn = document.getElementById('skr-sheet-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo…';
+  try {
+    const formData = new FormData();
+    formData.append('file', sheet.file);
+    formData.append('photo_type', 'sku_photo');
+    formData.append('segment', workflowState.currentSegment);
+    formData.append('sku_ids', skuIds.join(','));
+    formData.append('latitude', visitState.gps.lat || '');
+    formData.append('longitude', visitState.gps.lng || '');
+    formData.append('gps_accuracy', visitState.gps.accuracy || '');
+    formData.append('captured_at', new Date().toISOString());
+    const photo = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
+
+    report.photos.push({ id: photo.id, url: photo.file_path, skuIds });
+    closePhotoSheet();
+    renderSkuReport();
+    toast(`Foto asociada a ${skuIds.length} SKU${skuIds.length === 1 ? '' : 's'}`);
+  } catch (err) {
+    toast('Error subiendo foto: ' + err.message);
+    if (photoSheet === sheet) updatePhotoSheetConfirm();
+  }
 }

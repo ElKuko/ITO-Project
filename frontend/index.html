@@ -8,6 +8,8 @@
   <meta name="theme-color" content="#2563eb">
   <meta name="description" content="Shelf audit and store visit management for Ito merchandisers">
   <title>Ito Merchandising</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
@@ -126,17 +128,17 @@
               <button class="segment-card" onclick="enterSegment('produce')">
                 <div class="segment-icon">🥬</div>
                 <div class="segment-name">Produce</div>
-                <div class="segment-status" id="segment-status-produce">0 fotos</div>
+                <div class="segment-status" id="segment-status-produce">Sin reportar</div>
               </button>
               <button class="segment-card" onclick="enterSegment('provisiones')">
                 <div class="segment-icon">🥫</div>
                 <div class="segment-name">Provisiones</div>
-                <div class="segment-status" id="segment-status-provisiones">0 fotos</div>
+                <div class="segment-status" id="segment-status-provisiones">Sin reportar</div>
               </button>
               <button class="segment-card" onclick="enterSegment('congelados')">
                 <div class="segment-icon">🧊</div>
                 <div class="segment-name">Congelados</div>
-                <div class="segment-status" id="segment-status-congelados">0 fotos</div>
+                <div class="segment-status" id="segment-status-congelados">Sin reportar</div>
               </button>
             </div>
 
@@ -149,9 +151,8 @@
           </div>
         </div>
 
-        <!-- Step 3: Segment Work Area (Photo-first) -->
+        <!-- Step 3: Segment SKU Report (cajas puestas / faltaron + photos) -->
         <div id="visit-step-3" class="visit-step">
-          <!-- Segment Quick Nav Tabs -->
           <div class="segment-quick-nav" id="segment-quick-nav">
             <button class="segment-tab" data-segment="produce" onclick="switchSegment('produce')">
               <span class="segment-tab-icon">🥬</span>
@@ -170,137 +171,96 @@
             </button>
           </div>
 
-          <div class="card segment-work-card">
-            <div class="segment-header">
-              <button class="btn btn-outline btn-sm" onclick="exitSegment()">← Volver</button>
-              <h3 id="segment-title">Produce</h3>
-              <span class="segment-badge" id="segment-work-item-count">0 fotos</span>
-            </div>
+          <div class="skr">
+            <header class="skr-header">
+              <div class="skr-header-top">
+                <div class="skr-titles">
+                  <button class="skr-back" onclick="exitSegment()">← Segmentos</button>
+                  <div class="skr-eyebrow" id="skr-eyebrow">Visita</div>
+                  <h2 class="skr-store" id="skr-store"></h2>
+                  <div class="skr-sub" id="skr-sub"></div>
+                </div>
+                <button class="skr-icon-btn" aria-label="Buscar SKU" aria-controls="skr-search" onclick="toggleSkuSearch()">
+                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+                </button>
+              </div>
 
-            <!-- Main Photo Button -->
-            <div class="segment-photo-cta">
-              <button class="btn btn-primary btn-lg segment-take-photo" onclick="captureWorkItemPhoto()">
-                📷 Tomar Foto
-              </button>
-              <p class="meta">Tome una foto de la góndola para crear un trabajo</p>
-            </div>
+              <div class="skr-search" id="skr-search" hidden>
+                <label for="skr-search-input" class="sr-only">Buscar SKU</label>
+                <input type="search" id="skr-search-input" placeholder="Buscar por nombre o código" autocomplete="off" oninput="onSkuSearch(this.value)">
+              </div>
 
-            <!-- Hidden file input for work item photo -->
-            <input type="file" accept="image/*" capture="environment" id="camera-work-item" style="display:none">
-            <input type="file" accept="image/*" capture="environment" id="camera-work-item-after" style="display:none">
+              <div class="skr-totals">
+                <div class="skr-total skr-total-p">
+                  <div class="skr-total-label">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path></svg>
+                    Cajas puestas
+                  </div>
+                  <div class="skr-total-num" id="skr-tot-p">0</div>
+                  <div class="skr-total-hint">De inventario a góndola</div>
+                </div>
+                <div class="skr-total skr-total-f">
+                  <div class="skr-total-label">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"></path></svg>
+                    Cajas que faltaron
+                  </div>
+                  <div class="skr-total-num" id="skr-tot-f">0</div>
+                  <div class="skr-total-hint">Oportunidad perdida</div>
+                </div>
+              </div>
 
-            <!-- Work Item Queue -->
-            <div class="work-item-queue" id="work-item-queue">
-              <h4>Trabajos</h4>
-              <div class="work-item-list" id="work-item-list">
-                <p class="meta">No hay trabajos aún. Tome una foto para comenzar.</p>
+              <div class="skr-chips" role="group" aria-label="Filtrar SKUs">
+                <button class="skr-chip" id="skr-chip-all" aria-pressed="true" onclick="setSkuFilter('all')">Todos (<span id="skr-n-all">0</span>)</button>
+                <button class="skr-chip" id="skr-chip-missing" aria-pressed="false" onclick="setSkuFilter('missing')">Con faltantes (<span id="skr-n-missing">0</span>)</button>
+              </div>
+            </header>
+
+            <div class="skr-list" id="skr-list"></div>
+
+            <footer class="skr-footer">
+              <div class="skr-footer-stats">
+                <div id="skr-touched">0 de 0 SKUs registrados</div>
+                <div class="skr-footer-tot"><span class="skr-p" id="skr-foot-p">0 puestas</span> · <span class="skr-f" id="skr-foot-f">0 faltaron</span></div>
+              </div>
+              <button class="skr-save" id="btn-guardar-visita" onclick="guardarVisita(this)">Guardar visita</button>
+            </footer>
+          </div>
+
+          <input type="file" accept="image/*" capture="environment" id="camera-sku-photo" style="display:none">
+
+          <!-- Photo → SKUs picker -->
+          <div class="skr-sheet" id="skr-photo-sheet" hidden onclick="if (event.target === this) closePhotoSheet()">
+            <div class="skr-sheet-inner" role="dialog" aria-modal="true" aria-labelledby="skr-sheet-title">
+              <div class="skr-sheet-head">
+                <h3 id="skr-sheet-title">¿Qué SKUs aparecen en la foto?</h3>
+                <button class="skr-icon-btn" aria-label="Cerrar" onclick="closePhotoSheet()">
+                  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+                </button>
+              </div>
+              <img class="skr-sheet-photo" id="skr-sheet-photo" alt="Foto de la góndola">
+              <p class="skr-sheet-hint">Marque todos los productos que se ven en la foto. La foto quedará guardada en cada uno.</p>
+              <ul class="skr-sheet-list" id="skr-sheet-list"></ul>
+              <div class="skr-sheet-foot">
+                <button class="skr-btn-ghost" onclick="closePhotoSheet()">Cancelar</button>
+                <button class="skr-save" id="skr-sheet-confirm" onclick="confirmPhotoSheet()">Asociar</button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Step 4: Work Item Detail -->
-        <div id="visit-step-4" class="visit-step">
-          <div class="card work-item-detail-card">
-            <div class="work-item-header">
-              <button class="btn btn-outline btn-sm" onclick="exitWorkItem()">← Volver a la cola</button>
-              <span class="work-item-status-badge" id="work-item-status-badge">Pendiente</span>
-            </div>
-
-            <!-- Before Photo (collapsible) -->
-            <div class="work-item-photo-preview" id="work-item-before-photo" onclick="toggleWorkItemPhoto()">
-              <img src="" alt="Foto antes" id="work-item-photo-img">
-              <span class="photo-expand-hint">Toca para ampliar</span>
-            </div>
-
-            <!-- SKU Selection (collapsible) -->
-            <div class="section-preview" onclick="openSkuModal()">
-              <span class="section-preview-title">SKUs en esta foto</span>
-              <span class="section-preview-summary" id="sku-summary">0 seleccionados</span>
-              <span class="section-preview-arrow">›</span>
-            </div>
-
-            <!-- Condition Checks (collapsible) -->
-            <div class="section-preview" onclick="openConditionsModal()">
-              <span class="section-preview-title">Condiciones</span>
-              <span class="section-preview-summary" id="conditions-summary">Sin completar</span>
-              <span class="section-preview-arrow">›</span>
-            </div>
-
-            <!-- Hidden containers for modal content -->
-            <div id="sku-modal-content" style="display:none;">
-              <ul class="sku-list work-item-sku-list" id="work-item-sku-list"></ul>
-            </div>
-
-            <div id="conditions-modal-content" style="display:none;">
-              <div class="condition-check" data-field="prices">
-                <label>¿Están todos los precios?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" onclick="setWorkItemCondition('prices', true, this)">Sí</button>
-                  <button class="toggle-btn" onclick="setWorkItemCondition('prices', false, this)">No</button>
-                </div>
-                <div class="condition-notes-inline" id="condition-notes-prices" style="display:none;">
-                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('prices', this.value)"></textarea>
-                </div>
-              </div>
-              <div class="condition-check" data-field="pop">
-                <label>¿Está el material PoP?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" onclick="setWorkItemCondition('pop', true, this)">Sí</button>
-                  <button class="toggle-btn" onclick="setWorkItemCondition('pop', false, this)">No</button>
-                </div>
-                <div class="condition-notes-inline" id="condition-notes-pop" style="display:none;">
-                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('pop', this.value)"></textarea>
-                </div>
-              </div>
-              <div class="condition-check" data-field="presentable">
-                <label>¿Está limpio y presentable?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" onclick="setWorkItemCondition('presentable', true, this)">Sí</button>
-                  <button class="toggle-btn" onclick="setWorkItemCondition('presentable', false, this)">No</button>
-                </div>
-                <div class="condition-notes-inline" id="condition-notes-presentable" style="display:none;">
-                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('presentable', this.value)"></textarea>
-                </div>
-              </div>
-              <div class="condition-check" data-field="gondola_space">
-                <label>¿Más espacio en góndola?</label>
-                <div class="toggle-group">
-                  <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', true, this)">Sí</button>
-                  <button class="toggle-btn" onclick="setWorkItemCondition('gondola_space', false, this)">No</button>
-                </div>
-                <div class="condition-notes-inline" id="condition-notes-gondola_space" style="display:none;">
-                  <textarea rows="2" placeholder="Explique..." oninput="updateConditionNote('gondola_space', this.value)"></textarea>
-                </div>
-              </div>
-            </div>
-
-            <!-- Save & Take After Photo -->
-            <div class="work-item-actions">
-              <button class="btn btn-outline" onclick="exitWorkItem()">← Volver</button>
-              <button class="btn btn-outline" onclick="saveWorkItemProgress()">Guardar Progreso</button>
-              <button class="btn btn-success" onclick="captureAfterPhoto()" id="btn-take-after-photo">
-                📷 Tomar Foto Después
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 3: Submit -->
+        <!-- Step 3 (indicator): Completar visita -->
         <div id="visit-step-5" class="visit-step">
           <div class="card">
-            <h3>Paso 3: Completar Visita</h3>
-            <div class="form-group">
-              <label>Notas adicionales (opcional)</label>
-              <textarea id="visit-notes" rows="2" placeholder="Observaciones..."></textarea>
-            </div>
-
+            <h3>Completar visita</h3>
             <div class="visit-summary" id="visit-summary"></div>
-
+            <div class="form-group" style="margin-top:16px;">
+              <label for="visit-notes">Observaciones de la visita (opcional)</label>
+              <textarea id="visit-notes" rows="4" placeholder="Escriba cualquier observación adicional..."></textarea>
+            </div>
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="backToSegmentWork()">← Volver</button>
               <button id="btn-submit-visit" class="btn btn-success" onclick="submitVisit()" style="flex:1;">
-                ✓ Enviar Visita
+                ✓ Completar visita
               </button>
             </div>
           </div>

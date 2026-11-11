@@ -188,6 +188,11 @@ class VisitSKUAction(Base):
     work_item_id = Column(Integer, ForeignKey("work_items.id"), nullable=True)  # New: link to work item
     sku_id = Column(Integer, ForeignKey("skus.id"), nullable=False)
 
+    # Per-SKU box report (segment-level reporting, no work item)
+    segment = Column(String(30), nullable=True, index=True)
+    cajas_puestas = Column(Integer, nullable=True)  # Boxes moved from store inventory to the shelf
+    cajas_faltaron = Column(Integer, nullable=True)  # Boxes that fit on the shelf but had no inventory
+
     # Legacy field (for backwards compatibility)
     action_type = Column(String(30), nullable=True)
 
@@ -214,7 +219,7 @@ class VisitPhoto(Base):
     id = Column(Integer, primary_key=True, index=True)
     visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False)
 
-    # Photo type: arrival_proof | gondola_before | gondola_after | work_item_before | work_item_after
+    # Photo type: arrival_proof | gondola_before | gondola_after | work_item_before | work_item_after | sku_photo
     photo_type = Column(String(30), nullable=False, default="shelf")
     file_path = Column(String(500), nullable=False)
 
