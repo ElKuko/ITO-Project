@@ -20,10 +20,12 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from ..database import get_db
-from ..models import StoreVisit, VisitSKUAction, VisitPhoto, PhotoSKULink, Store, SKU, StoreSKUApproval, User
+from ..models import (
+    StoreVisit, VisitSKUAction, VisitSKUCountEvent, VisitPhoto, PhotoSKULink, Store, SKU, StoreSKUApproval, User
+)
 from ..schemas import (
     StoreVisitOut, VisitPhotoOut, VisitStartRequest, VisitStartResponse,
-    VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave
+    VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave, VisitNotesUpdate
 )
 from ..auth import get_current_user
 from ..cv.void_detector import analyze_shelf_image
@@ -278,6 +280,14 @@ def get_gondola_groups(
 
 
 # ── Per-SKU Box Report ───────────────────────────────────────────────────
+#
+# A SKU is "registered" in a visit once it has a VisitSKUAction row with both
+# counts entered (0 is a valid entry). A segment is complete when every SKU that
+# applies to it is registered. Every change to a count is appended to
+# VisitSKUCountEvent, so the full history is preserved.
+
+COUNT_FIELDS = ("cajas_puestas", "cajas_faltaron")
+
 
 def _get_own_visit(db: Session, visit_id: int, current_user: User) -> StoreVisit:
     visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
@@ -314,6 +324,72 @@ def _segment_photos(db: Session, visit_id: int, segment: str):
     )
 
 
+def _is_submitted(visit: StoreVisit) -> bool:
+    return visit.status in ("submitted", "reviewed")
+
+
+def _approved_skus(db: Session, store_id: int, segment: str) -> list[SKU]:
+    return db.query(SKU).join(StoreSKUApproval).filter(
+        StoreSKUApproval.store_id == store_id,
+        StoreSKUApproval.quarter == _current_quarter(),
+        SKU.section == segment,
+        SKU.is_active == True,
+    ).order_by(SKU.name).all()
+
+
+def _segment_skus(db: Session, visit: StoreVisit, segment: str, actions: dict) -> list[dict]:
+    """The SKUs a segment report covers.
+
+    Draft visits: the store's currently approved SKUs. Submitted visits: exactly
+    the SKUs recorded at submission, with their names as they were then, so later
+    catalog changes don't alter history.
+    """
+    if _is_submitted(visit):
+        rows = sorted(actions.values(), key=lambda a: (a.sku_name or a.sku.name).lower())
+        return [
+            {
+                **SKUOut.model_validate(a.sku).model_dump(),
+                "name": a.sku_name or a.sku.name,
+                "barcode": a.sku_code if a.sku_code is not None else a.sku.barcode,
+            }
+            for a in rows
+        ]
+    return [SKUOut.model_validate(s).model_dump() for s in _approved_skus(db, visit.store_id, segment)]
+
+
+def _is_registered(action) -> bool:
+    return action is not None and action.cajas_puestas is not None and action.cajas_faltaron is not None
+
+
+def _segment_state(total: int, registered: int) -> str:
+    if total == 0:
+        return "no_aplica"
+    if registered == 0:
+        return "pendiente"
+    if registered < total:
+        return "en_progreso"
+    return "completado"
+
+
+def _segment_summary(db: Session, visit: StoreVisit, segment: str) -> dict:
+    actions = {a.sku_id: a for a in _report_actions(db, visit.id, segment).all()}
+    sku_ids = [s["id"] for s in _segment_skus(db, visit, segment, actions)]
+    registered = [actions[i] for i in sku_ids if _is_registered(actions.get(i))]
+    return {
+        "segment": segment,
+        "status": _segment_state(len(sku_ids), len(registered)),
+        "skus_total": len(sku_ids),
+        "skus_reported": len(registered),
+        "cajas_puestas": sum(a.cajas_puestas for a in registered),
+        "cajas_faltaron": sum(a.cajas_faltaron for a in registered),
+        "photos": _segment_photos(db, visit.id, segment).count(),
+    }
+
+
+def _iso(dt):
+    return dt.isoformat() + "Z" if dt else None
+
+
 @router.get("/{visit_id}/sku-report")
 def get_sku_report(
     visit_id: int,
@@ -321,30 +397,30 @@ def get_sku_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """The store's approved SKUs for a segment, with the box counts and photos reported so far."""
+    """The SKUs of a segment with the box counts entered so far (null = not entered)."""
     _check_segment(segment)
     visit = _get_own_visit(db, visit_id, current_user)
 
-    skus = db.query(SKU).join(StoreSKUApproval).filter(
-        StoreSKUApproval.store_id == visit.store_id,
-        StoreSKUApproval.quarter == _current_quarter(),
-        SKU.section == segment,
-        SKU.is_active == True,
-    ).order_by(SKU.name).all()
-
-    counts = {a.sku_id: a for a in _report_actions(db, visit_id, segment).all()}
+    actions = {a.sku_id: a for a in _report_actions(db, visit_id, segment).options(joinedload(VisitSKUAction.sku)).all()}
+    skus = _segment_skus(db, visit, segment, actions)
     photos = _segment_photos(db, visit_id, segment).options(joinedload(VisitPhoto.sku_links)).all()
+
+    def counts(sku_id):
+        a = actions.get(sku_id)
+        if not _is_registered(a):
+            return {"cajas_puestas": None, "cajas_faltaron": None,
+                    "cajas_puestas_at": None, "cajas_faltaron_at": None}
+        return {
+            "cajas_puestas": a.cajas_puestas,
+            "cajas_faltaron": a.cajas_faltaron,
+            "cajas_puestas_at": _iso(a.cajas_puestas_at),
+            "cajas_faltaron_at": _iso(a.cajas_faltaron_at),
+        }
 
     return {
         "segment": segment,
-        "skus": [
-            {
-                **SKUOut.model_validate(s).model_dump(),
-                "cajas_puestas": (counts[s.id].cajas_puestas or 0) if s.id in counts else 0,
-                "cajas_faltaron": (counts[s.id].cajas_faltaron or 0) if s.id in counts else 0,
-            }
-            for s in skus
-        ],
+        "editable": not _is_submitted(visit) or current_user.role == "admin",
+        "skus": [{**s, **counts(s["id"])} for s in skus],
         "photos": [
             {"id": p.id, "file_path": p.file_path, "sku_ids": [link.sku_id for link in p.sku_links]}
             for p in photos
@@ -359,32 +435,73 @@ def save_sku_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Replace a segment's box counts and photo-to-SKU links with the given report."""
+    """Save a segment's box counts and photo-to-SKU links.
+
+    Items with both counts entered are registered; items with neither only carry
+    photo links. Counts are updated in place: a field's timestamp changes only when
+    its value changes, and every change is appended to the count history.
+    Submitted visits can only be changed by an admin.
+    """
     _check_segment(req.segment)
     visit = _get_own_visit(db, visit_id, current_user)
-    if visit.status == "submitted":
+    submitted = _is_submitted(visit)
+    if submitted and current_user.role != "admin":
         raise HTTPException(status_code=400, detail="La visita ya fue enviada")
 
-    sku_ids = {item.sku_id for item in req.items}
-    valid_sku_ids = {
-        s.id for s in db.query(SKU.id).filter(SKU.id.in_(sku_ids), SKU.section == req.segment).all()
-    } if sku_ids else set()
-    unknown = sku_ids - valid_sku_ids
-    if unknown:
-        raise HTTPException(status_code=400, detail=f"SKUs not in segment {req.segment}: {sorted(unknown)}")
-
-    _report_actions(db, visit_id, req.segment).delete(synchronize_session=False)
+    items = {}
     for item in req.items:
-        puestas = max(0, item.cajas_puestas)
-        faltaron = max(0, item.cajas_faltaron)
-        if puestas or faltaron:
-            db.add(VisitSKUAction(
-                visit_id=visit_id,
-                sku_id=item.sku_id,
-                segment=req.segment,
-                cajas_puestas=puestas,
-                cajas_faltaron=faltaron,
-            ))
+        if (item.cajas_puestas is None) != (item.cajas_faltaron is None):
+            raise HTTPException(status_code=400, detail=f"SKU {item.sku_id}: ingrese ambas cantidades")
+        items[item.sku_id] = item
+
+    existing = {a.sku_id: a for a in _report_actions(db, visit_id, req.segment).all()}
+    allowed = {s["id"]: s for s in _segment_skus(db, visit, req.segment, existing)}
+    unknown = set(items) - set(allowed)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"SKUs no aprobados para esta tienda en {req.segment}: {sorted(unknown)}",
+        )
+
+    now = datetime.utcnow()
+
+    def log(sku_id, field, old, new):
+        db.add(VisitSKUCountEvent(
+            visit_id=visit.id, store_id=visit.store_id, segment=req.segment, sku_id=sku_id,
+            field=field, old_value=old, new_value=new, changed_by=current_user.id,
+            changed_at=now, after_submission=submitted,
+        ))
+
+    for sku_id, sku in allowed.items():
+        item = items.get(sku_id)
+        action = existing.get(sku_id)
+        registered = item is not None and item.cajas_puestas is not None
+
+        if not registered:
+            # Un-registering a SKU after submission would make the visit incomplete
+            if action is not None and not submitted:
+                for field in COUNT_FIELDS:
+                    if getattr(action, field) is not None:
+                        log(sku_id, field, getattr(action, field), None)
+                db.delete(action)
+            continue
+
+        if action is None:
+            action = VisitSKUAction(
+                visit_id=visit.id, store_id=visit.store_id, sku_id=sku_id, segment=req.segment,
+                sku_name=sku["name"], sku_code=sku.get("barcode"),
+            )
+            db.add(action)
+        changed = False
+        for field in COUNT_FIELDS:
+            old, new = getattr(action, field), getattr(item, field)
+            if old != new:
+                setattr(action, field, new)
+                setattr(action, f"{field}_at", now)
+                log(sku_id, field, old, new)
+                changed = True
+        if changed:
+            action.updated_at = now
 
     segment_photo_ids = {p.id for p in _segment_photos(db, visit_id, req.segment).all()}
     if segment_photo_ids:
@@ -394,7 +511,7 @@ def save_sku_report(
             db.add(PhotoSKULink(photo_id=photo_id, sku_id=item.sku_id))
 
     db.commit()
-    return {"detail": "Reporte guardado"}
+    return _segment_summary(db, visit, req.segment)
 
 
 @router.get("/{visit_id}/sku-report/summary")
@@ -403,19 +520,59 @@ def get_sku_report_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Per-segment totals of the box report."""
+    """Per-segment completion status and totals of the box report."""
+    visit = _get_own_visit(db, visit_id, current_user)
+    return [_segment_summary(db, visit, segment) for segment in SEGMENTS]
+
+
+@router.get("/{visit_id}/sku-report/history")
+def get_sku_report_history(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every change made to the visit's box counts, oldest first."""
     _get_own_visit(db, visit_id, current_user)
-    summary = []
-    for segment in SEGMENTS:
-        actions = _report_actions(db, visit_id, segment).all()
-        summary.append({
-            "segment": segment,
-            "skus_reported": len(actions),
-            "cajas_puestas": sum(a.cajas_puestas or 0 for a in actions),
-            "cajas_faltaron": sum(a.cajas_faltaron or 0 for a in actions),
-            "photos": _segment_photos(db, visit_id, segment).count(),
-        })
-    return summary
+    events = db.query(VisitSKUCountEvent).options(joinedload(VisitSKUCountEvent.user)).filter(
+        VisitSKUCountEvent.visit_id == visit_id
+    ).order_by(VisitSKUCountEvent.changed_at, VisitSKUCountEvent.id).all()
+    names = dict(db.query(SKU.id, SKU.name).filter(SKU.id.in_({e.sku_id for e in events})).all()) if events else {}
+    # Prefer the name recorded with the visit over the current catalog name
+    names.update({
+        a.sku_id: a.sku_name for a in db.query(VisitSKUAction).filter(
+            VisitSKUAction.visit_id == visit_id, VisitSKUAction.sku_name != None
+        )
+    })
+    return [
+        {
+            "segment": e.segment,
+            "sku_id": e.sku_id,
+            "sku_name": names.get(e.sku_id),
+            "field": e.field,
+            "old_value": e.old_value,
+            "new_value": e.new_value,
+            "changed_by": e.user.full_name if e.user else None,
+            "changed_at": _iso(e.changed_at),
+            "after_submission": e.after_submission,
+        }
+        for e in events
+    ]
+
+
+@router.put("/{visit_id}/notes")
+def update_visit_notes(
+    visit_id: int,
+    req: VisitNotesUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Edit the visit's comments. Merchandisers before submission, admins any time."""
+    visit = _get_own_visit(db, visit_id, current_user)
+    if _is_submitted(visit) and current_user.role != "admin":
+        raise HTTPException(status_code=400, detail="La visita ya fue enviada")
+    visit.notes = req.notes
+    db.commit()
+    return {"detail": "Observaciones guardadas"}
 
 
 # ── Condition Checks ─────────────────────────────────────────────────────
@@ -453,12 +610,34 @@ async def complete_visit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Complete/submit the visit with all SKU actions and final data."""
-    visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
-    if not visit:
-        raise HTTPException(status_code=404, detail="Visit not found")
-    if current_user.role == "merchandiser" and visit.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    """Complete/submit the visit with all SKU actions and final data.
+
+    Idempotent: submitting a visit that was already submitted (double tap, network
+    retry) returns it unchanged without creating records or notifications.
+    """
+    visit = _get_own_visit(db, visit_id, current_user)
+    if _is_submitted(visit):
+        return _visit_query(db).filter(StoreVisit.id == visit.id).first()
+
+    incomplete = [
+        s for s in (_segment_summary(db, visit, seg) for seg in SEGMENTS)
+        if s["status"] in ("pendiente", "en_progreso")
+    ]
+    if incomplete:
+        detail = "; ".join(
+            f"{s['segment'].capitalize()}: {s['skus_total'] - s['skus_reported']} SKU(s) sin registrar"
+            for s in incomplete
+        )
+        raise HTTPException(status_code=400, detail=f"Faltan secciones por completar — {detail}")
+
+    # Claim the submission atomically so concurrent retries can't both submit
+    claimed = db.query(StoreVisit).filter(
+        StoreVisit.id == visit.id, StoreVisit.status == "in_progress"
+    ).update({StoreVisit.status: "submitted"}, synchronize_session=False)
+    if not claimed:
+        db.rollback()
+        return _visit_query(db).filter(StoreVisit.id == visit.id).first()
+    db.refresh(visit)
 
     # Update per-section conditions if provided (new format)
     if req.section_conditions:

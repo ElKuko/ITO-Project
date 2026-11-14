@@ -138,7 +138,7 @@ class StoreVisit(Base):
     section_conditions = Column(Text, nullable=True)
 
     notes = Column(Text, nullable=True)
-    status = Column(String(20), default="submitted")  # submitted | reviewed
+    status = Column(String(20), default="submitted")  # in_progress (draft) | submitted | reviewed
     flags = Column(Text, nullable=True)  # JSON: missing photos, GPS issues, etc.
 
     store = relationship("Store", back_populates="visits")
@@ -192,6 +192,13 @@ class VisitSKUAction(Base):
     segment = Column(String(30), nullable=True, index=True)
     cajas_puestas = Column(Integer, nullable=True)  # Boxes moved from store inventory to the shelf
     cajas_faltaron = Column(Integer, nullable=True)  # Boxes that fit on the shelf but had no inventory
+    cajas_puestas_at = Column(DateTime, nullable=True)  # UTC, last time cajas_puestas was entered/changed
+    cajas_faltaron_at = Column(DateTime, nullable=True)  # UTC, last time cajas_faltaron was entered/changed
+    updated_at = Column(DateTime, nullable=True)  # UTC, last change to either count
+    # Snapshot at the time of the visit so later catalog/approval changes don't rewrite history
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=True, index=True)
+    sku_name = Column(String(200), nullable=True)
+    sku_code = Column(String(50), nullable=True)
 
     # Legacy field (for backwards compatibility)
     action_type = Column(String(30), nullable=True)
@@ -210,6 +217,25 @@ class VisitSKUAction(Base):
     visit = relationship("StoreVisit", back_populates="sku_actions")
     work_item = relationship("WorkItem", back_populates="sku_actions")
     sku = relationship("SKU")
+
+
+class VisitSKUCountEvent(Base):
+    """Append-only history of every change to a box count (entry, edit, or removal)."""
+    __tablename__ = "visit_sku_count_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("store_visits.id"), nullable=False, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    segment = Column(String(30), nullable=False)
+    sku_id = Column(Integer, ForeignKey("skus.id"), nullable=False, index=True)
+    field = Column(String(20), nullable=False)  # cajas_puestas | cajas_faltaron
+    old_value = Column(Integer, nullable=True)  # null = not entered before
+    new_value = Column(Integer, nullable=True)  # null = entry removed
+    changed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    changed_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    after_submission = Column(Boolean, nullable=False, default=False)  # admin correction
+
+    user = relationship("User")
 
 
 class VisitPhoto(Base):

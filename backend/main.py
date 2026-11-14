@@ -23,6 +23,12 @@ def add_missing_columns():
             "segment": "VARCHAR(30)",
             "cajas_puestas": "INTEGER",
             "cajas_faltaron": "INTEGER",
+            "cajas_puestas_at": "TIMESTAMP",
+            "cajas_faltaron_at": "TIMESTAMP",
+            "updated_at": "TIMESTAMP",
+            "store_id": "INTEGER",
+            "sku_name": "VARCHAR(200)",
+            "sku_code": "VARCHAR(50)",
         },
     }
     inspector = inspect(engine)

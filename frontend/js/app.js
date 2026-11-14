@@ -293,10 +293,11 @@ async function loadVisitPage() {
   // Reset segment statuses
   ['produce', 'provisiones', 'congelados'].forEach(segment => {
     const statusEl = document.getElementById(`segment-status-${segment}`);
-    if (statusEl) statusEl.textContent = '0 fotos';
+    if (statusEl) statusEl.textContent = 'Pendiente';
     const card = statusEl?.closest('.segment-card');
-    if (card) card.classList.remove('has-items');
+    if (card) { card.dataset.status = 'pendiente'; card.hidden = false; }
   });
+  setSaveWarning(false);
 
   // Disable step 1 next button
   const btn1 = document.getElementById('btn-step1-next');
@@ -307,6 +308,7 @@ let selectedStoreId = null;
 
 function renderStoreList(stores) {
   const listEl = document.getElementById('store-list');
+  if (!listEl) return;  // the full store list was replaced by search + today's route
   if (stores.length === 0) {
     listEl.innerHTML = '<p class="meta" style="padding:16px;">No se encontraron tiendas</p>';
     return;
@@ -373,6 +375,13 @@ function selectStore(storeId, storeName) {
 function onStoreSearch(query) {
   const q = query.toLowerCase().trim();
   const dropdown = document.getElementById('search-dropdown');
+
+  // Editing the text after picking a store un-selects it: a visit needs a store chosen from the list
+  if (selectedStoreId && query !== visitState.storeName) {
+    selectedStoreId = null;
+    document.getElementById('btn-start-visit').disabled = true;
+    document.querySelectorAll('.route-stop-item').forEach(el => el.classList.remove('selected-for-visit'));
+  }
 
   if (!q) {
     hideSearchDropdown();
@@ -454,11 +463,6 @@ function showStep(stepNum) {
   if (stepNum === 2) updateSegmentStatuses();
   if (stepNum === 5) showVisitSummary();
 
-  // Show/hide "Completar Visita" button (visible only during segment work)
-  const completeBtn = document.getElementById('btn-complete-visit');
-  if (completeBtn) {
-    completeBtn.style.display = (stepNum === 3 || stepNum === 4) ? 'block' : 'none';
-  }
 }
 
 function nextStep() {
@@ -1135,63 +1139,102 @@ function confirmOrdenQty() {
 
 // ── Step 5: Summary & Submit ────────────────────────────────────────────
 
+const PR_TIME_ZONE = 'America/Puerto_Rico';
+
+function formatPrDate(date, opts = { dateStyle: 'medium' }) {
+  return new Date(date).toLocaleString('es-PR', { timeZone: PR_TIME_ZONE, ...opts });
+}
+
+// Renders the read-only per-section, per-SKU box report used by the final step and visit detail.
+function renderCajasSummary(reports, summaries) {
+  const segs = summaries.filter(s => s.status !== 'no_aplica');
+  const totP = segs.reduce((t, s) => t + s.cajas_puestas, 0);
+  const totF = segs.reduce((t, s) => t + s.cajas_faltaron, 0);
+  const sections = segs.map(s => {
+    const report = reports[s.segment];
+    const rows = report.skus.map(sku => {
+      const c = report.counts[sku.id];
+      const reg = isSkuRegistered(c);
+      return `<tr class="${reg ? '' : 'is-pending'}">
+        <td>${escapeHtml(sku.name)}</td>
+        <td class="num">${reg ? c.p : '—'}</td>
+        <td class="num ${reg && c.f > 0 ? 'skr-f' : ''}">${reg ? c.f : '—'}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="cajas-section">
+        <div class="cajas-section-head"><strong>${SEGMENT_LABELS_NEW[s.segment]}</strong><span>${s.skus_reported} de ${s.skus_total} SKUs</span></div>
+        <table class="cajas-table">
+          <thead><tr><th scope="col">SKU</th><th scope="col" class="num">Puestas</th><th scope="col" class="num">Faltaron</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><th scope="row">Total ${SEGMENT_LABELS_NEW[s.segment]}</th><td class="num">${s.cajas_puestas}</td><td class="num">${s.cajas_faltaron}</td></tr></tfoot>
+        </table>
+      </div>`;
+  }).join('');
+  return `${sections || '<p class="meta">Esta tienda no tiene SKUs aprobados este trimestre.</p>'}
+    <div class="cajas-grand-total">
+      <span>Total de la visita</span>
+      <span><span class="skr-p">${totP} puestas</span> · <span class="skr-f">${totF} faltaron</span></span>
+    </div>`;
+}
+
+async function loadCajasReports(visitId, summaries) {
+  const reports = {};
+  await Promise.all(summaries.filter(s => s.status !== 'no_aplica').map(async s => {
+    reports[s.segment] = await loadSkuReport(s.segment, visitId);
+  }));
+  return reports;
+}
+
 async function showVisitSummary() {
   const summaryEl = document.getElementById('visit-summary');
   summaryEl.innerHTML = '<p class="meta">Cargando resumen…</p>';
 
-  let summaries;
+  let summaries, reports;
   try {
     summaries = await getSkuReportSummary();
+    reports = await loadCajasReports(visitState.visitId, summaries);
   } catch (err) {
-    summaryEl.innerHTML = '<p class="meta">Error cargando resumen</p>';
+    summaryEl.innerHTML = '<p class="meta">Error cargando resumen. Revise su conexión y vuelva a intentar.</p>';
     return;
   }
 
-  const totals = summaries.reduce((t, s) => ({
-    skus: t.skus + s.skus_reported,
-    p: t.p + s.cajas_puestas,
-    f: t.f + s.cajas_faltaron,
-    photos: t.photos + s.photos,
-  }), { skus: 0, p: 0, f: 0, photos: 0 });
-
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  const stats = t => `${plural(t.skus, 'SKU')} · <span class="skr-p">${t.p} puestas</span> · <span class="skr-f">${t.f} faltaron</span> · ${plural(t.photos, 'foto')}`;
-  const rows = summaries.map(s => `
-    <div class="skr-summary-row">
-      <strong>${SEGMENT_LABELS_NEW[s.segment]}</strong>
-      <span>${stats({ skus: s.skus_reported, p: s.cajas_puestas, f: s.cajas_faltaron, photos: s.photos })}</span>
-    </div>`).join('');
-
   summaryEl.innerHTML = `
     <div class="summary-item"><span>Tienda:</span><span>${escapeHtml(visitState.storeName)}</span></div>
+    <div class="summary-item"><span>Fecha:</span><span>${formatPrDate(new Date())}</span></div>
+    ${getUserName() ? `<div class="summary-item"><span>Mercaderista:</span><span>${escapeHtml(getUserName())}</span></div>` : ''}
     <div class="summary-item"><span>Foto de llegada:</span><span>${visitState.photos.arrival ? '✓' : '—'}</span></div>
     <div class="summary-divider"></div>
-    ${rows}
-    <div class="summary-divider"></div>
-    <div class="skr-summary-row"><strong>Total</strong><strong>${stats(totals)}</strong></div>
+    ${renderCajasSummary(reports, summaries)}
   `;
 }
 
+let submittingVisit = false;
+
 async function submitVisit() {
+  if (submittingVisit) return;  // the server also ignores repeat submissions
+  submittingVisit = true;
   const btn = document.getElementById('btn-submit-visit');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
     await saveSkuReports();
-    await apiPut(`/visits/${visitState.visitId}/complete`, {
+    const visit = await apiPut(`/visits/${visitState.visitId}/complete`, {
       notes: document.getElementById('visit-notes').value,
     });
 
-    toast('¡Visita completada!');
+    const when = visit.end_time ? formatPrDate(visit.end_time + 'Z', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    toast(`¡Visita enviada! ${visitState.storeName || ''} ${when ? '· ' + when : ''}`);
     document.getElementById('visit-notes').value = '';
     clearSavedVisitProgress();
     loadVisitPage();
   } catch (err) {
     toast('Error: ' + err.message);
   } finally {
+    submittingVisit = false;
     btn.disabled = false;
-    btn.textContent = '✓ Completar visita';
+    btn.textContent = 'Enviar Visita';
   }
 }
 
@@ -1361,7 +1404,7 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
 
     const photosHtml = arrivalHtml + gondolaHtml;
 
-    const actionsHtml = (v.sku_actions || []).map(a => {
+    const actionsHtml = (v.sku_actions || []).filter(a => !a.segment).map(a => {
       const label = actionLabels[a.action_type] || a.action_type;
       const skuName = a.sku ? a.sku.name : `SKU #${a.sku_id}`;
       let badgeClass = 'yellow';
@@ -1386,12 +1429,13 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
           <div><strong>Presentable:</strong> ${v.product_presentable ? 'Sí' : 'No'}</div>
           ${v.condition_notes ? `<div class="meta">${v.condition_notes}</div>` : ''}
         </div>
-        <div style="margin-top:12px;"><strong>SKUs:</strong></div>
-        ${actionsHtml || '<div class="meta">Sin acciones</div>'}
+        <div id="visit-cajas-detail" style="margin-top:12px;"><p class="meta">Cargando conteos…</p></div>
+        ${actionsHtml ? `<div style="margin-top:12px;"><strong>SKUs (formato anterior):</strong></div>${actionsHtml}` : ''}
         ${photosHtml}
       </div>
     `;
     detailContainer.style.display = 'block';
+    loadVisitCajasDetail(v);
 
     // Scroll to highlighted group if navigating from chat
     if (highlightGroupId) {
@@ -1404,6 +1448,111 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
     }
   } catch (err) {
     toast('Error cargando detalles');
+  }
+}
+
+// ── Visit detail: box counts (read-only, or editable by admins) ─────────
+
+let cajasEdit = null;
+
+async function loadVisitCajasDetail(v) {
+  const el = document.getElementById('visit-cajas-detail');
+  if (!el) return;
+  try {
+    const summaries = await apiGet(`/visits/${v.id}/sku-report/summary`);
+    const reports = await loadCajasReports(v.id, summaries);
+    const isAdmin = getUserRole() === 'admin';
+    const submitted = v.status === 'submitted' || v.status === 'reviewed';
+    cajasEdit = { visit: v, summaries, reports };
+
+    const notes = v.notes ? escapeHtml(v.notes) : '<span class="meta">Sin observaciones</span>';
+    el.innerHTML = `
+      <div class="summary-item"><span>Estado:</span><span>${submitted ? 'Enviada' : 'En progreso'}${v.end_time ? ' · ' + formatPrDate(v.end_time + 'Z', { dateStyle: 'medium', timeStyle: 'short' }) : ''}</span></div>
+      ${renderCajasSummary(reports, summaries)}
+      <div style="margin-top:8px;"><strong>Observaciones de la visita</strong><div>${notes}</div></div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        ${isAdmin && submitted ? '<button class="btn btn-outline btn-sm" onclick="startCajasEdit()">✏️ Editar conteos</button>' : ''}
+        <button class="btn btn-outline btn-sm" onclick="showCajasHistory(${v.id})">Historial de cambios</button>
+      </div>
+      <div id="visit-cajas-history"></div>`;
+  } catch (err) {
+    el.innerHTML = '<p class="meta">No se pudieron cargar los conteos.</p>';
+  }
+}
+
+function startCajasEdit() {
+  const { visit, summaries, reports } = cajasEdit;
+  const el = document.getElementById('visit-cajas-detail');
+  const sections = summaries.filter(s => s.status !== 'no_aplica').map(s => {
+    const report = reports[s.segment];
+    const rows = report.skus.map(sku => {
+      const c = report.counts[sku.id];
+      const input = (key, label) => `<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+        aria-label="${label} — ${escapeHtml(sku.name)}" data-segment="${s.segment}" data-sku="${sku.id}" data-key="${key}" value="${c[key] ?? ''}">`;
+      return `<tr><td>${escapeHtml(sku.name)}</td><td class="num">${input('p', 'Cajas puestas')}</td><td class="num">${input('f', 'Cajas que faltaron')}</td></tr>`;
+    }).join('');
+    return `<div class="cajas-section">
+      <div class="cajas-section-head"><strong>${SEGMENT_LABELS_NEW[s.segment]}</strong></div>
+      <table class="cajas-table"><thead><tr><th scope="col">SKU</th><th scope="col" class="num">Puestas</th><th scope="col" class="num">Faltaron</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <p class="meta">Editando como administrador. Cada cambio queda registrado en el historial.</p>
+    ${sections}
+    <div class="form-group" style="margin-top:12px;">
+      <label for="cajas-edit-notes">Observaciones de la visita</label>
+      <textarea id="cajas-edit-notes" rows="3">${escapeHtml(visit.notes || '')}</textarea>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-outline" onclick="loadVisitCajasDetail(cajasEdit.visit)">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveCajasEdit(this)">Guardar cambios</button>
+    </div>`;
+}
+
+async function saveCajasEdit(btn) {
+  const { visit, reports } = cajasEdit;
+  const inputs = [...document.querySelectorAll('#visit-cajas-detail input[data-sku]')];
+  for (const input of inputs) {
+    if (!/^\d+$/.test(input.value.trim())) {
+      input.focus();
+      toast('Cada conteo debe ser un número entero (0 o más)');
+      return;
+    }
+    reports[input.dataset.segment].counts[input.dataset.sku][input.dataset.key] = parseInt(input.value, 10);
+  }
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    for (const [segment, report] of Object.entries(reports)) {
+      await apiPut(`/visits/${visit.id}/sku-report`, { segment, items: skuReportItems(report) });
+    }
+    const notes = document.getElementById('cajas-edit-notes').value;
+    if (notes !== (visit.notes || '')) {
+      await apiPut(`/visits/${visit.id}/notes`, { notes });
+      visit.notes = notes;
+    }
+    toast('Cambios guardados');
+    loadVisitCajasDetail(visit);
+  } catch (err) {
+    toast('Error guardando: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+}
+
+async function showCajasHistory(visitId) {
+  const el = document.getElementById('visit-cajas-history');
+  el.innerHTML = '<p class="meta">Cargando historial…</p>';
+  try {
+    const events = await apiGet(`/visits/${visitId}/sku-report/history`);
+    const fieldLabel = { cajas_puestas: 'Puestas', cajas_faltaron: 'Faltaron' };
+    const val = x => (x === null ? '—' : x);
+    el.innerHTML = events.length ? `<ul class="cajas-history">${events.map(e => `
+      <li>${formatPrDate(e.changed_at, { dateStyle: 'short', timeStyle: 'short' })} · ${escapeHtml(e.changed_by || '')}${e.after_submission ? ' (corrección)' : ''}<br>
+        ${escapeHtml(e.sku_name || 'SKU ' + e.sku_id)} — ${fieldLabel[e.field]}: ${val(e.old_value)} → ${val(e.new_value)}</li>`).join('')}</ul>`
+      : '<p class="meta">Sin cambios registrados.</p>';
+  } catch (err) {
+    el.innerHTML = '<p class="meta">No se pudo cargar el historial.</p>';
   }
 }
 
@@ -4789,23 +4938,50 @@ function resetWorkflowState() {
   resetSkuReport();
 }
 
+const SEGMENT_STATUS_LABELS = {
+  pendiente: 'Pendiente',
+  en_progreso: 'En progreso',
+  completado: '✓ Completado',
+};
+
+// Sections whose store has no approved SKUs ("no_aplica") are hidden and don't block submission.
+function segmentsReady(summaries) {
+  const applicable = summaries.filter(s => s.status !== 'no_aplica');
+  return applicable.every(s => s.status === 'completado');
+}
+
 async function updateSegmentStatuses() {
   if (!visitState.visitId) return;
+  const submitBtn = document.getElementById('btn-go-submit');
+  const hint = document.getElementById('segment-submit-hint');
 
   try {
     const summaries = await getSkuReportSummary();
     for (const summary of summaries) {
-      const statusEl = document.getElementById(`segment-status-${summary.segment}`);
-      if (statusEl) {
-        const reported = summary.skus_reported > 0 || summary.photos > 0;
-        statusEl.textContent = reported
-          ? `${summary.skus_reported} SKUs · ${summary.photos} fotos`
-          : 'Sin reportar';
-        statusEl.closest('.segment-card')?.classList.toggle('has-items', reported);
-      }
+      const card = document.querySelector(`.segment-card[data-segment="${summary.segment}"]`);
+      const tab = document.querySelector(`.segment-tab[data-segment="${summary.segment}"]`);
+      const applicable = summary.status !== 'no_aplica';
+      if (card) card.hidden = !applicable;
+      if (tab) tab.hidden = !applicable;
+      if (!card || !applicable) continue;
+
+      card.dataset.status = summary.status;
+      const progress = summary.status === 'en_progreso' ? ` · ${summary.skus_reported} de ${summary.skus_total}` : '';
+      document.getElementById(`segment-status-${summary.segment}`).textContent =
+        SEGMENT_STATUS_LABELS[summary.status] + progress;
+      card.setAttribute('aria-label',
+        `${SEGMENT_LABELS_NEW[summary.segment]}: ${SEGMENT_STATUS_LABELS[summary.status].replace('✓ ', '')}${progress}`);
     }
+
+    const ready = segmentsReady(summaries);
+    const noneApply = summaries.every(s => s.status === 'no_aplica');
+    submitBtn.disabled = !ready;
+    hint.textContent = noneApply
+      ? 'Esta tienda no tiene SKUs aprobados este trimestre.'
+      : ready ? '' : 'Complete todas las secciones para enviar la visita.';
   } catch (err) {
     console.error('Error updating segment statuses:', err);
+    hint.textContent = 'No se pudo cargar el estado de las secciones. Revise su conexión.';
   }
 }
 
@@ -6028,6 +6204,13 @@ function exitWorkItem() {
 async function goToSubmit() {
   try {
     await saveSkuReports();
+    const summaries = await getSkuReportSummary();
+    if (!segmentsReady(summaries)) {
+      toast('Complete todas las secciones antes de enviar la visita');
+      workflowState.currentSegment = null;
+      showStep(2);
+      return;
+    }
   } catch (err) {
     toast('Error guardando el reporte: ' + err.message);
     return;
@@ -6066,14 +6249,20 @@ function getSkuReportSummary() {
   return apiGet(`/visits/${visitState.visitId}/sku-report/summary`);
 }
 
-async function loadSkuReport(segment) {
-  const data = await apiGet(`/visits/${visitState.visitId}/sku-report?segment=${segment}`);
+// counts[skuId] = { p, f }: both null until the SKU is registered (0 is a real entry).
+async function loadSkuReport(segment, visitId = visitState.visitId) {
+  const data = await apiGet(`/visits/${visitId}/sku-report?segment=${segment}`);
   return {
     skus: data.skus,
+    editable: data.editable,
     counts: Object.fromEntries(data.skus.map(s => [s.id, { p: s.cajas_puestas, f: s.cajas_faltaron }])),
     photos: data.photos.map(p => ({ id: p.id, url: p.file_path, skuIds: p.sku_ids })),
     dirty: false,
   };
+}
+
+function isSkuRegistered(c) {
+  return c.p !== null && c.f !== null;
 }
 
 function skuReportItems(report) {
@@ -6081,7 +6270,7 @@ function skuReportItems(report) {
     const c = report.counts[sku.id];
     const photoIds = report.photos.filter(p => p.skuIds.includes(sku.id)).map(p => p.id);
     return { sku_id: sku.id, cajas_puestas: c.p, cajas_faltaron: c.f, photo_ids: photoIds };
-  }).filter(item => item.cajas_puestas || item.cajas_faltaron || item.photo_ids.length);
+  }).filter(item => item.cajas_puestas !== null || item.photo_ids.length);
 }
 
 async function saveDirtySkuReports() {
@@ -6095,6 +6284,7 @@ async function saveDirtySkuReports() {
       throw err;
     }
   }
+  setSaveWarning(false);
 }
 
 // Saves run one after another so a debounced save never races an explicit one.
@@ -6104,20 +6294,63 @@ function saveSkuReports() {
   return skuReportSaving;
 }
 
-function markSkuReportDirty() {
-  currentSkuReport().dirty = true;
+function scheduleSkuReportSave(delay) {
   clearTimeout(skuReportSaveTimer);
   skuReportSaveTimer = setTimeout(() => {
-    saveSkuReports().catch(err => console.error('Error saving SKU report:', err));
-  }, 1200);
+    saveSkuReports().catch(err => {
+      // Usually a dropped connection in the store: keep the entries on the phone and retry.
+      console.error('Error saving SKU report:', err);
+      setSaveWarning(true);
+      scheduleSkuReportSave(5000);
+    });
+  }, delay);
 }
 
-async function guardarVisita(btn) {
+function markSkuReportDirty() {
+  currentSkuReport().dirty = true;
+  scheduleSkuReportSave(1200);
+}
+
+function setSaveWarning(show) {
+  let el = document.getElementById('skr-save-warning');
+  if (!el && !show) return;
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'skr-save-warning';
+    el.className = 'skr-save-warning';
+    el.setAttribute('role', 'status');
+    el.textContent = 'Sin conexión — sus conteos están en el teléfono y se guardarán al reconectar. Reintentando…';
+    document.body.appendChild(el);
+  }
+  el.hidden = !show;
+}
+
+async function completarSeccion(btn) {
+  const report = currentSkuReport();
+  if (!report) return;
+  const pending = report.skus.filter(s => !isSkuRegistered(report.counts[s.id])).length;
+  if (pending > 0) {
+    toast(`Faltan ${pending} SKU${pending === 1 ? '' : 's'} por registrar. Use "✓ 0 / 0" si no hubo trabajo.`);
+    skuReport.filter = 'pending';
+    renderSkuReport();
+    document.getElementById('skr-list').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
   btn.disabled = true;
   btn.textContent = 'Guardando…';
-  await goToSubmit();
-  btn.disabled = false;
-  btn.textContent = 'Guardar visita';
+  try {
+    report.dirty = true;
+    await saveSkuReports();
+    toast(`${SEGMENT_LABELS_NEW[workflowState.currentSegment]} completado ✓`);
+    workflowState.currentSegment = null;
+    showStep(2);
+  } catch (err) {
+    setSaveWarning(true);
+    toast('No se pudo guardar. Revise su conexión e intente de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Completar sección';
+  }
 }
 
 function renderSkuReportHeader() {
@@ -6143,27 +6376,36 @@ function renderSkuReport() {
   let totP = 0, totF = 0, nMissing = 0, nTouched = 0;
   report.skus.forEach(sku => {
     const c = report.counts[sku.id];
+    if (!isSkuRegistered(c)) return;
     totP += c.p;
     totF += c.f;
     if (c.f > 0) nMissing++;
-    if (c.p > 0 || c.f > 0) nTouched++;
+    nTouched++;
   });
+  const nPending = report.skus.length - nTouched;
+  if (skuReport.filter === 'pending' && nPending === 0) skuReport.filter = 'all';
 
   document.getElementById('skr-tot-p').textContent = totP;
   document.getElementById('skr-tot-f').textContent = totF;
   document.getElementById('skr-n-all').textContent = report.skus.length;
   document.getElementById('skr-n-missing').textContent = nMissing;
+  document.getElementById('skr-n-pending').textContent = nPending;
+  document.getElementById('skr-chip-pending').hidden = nPending === 0 && skuReport.filter !== 'pending';
   document.getElementById('skr-touched').textContent = `${nTouched} de ${report.skus.length} SKUs registrados`;
+  document.getElementById('btn-completar-seccion').classList.toggle('is-ready', nPending === 0);
   document.getElementById('skr-foot-p').textContent = `${totP} puestas`;
   document.getElementById('skr-foot-f').textContent = `${totF} faltaron`;
   document.getElementById('skr-chip-all').setAttribute('aria-pressed', String(skuReport.filter === 'all'));
   document.getElementById('skr-chip-missing').setAttribute('aria-pressed', String(skuReport.filter === 'missing'));
+  document.getElementById('skr-chip-pending').setAttribute('aria-pressed', String(skuReport.filter === 'pending'));
   setSegmentTabStatus(workflowState.currentSegment, nTouched);
 
   const query = skuReport.query.trim().toLowerCase();
-  const visible = report.skus.filter(sku =>
-    (skuReport.filter === 'all' || report.counts[sku.id].f > 0) && skuMatchesQuery(sku, query)
-  );
+  const passesFilter = c =>
+    skuReport.filter === 'all' ||
+    (skuReport.filter === 'missing' && c.f > 0) ||
+    (skuReport.filter === 'pending' && !isSkuRegistered(c));
+  const visible = report.skus.filter(sku => passesFilter(report.counts[sku.id]) && skuMatchesQuery(sku, query));
 
   const listEl = document.getElementById('skr-list');
   const focusKey = document.activeElement?.dataset?.focusKey;
@@ -6171,7 +6413,10 @@ function renderSkuReport() {
   if (report.skus.length === 0) {
     listEl.innerHTML = `<p class="skr-empty">Esta tienda no tiene SKUs aprobados en ${escapeHtml(SEGMENT_LABELS_NEW[workflowState.currentSegment])} este trimestre. Apruébelos en la pestaña SKUs.</p>`;
   } else if (visible.length === 0) {
-    listEl.innerHTML = `<p class="skr-empty">${query ? 'Ningún SKU coincide con la búsqueda.' : 'Ningún SKU tiene cajas faltantes.'}</p>`;
+    const emptyMsg = query ? 'Ningún SKU coincide con la búsqueda.'
+      : skuReport.filter === 'pending' ? 'Todos los SKUs están registrados.'
+      : 'Ningún SKU tiene cajas faltantes.';
+    listEl.innerHTML = `<p class="skr-empty">${emptyMsg}</p>`;
   } else {
     listEl.innerHTML = visible.map(sku => renderSkuCard(sku, report)).join('');
   }
@@ -6184,17 +6429,24 @@ function renderSkuCard(sku, report) {
   const name = escapeHtml(sku.name);
   const pack = escapeHtml([sku.brand, sku.category].filter(Boolean).join(' · '));
   const photos = report.photos.filter(p => p.skuIds.includes(sku.id));
-  const missing = c.f > 0;
+  const registered = isSkuRegistered(c);
+  const missing = registered && c.f > 0;
 
+  // Unregistered SKUs show a grey 0 placeholder; tapping +/− or typing registers both counts.
   const stepper = (key, label, decLabel, incLabel) => `
     <div class="skr-stepper skr-stepper-${key}">
-      <div class="skr-stepper-label">${label}</div>
+      <label class="skr-stepper-label" for="skr-in-${sku.id}-${key}">${label}</label>
       <div class="skr-stepper-row">
-        <button class="skr-dec" data-focus-key="${sku.id}-${key}-dec" aria-label="${decLabel}" ${c[key] === 0 ? 'disabled' : ''} onclick="bumpSkuCount(${sku.id}, '${key}', -1)">${SKR_ICON_MINUS}</button>
-        <span class="skr-val" aria-live="polite">${c[key]}</span>
+        <button class="skr-dec" data-focus-key="${sku.id}-${key}-dec" aria-label="${decLabel}" ${!c[key] ? 'disabled' : ''} onclick="bumpSkuCount(${sku.id}, '${key}', -1)">${SKR_ICON_MINUS}</button>
+        <input class="skr-val" id="skr-in-${sku.id}-${key}" data-focus-key="${sku.id}-${key}-val" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+          value="${registered ? c[key] : ''}" placeholder="0" onfocus="this.select()" onchange="setSkuCount(${sku.id}, '${key}', this)">
         <button class="skr-inc" data-focus-key="${sku.id}-${key}-inc" aria-label="${incLabel}" onclick="bumpSkuCount(${sku.id}, '${key}', 1)">${SKR_ICON_PLUS}</button>
       </div>
     </div>`;
+
+  const status = registered
+    ? (missing ? '<div class="skr-badge">Faltante</div>' : '<div class="skr-badge skr-badge-ok">✓ Registrado</div>')
+    : `<button class="skr-zero" data-focus-key="${sku.id}-zero" onclick="registerSkuZero(${sku.id})" aria-label="Registrar ${name} sin trabajo: 0 puestas y 0 faltaron">✓ 0 / 0</button>`;
 
   const thumbs = photos.map(p => `
     <button class="skr-thumb" aria-label="Ver foto${p.skuIds.length > 1 ? `, compartida con ${p.skuIds.length - 1} SKU más` : ''}" onclick="editSkuPhoto(${p.id})">
@@ -6203,14 +6455,15 @@ function renderSkuCard(sku, report) {
     </button>`).join('');
 
   return `
-    <section class="skr-card ${missing ? 'is-missing' : ''}" aria-label="${name}">
+    <section class="skr-card ${missing ? 'is-missing' : ''} ${registered ? 'is-registered' : 'is-pending'}" aria-label="${name}">
       <div class="skr-card-top">
         <div class="skr-card-id">
           <div class="skr-code">SKU ${escapeHtml(skuCode(sku))}</div>
           <div class="skr-name">${name}</div>
           ${pack ? `<div class="skr-pack">${pack}</div>` : ''}
+          ${registered ? '' : '<div class="skr-pending-label">Sin registrar</div>'}
         </div>
-        ${missing ? '<div class="skr-badge">Faltante</div>' : ''}
+        ${status}
       </div>
       <div class="skr-steppers">
         ${stepper('p', 'Cajas puestas', 'Restar caja puesta', 'Sumar caja puesta')}
@@ -6225,9 +6478,36 @@ function renderSkuCard(sku, report) {
     </section>`;
 }
 
+function registerSkuCounts(counts) {
+  if (counts.p === null) counts.p = 0;
+  if (counts.f === null) counts.f = 0;
+}
+
 function bumpSkuCount(skuId, key, delta) {
   const counts = currentSkuReport().counts[skuId];
+  registerSkuCounts(counts);
   counts[key] = Math.max(0, counts[key] + delta);
+  markSkuReportDirty();
+  renderSkuReport();
+}
+
+function registerSkuZero(skuId) {
+  registerSkuCounts(currentSkuReport().counts[skuId]);
+  markSkuReportDirty();
+  renderSkuReport();
+}
+
+function setSkuCount(skuId, key, input) {
+  const counts = currentSkuReport().counts[skuId];
+  const raw = input.value.trim();
+  if (raw === '' && !isSkuRegistered(counts)) return;
+  if (!/^\d+$/.test(raw)) {
+    toast('Ingrese un número entero (0 o más)');
+    renderSkuReport();
+    return;
+  }
+  registerSkuCounts(counts);
+  counts[key] = parseInt(raw, 10);
   markSkuReportDirty();
   renderSkuReport();
 }

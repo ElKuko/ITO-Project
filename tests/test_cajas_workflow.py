@@ -1,0 +1,111 @@
+"""End-to-end API test of the cajas (box count) visit workflow.
+
+Run from the project root:  python -m pytest tests/
+Uses its own throwaway SQLite database.
+"""
+
+import os
+import tempfile
+
+os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp()}/test.db"
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from backend.database import SessionLocal  # noqa: E402
+from backend.main import app  # noqa: E402
+from backend.models import SKU, Store, StoreSKUApproval  # noqa: E402
+from backend.routers.visits import _current_quarter  # noqa: E402
+
+client = TestClient(app)
+
+
+def login(username, password):
+    r = client.post("/api/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200, r.text
+    return {"Authorization": "Bearer " + r.json()["access_token"]}
+
+
+def approve_skus(store_id):
+    """Approve 2 Produce and 2 Provisiones SKUs; Congelados gets none."""
+    db = SessionLocal()
+    db.query(StoreSKUApproval).filter_by(store_id=store_id).delete()
+    by_section = {}
+    for section in ("produce", "provisiones"):
+        for sku in db.query(SKU).filter_by(section=section, is_active=True).limit(2):
+            db.add(StoreSKUApproval(store_id=store_id, sku_id=sku.id, quarter=_current_quarter()))
+            by_section.setdefault(section, []).append(sku.id)
+    db.commit()
+    db.close()
+    return by_section
+
+
+def test_cajas_workflow():
+    merch, admin = login("merch1", "merch123"), login("admin", "admin123")
+    db = SessionLocal()
+    store_id = db.query(Store).first().id
+    db.close()
+    skus = approve_skus(store_id)
+    p1, p2 = skus["produce"]
+
+    visit = client.post("/api/visits/start", json={"store_id": store_id}, headers=merch).json()["visit_id"]
+
+    def status():
+        r = client.get(f"/api/visits/{visit}/sku-report/summary", headers=merch).json()
+        return {s["segment"]: s["status"] for s in r}
+
+    def save(segment, items, headers=merch):
+        return client.put(f"/api/visits/{visit}/sku-report", json={"segment": segment, "items": items}, headers=headers)
+
+    # Sections start pending; a section with no approved SKUs doesn't apply
+    assert status() == {"produce": "pendiente", "provisiones": "pendiente", "congelados": "no_aplica"}
+    report = client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()
+    assert [s["cajas_puestas"] for s in report["skus"]] == [None, None]  # blank, not 0
+
+    # Validation: non-negative, both counts together, only approved SKUs of the section
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": -1, "cajas_faltaron": 0}]).status_code == 422
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 1}]).status_code == 400
+    assert save("produce", [{"sku_id": skus["provisiones"][0], "cajas_puestas": 1, "cajas_faltaron": 0}]).status_code == 400
+
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 4, "cajas_faltaron": 3}]).json()["status"] == "en_progreso"
+    r = client.put(f"/api/visits/{visit}/complete", json={}, headers=merch)
+    assert r.status_code == 400  # sections incomplete
+
+    # 0/0 is a valid, explicit entry
+    save("produce", [{"sku_id": p1, "cajas_puestas": 4, "cajas_faltaron": 2},
+                     {"sku_id": p2, "cajas_puestas": 0, "cajas_faltaron": 0}])
+    save("provisiones", [{"sku_id": i, "cajas_puestas": 1, "cajas_faltaron": 1} for i in skus["provisiones"]])
+    assert status() == {"produce": "completado", "provisiones": "completado", "congelados": "no_aplica"}
+
+    # Submission is idempotent
+    first = client.put(f"/api/visits/{visit}/complete", json={"notes": "ok"}, headers=merch)
+    again = client.put(f"/api/visits/{visit}/complete", json={"notes": "dup"}, headers=merch)
+    assert first.status_code == again.status_code == 200
+    assert again.json()["notes"] == "ok" and again.json()["end_time"] == first.json()["end_time"]
+
+    # Only admins edit after submission; a partial save doesn't drop other SKUs
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 9, "cajas_faltaron": 2}]).status_code == 400
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 5, "cajas_faltaron": 2}], admin).status_code == 200
+    assert status()["produce"] == "completado"
+
+    # Catalog changes don't alter submitted history
+    db = SessionLocal()
+    original = db.query(SKU).get(p1).name
+    db.query(SKU).filter_by(id=p1).update({"name": "RENAMED"})
+    db.commit()
+    db.close()
+    names = [s["name"] for s in client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=admin).json()["skus"]]
+    assert original in names and "RENAMED" not in names
+
+    # Every change is in the history, including the admin correction
+    history = client.get(f"/api/visits/{visit}/sku-report/history", headers=admin).json()
+    p1_puestas = [(e["old_value"], e["new_value"], e["after_submission"])
+                  for e in history if e["sku_id"] == p1 and e["field"] == "cajas_puestas"]
+    assert p1_puestas == [(None, 4, False), (4, 5, True)]
+
+    # Reporting
+    rep = client.get("/api/reports/cajas?group_by=section", headers=admin).json()
+    assert rep["totals"]["cajas_puestas"] == 7 and rep["totals"]["cajas_faltaron"] == 4
+    assert rep["totals"]["placement_completion_rate"] == round(7 / 11, 4)
+    csv = client.get("/api/reports/cajas/records?format=csv", headers=admin).text
+    assert csv.startswith("visit_sku_id,visit_id,store_id") and len(csv.strip().splitlines()) == 5
+    assert client.get("/api/reports/cajas", headers=merch).status_code == 403

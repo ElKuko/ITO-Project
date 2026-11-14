@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────
@@ -201,6 +201,11 @@ class VisitSKUActionOut(BaseModel):
     segment: Optional[str] = None
     cajas_puestas: Optional[int] = None
     cajas_faltaron: Optional[int] = None
+    cajas_puestas_at: Optional[datetime] = None
+    cajas_faltaron_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    sku_name: Optional[str] = None
+    sku_code: Optional[str] = None
     facings_count: Optional[int] = None
     notes: Optional[str] = None
     sku: Optional[SKUOut] = None
@@ -212,15 +217,20 @@ class VisitSKUActionOut(BaseModel):
 # ── Per-SKU Box Report (segment level) ───────────────────────────────────
 
 class SkuReportItem(BaseModel):
+    """One SKU in a segment report. Both counts null = not registered yet (photo links only)."""
     sku_id: int
-    cajas_puestas: int = 0
-    cajas_faltaron: int = 0
+    cajas_puestas: Optional[int] = Field(None, ge=0)
+    cajas_faltaron: Optional[int] = Field(None, ge=0)
     photo_ids: list[int] = []
 
 
 class SkuReportSave(BaseModel):
     segment: str
     items: list[SkuReportItem] = []
+
+
+class VisitNotesUpdate(BaseModel):
+    notes: Optional[str] = None
 
 
 # ── Store Visits ─────────────────────────────────────────────────────────

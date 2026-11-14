@@ -4364,3 +4364,50 @@ body.skr-sheet-open { overflow: hidden; }
 body:has(#visit-step-3.active) .toast:not(.notification-toast) {
   bottom: calc(88px + env(safe-area-inset-bottom));
 }
+
+/* ── Section status, registration & visit summary (cajas workflow) ───── */
+.segment-card[hidden], .segment-tab[hidden], .skr-chip[hidden] { display: none; }
+.segment-card { position: relative; }
+.segment-card[data-status="pendiente"] .segment-status { color: var(--text-secondary); }
+.segment-card[data-status="en_progreso"] { border-color: #F0C3A3; background: #FFF8F2; }
+.segment-card[data-status="en_progreso"] .segment-status { color: #A8400F; font-weight: 600; }
+.segment-card[data-status="completado"] { border-color: #7CB87A; background: #EEF7EC; }
+.segment-card[data-status="completado"] .segment-status { color: #22652A; font-weight: 700; }
+.segment-submit-hint { margin-top: 8px; text-align: center; }
+#btn-go-submit:disabled { opacity: .45; cursor: not-allowed; }
+
+.skr-card.is-pending { border-style: dashed; }
+.skr-card.is-pending .skr-val { color: var(--skr-ink-3); }
+.skr-pending-label { margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--skr-ink-3); text-transform: uppercase; letter-spacing: .04em; }
+.skr-zero {
+  flex-shrink: 0; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--skr-line); background: #fff; color: var(--skr-ink); font-size: 14px; font-weight: 700;
+}
+.skr-badge-ok { background: #E8F0E6; color: #22652A; border-color: #B7D2B0; }
+input.skr-val {
+  flex: 1; width: 100%; min-width: 0; height: 44px; padding: 0; border: none; background: transparent;
+  font: inherit; font-size: 22px; font-weight: 800; color: var(--skr-ink); text-align: center;
+}
+input.skr-val::placeholder { color: var(--skr-ink-3); opacity: .55; }
+input.skr-val:focus { outline: 2px solid var(--skr-blue); outline-offset: 0; border-radius: 8px; background: #fff; }
+.skr-save:not(.is-ready) { background: var(--skr-ink-2); }
+
+.skr-save-warning {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 1000; padding: 12px 14px; border-radius: 12px;
+  background: #5C2A0A; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+.skr-save-warning[hidden] { display: none; }
+
+.cajas-section { margin: 12px 0; }
+.cajas-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 14px; }
+.cajas-section-head span { color: var(--text-secondary); font-size: 13px; }
+.cajas-table { width: 100%; border-collapse: collapse; font-family: inherit; font-size: 14px; }
+.cajas-table th, .cajas-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.cajas-table thead th { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+.cajas-table .num { text-align: right; width: 72px; font-variant-numeric: tabular-nums; }
+.cajas-table tfoot th, .cajas-table tfoot td { font-weight: 700; border-bottom: none; }
+.cajas-table tr.is-pending td { color: var(--text-secondary); }
+.cajas-table input { font-family: inherit; width: 64px; min-height: 40px; padding: 4px 6px; font-size: 16px; text-align: right; border: 1px solid var(--border); border-radius: 8px; }
+.cajas-grand-total { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 0; border-top: 2px solid var(--text); font-weight: 700; }
+.cajas-history { margin-top: 12px; font-size: 13px; }
+.cajas-history li { padding: 4px 0; border-bottom: 1px solid var(--border); }

@@ -68,9 +68,6 @@
             <span class="step" data-step="2">2</span>
             <span class="step" data-step="5">3</span>
           </div>
-          <button class="btn btn-success btn-sm btn-complete-visit" id="btn-complete-visit" onclick="goToSubmit()" style="display:none;">
-            Completar Visita →
-          </button>
         </div>
 
         <!-- Step 0: Store Selection (before starting) -->
@@ -78,7 +75,7 @@
           <div class="card route-progress-card" id="todays-route-card">
             <!-- Search bar -->
             <div class="search-container" style="margin-bottom: 16px;">
-              <input type="text" id="store-search" placeholder="Buscar otra tienda..." oninput="onStoreSearch(this.value)" onfocus="onStoreSearchFocus()" autocomplete="off">
+              <input type="text" id="store-search" placeholder="Buscar tienda..." oninput="onStoreSearch(this.value)" onfocus="onStoreSearchFocus()" autocomplete="off">
               <div class="search-dropdown" id="search-dropdown"></div>
             </div>
 
@@ -121,33 +118,34 @@
         <!-- Step 2: Segment Selection -->
         <div id="visit-step-2" class="visit-step">
           <div class="card">
-            <h3>Paso 2: Trabajar Segmento</h3>
-            <p class="meta">Seleccione el área de la tienda donde va a trabajar.</p>
+            <h3>Paso 2: Seleccionar Sección</h3>
+            <p class="meta">Seleccione la sección de la tienda donde va a trabajar. Complete todas para enviar la visita.</p>
 
             <div class="segment-grid" id="segment-grid">
-              <button class="segment-card" onclick="enterSegment('produce')">
+              <button class="segment-card" data-segment="produce" data-status="pendiente" onclick="enterSegment('produce')">
                 <div class="segment-icon">🥬</div>
                 <div class="segment-name">Produce</div>
-                <div class="segment-status" id="segment-status-produce">Sin reportar</div>
+                <div class="segment-status" id="segment-status-produce">Pendiente</div>
               </button>
-              <button class="segment-card" onclick="enterSegment('provisiones')">
+              <button class="segment-card" data-segment="provisiones" data-status="pendiente" onclick="enterSegment('provisiones')">
                 <div class="segment-icon">🥫</div>
                 <div class="segment-name">Provisiones</div>
-                <div class="segment-status" id="segment-status-provisiones">Sin reportar</div>
+                <div class="segment-status" id="segment-status-provisiones">Pendiente</div>
               </button>
-              <button class="segment-card" onclick="enterSegment('congelados')">
+              <button class="segment-card" data-segment="congelados" data-status="pendiente" onclick="enterSegment('congelados')">
                 <div class="segment-icon">🧊</div>
                 <div class="segment-name">Congelados</div>
-                <div class="segment-status" id="segment-status-congelados">Sin reportar</div>
+                <div class="segment-status" id="segment-status-congelados">Pendiente</div>
               </button>
             </div>
 
             <div class="step-nav-buttons" style="margin-top:24px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="prevStep()">← Volver</button>
-              <button class="btn btn-success" onclick="goToSubmit()" id="btn-go-submit" style="flex:1;">
+              <button class="btn btn-success" onclick="goToSubmit()" id="btn-go-submit" style="flex:1;" disabled>
                 Revisar y Enviar →
               </button>
             </div>
+            <p class="meta segment-submit-hint" id="segment-submit-hint" aria-live="polite"></p>
           </div>
         </div>
 
@@ -211,6 +209,7 @@
 
               <div class="skr-chips" role="group" aria-label="Filtrar SKUs">
                 <button class="skr-chip" id="skr-chip-all" aria-pressed="true" onclick="setSkuFilter('all')">Todos (<span id="skr-n-all">0</span>)</button>
+                <button class="skr-chip" id="skr-chip-pending" aria-pressed="false" onclick="setSkuFilter('pending')">Sin registrar (<span id="skr-n-pending">0</span>)</button>
                 <button class="skr-chip" id="skr-chip-missing" aria-pressed="false" onclick="setSkuFilter('missing')">Con faltantes (<span id="skr-n-missing">0</span>)</button>
               </div>
             </header>
@@ -222,7 +221,7 @@
                 <div id="skr-touched">0 de 0 SKUs registrados</div>
                 <div class="skr-footer-tot"><span class="skr-p" id="skr-foot-p">0 puestas</span> · <span class="skr-f" id="skr-foot-f">0 faltaron</span></div>
               </div>
-              <button class="skr-save" id="btn-guardar-visita" onclick="guardarVisita(this)">Guardar visita</button>
+              <button class="skr-save" id="btn-completar-seccion" onclick="completarSeccion(this)">Completar sección</button>
             </footer>
           </div>
 
@@ -251,16 +250,16 @@
         <!-- Step 3 (indicator): Completar visita -->
         <div id="visit-step-5" class="visit-step">
           <div class="card">
-            <h3>Completar visita</h3>
+            <h3>Paso 3: Revisar y Enviar</h3>
             <div class="visit-summary" id="visit-summary"></div>
             <div class="form-group" style="margin-top:16px;">
-              <label for="visit-notes">Observaciones de la visita (opcional)</label>
-              <textarea id="visit-notes" rows="4" placeholder="Escriba cualquier observación adicional..."></textarea>
+              <label for="visit-notes">Observaciones de la visita</label>
+              <textarea id="visit-notes" rows="4" placeholder="Opcional: disponibilidad de producto, condición de góndolas, problemas de inventario…"></textarea>
             </div>
             <div class="step-nav-buttons" style="margin-top:12px; display:flex; gap:8px;">
               <button class="btn btn-outline" onclick="backToSegmentWork()">← Volver</button>
               <button id="btn-submit-visit" class="btn btn-success" onclick="submitVisit()" style="flex:1;">
-                ✓ Completar visita
+                Enviar Visita
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 // Service Worker for Ito Merchandising PWA
-const CACHE_NAME = 'ito-v1';
+const CACHE_NAME = 'ito-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
