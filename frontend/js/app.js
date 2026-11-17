@@ -4988,6 +4988,7 @@ async function updateSegmentStatuses() {
 async function enterSegment(segment) {
   workflowState.currentSegment = segment;
   skuReport.filter = 'all';
+  skuReport.filterIds = null;
   skuReport.query = '';
   document.getElementById('skr-search').hidden = true;
   document.getElementById('skr-search-input').value = '';
@@ -6337,8 +6338,7 @@ async function completarSeccion(btn) {
   const pending = report.skus.filter(s => !isSkuRegistered(report.counts[s.id])).length;
   if (pending > 0) {
     toast(`Faltan ${pending} SKU${pending === 1 ? '' : 's'} por registrar. Use "✓ 0 / 0" si no hubo trabajo.`);
-    skuReport.filter = 'pending';
-    renderSkuReport();
+    setSkuFilter('pending');
     document.getElementById('skr-list').scrollIntoView({ behavior: 'smooth' });
     return;
   }
@@ -6389,7 +6389,6 @@ function renderSkuReport() {
     nTouched++;
   });
   const nPending = report.skus.length - nTouched;
-  if (skuReport.filter === 'pending' && nPending === 0) skuReport.filter = 'all';
 
   document.getElementById('skr-tot-p').textContent = totP;
   document.getElementById('skr-tot-f').textContent = totF;
@@ -6407,11 +6406,10 @@ function renderSkuReport() {
   setSegmentTabStatus(workflowState.currentSegment, nTouched);
 
   const query = skuReport.query.trim().toLowerCase();
-  const passesFilter = c =>
-    skuReport.filter === 'all' ||
-    (skuReport.filter === 'missing' && c.f > 0) ||
-    (skuReport.filter === 'pending' && !isSkuRegistered(c));
-  const visible = report.skus.filter(sku => passesFilter(report.counts[sku.id]) && skuMatchesQuery(sku, query));
+  // The filtered list is fixed when the filter is chosen, so a card stays put while it's
+  // being edited (e.g. tapping + on an unregistered SKU doesn't make it vanish mid-tap).
+  const visible = report.skus.filter(sku =>
+    (skuReport.filter === 'all' || skuReport.filterIds?.has(sku.id)) && skuMatchesQuery(sku, query));
 
   const listEl = document.getElementById('skr-list');
   const focusKey = document.activeElement?.dataset?.focusKey;
@@ -6518,8 +6516,18 @@ function setSkuCount(skuId, key, input) {
   renderSkuReport();
 }
 
+function skuPassesFilter(filter, c) {
+  return filter === 'all' ||
+    (filter === 'missing' && isSkuRegistered(c) && c.f > 0) ||
+    (filter === 'pending' && !isSkuRegistered(c));
+}
+
 function setSkuFilter(filter) {
+  const report = currentSkuReport();
   skuReport.filter = filter;
+  skuReport.filterIds = report && filter !== 'all'
+    ? new Set(report.skus.filter(s => skuPassesFilter(filter, report.counts[s.id])).map(s => s.id))
+    : null;
   renderSkuReport();
 }
 
