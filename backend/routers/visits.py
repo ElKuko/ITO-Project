@@ -28,6 +28,7 @@ from ..schemas import (
     VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave, VisitNotesUpdate
 )
 from ..auth import get_current_user
+from ..quarters import effective_quarter
 from ..cv.void_detector import analyze_shelf_image
 from ..storage import storage
 
@@ -329,9 +330,12 @@ def _is_submitted(visit: StoreVisit) -> bool:
 
 
 def _approved_skus(db: Session, store_id: int, segment: str) -> list[SKU]:
+    quarter = effective_quarter(db, store_id)
+    if quarter is None:
+        return []
     return db.query(SKU).join(StoreSKUApproval).filter(
         StoreSKUApproval.store_id == store_id,
-        StoreSKUApproval.quarter == _current_quarter(),
+        StoreSKUApproval.quarter == quarter,
         SKU.section == segment,
         SKU.is_active == True,
     ).order_by(SKU.name).all()

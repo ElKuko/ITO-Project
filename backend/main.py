@@ -77,6 +77,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def revalidate_app_files(request: Request, call_next):
+    """Make browsers check for a newer app.js/style.css/index.html on every load
+    (cheap: unchanged files come back as 304), so phones don't keep running old code."""
+    response = await call_next(request)
+    path = request.url.path
+    if not path.startswith(("/api/", "/uploads/")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 # ── API Routers ───────────────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(stores.router)

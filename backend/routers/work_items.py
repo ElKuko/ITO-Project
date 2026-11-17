@@ -117,7 +117,8 @@ def get_available_skus(
     if current_user.role == "merchandiser" and visit.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    quarter = _get_current_quarter()
+    from ..quarters import effective_quarter
+    quarter = effective_quarter(db, visit.store_id) or _get_current_quarter()
 
     approved_skus = db.query(SKU).join(StoreSKUApproval).filter(
         StoreSKUApproval.store_id == visit.store_id,

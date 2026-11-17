@@ -109,3 +109,33 @@ def test_cajas_workflow():
     csv = client.get("/api/reports/cajas/records?format=csv", headers=admin).text
     assert csv.startswith("visit_sku_id,visit_id,store_id") and len(csv.strip().splitlines()) == 5
     assert client.get("/api/reports/cajas", headers=merch).status_code == 403
+
+
+def test_approvals_carry_forward_from_earlier_quarter():
+    """Approvals saved in a past quarter still apply until a newer list is saved."""
+    from backend.quarters import current_quarter
+
+    merch = login("merch1", "merch123")
+    db = SessionLocal()
+    store_id = db.query(Store).order_by(Store.id.desc()).first().id
+    db.query(StoreSKUApproval).filter_by(store_id=store_id).delete()
+    produce = [s.id for s in db.query(SKU).filter_by(section="produce", is_active=True).limit(3)]
+    for sku_id in produce:
+        db.add(StoreSKUApproval(store_id=store_id, sku_id=sku_id, quarter="2020-Q1"))
+    db.add(StoreSKUApproval(store_id=store_id, sku_id=produce[0], quarter="2099-Q1"))  # future: ignored
+    db.commit()
+    db.close()
+
+    tab = client.get(f"/api/approvals/?store_id={store_id}&effective=true", headers=merch).json()
+    assert sorted(a["sku_id"] for a in tab) == sorted(produce)
+
+    visit = client.post("/api/visits/start", json={"store_id": store_id}, headers=merch).json()["visit_id"]
+    report = client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()
+    assert sorted(s["id"] for s in report["skus"]) == sorted(produce)
+
+    # Saving a new list for the current quarter replaces the carried-forward one
+    r = client.put("/api/approvals/bulk", headers=merch,
+                   json={"store_id": store_id, "quarter": current_quarter(), "sku_ids": produce[:1]})
+    assert r.status_code == 200
+    report = client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()
+    assert [s["id"] for s in report["skus"]] == produce[:1]

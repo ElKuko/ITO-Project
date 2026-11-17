@@ -2158,7 +2158,7 @@ async function loadStoreApprovals() {
   try {
     const [allSkus, approvals] = await Promise.all([
       apiGet('/skus/'),
-      apiGet(`/approvals/?store_id=${storeId}`),
+      apiGet(`/approvals/?store_id=${storeId}&effective=true`),
     ]);
 
     approvalsState.allSkus = allSkus;
@@ -6411,7 +6411,7 @@ function renderSkuReport() {
   const focusKey = document.activeElement?.dataset?.focusKey;
 
   if (report.skus.length === 0) {
-    listEl.innerHTML = `<p class="skr-empty">Esta tienda no tiene SKUs aprobados en ${escapeHtml(SEGMENT_LABELS_NEW[workflowState.currentSegment])} este trimestre. Apruébelos en la pestaña SKUs.</p>`;
+    listEl.innerHTML = `<p class="skr-empty">Esta tienda no tiene SKUs aprobados en ${escapeHtml(SEGMENT_LABELS_NEW[workflowState.currentSegment])}. Apruébelos en la pestaña SKUs.</p>`;
   } else if (visible.length === 0) {
     const emptyMsg = query ? 'Ningún SKU coincide con la búsqueda.'
       : skuReport.filter === 'pending' ? 'Todos los SKUs están registrados.'

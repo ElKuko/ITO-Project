@@ -19,10 +19,19 @@ router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 def list_approvals(
     store_id: int = None,
     quarter: str = None,
+    effective: bool = False,
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """List approved SKUs, optionally filtered by store and quarter."""
+    """List approved SKUs, optionally filtered by store and quarter.
+
+    effective=true (with store_id) returns the list the store's visits use:
+    the most recent quarter with approvals, carried forward to today."""
+    if effective and store_id:
+        from ..quarters import effective_quarter
+        quarter = effective_quarter(db, store_id)
+        if quarter is None:
+            return []
     q = db.query(StoreSKUApproval).options(
         joinedload(StoreSKUApproval.sku),
         joinedload(StoreSKUApproval.store),
