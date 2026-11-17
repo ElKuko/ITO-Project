@@ -166,7 +166,7 @@ async def upload_photo(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate photo type
-    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after", "sku_photo")
+    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after", "sku_photo", "sku_photo_after")
     if photo_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid photo_type. Must be one of: {valid_types}")
     photo_segment = segment if segment and segment.strip() else None
@@ -289,6 +289,9 @@ def get_gondola_groups(
 
 COUNT_FIELDS = ("cajas_puestas", "cajas_faltaron")
 
+# SKU photos: "sku_photo" is the before photo (named before after-photos existed)
+SKU_PHOTO_TYPES = {"sku_photo": "antes", "sku_photo_after": "despues"}
+
 
 def _get_own_visit(db: Session, visit_id: int, current_user: User) -> StoreVisit:
     visit = db.query(StoreVisit).filter(StoreVisit.id == visit_id).first()
@@ -320,7 +323,7 @@ def _report_actions(db: Session, visit_id: int, segment: str):
 def _segment_photos(db: Session, visit_id: int, segment: str):
     return db.query(VisitPhoto).filter(
         VisitPhoto.visit_id == visit_id,
-        VisitPhoto.photo_type == "sku_photo",
+        VisitPhoto.photo_type.in_(SKU_PHOTO_TYPES),
         VisitPhoto.segment == segment,
     )
 
@@ -365,28 +368,37 @@ def _is_registered(action) -> bool:
     return action is not None and action.cajas_puestas is not None and action.cajas_faltaron is not None
 
 
-def _segment_state(total: int, registered: int) -> str:
+def _segment_state(total: int, registered: int, complete: int, started: bool) -> str:
     if total == 0:
         return "no_aplica"
-    if registered == 0:
-        return "pendiente"
-    if registered < total:
-        return "en_progreso"
-    return "completado"
+    if complete == total:
+        return "completado"
+    return "en_progreso" if started else "pendiente"
 
 
 def _segment_summary(db: Session, visit: StoreVisit, segment: str) -> dict:
+    """A SKU is complete once its counts are entered and it has at least one
+    before-photo (foto antes) and one after-photo (foto después)."""
     actions = {a.sku_id: a for a in _report_actions(db, visit.id, segment).all()}
     sku_ids = [s["id"] for s in _segment_skus(db, visit, segment, actions)]
     registered = [actions[i] for i in sku_ids if _is_registered(actions.get(i))]
+    photos = _segment_photos(db, visit.id, segment).options(joinedload(VisitPhoto.sku_links)).all()
+    def skus_with(photo_type):
+        return {link.sku_id for p in photos if p.photo_type == photo_type for link in p.sku_links} & set(sku_ids)
+
+    with_before, with_after = skus_with("sku_photo"), skus_with("sku_photo_after")
+    complete = [a for a in registered if a.sku_id in with_before and a.sku_id in with_after]
     return {
         "segment": segment,
-        "status": _segment_state(len(sku_ids), len(registered)),
+        "status": _segment_state(len(sku_ids), len(registered), len(complete), bool(registered or photos)),
         "skus_total": len(sku_ids),
         "skus_reported": len(registered),
+        "skus_with_before_photo": len(with_before),
+        "skus_with_after_photo": len(with_after),
+        "skus_complete": len(complete),
         "cajas_puestas": sum(a.cajas_puestas for a in registered),
         "cajas_faltaron": sum(a.cajas_faltaron for a in registered),
-        "photos": _segment_photos(db, visit.id, segment).count(),
+        "photos": len(photos),
     }
 
 
@@ -426,7 +438,8 @@ def get_sku_report(
         "editable": not _is_submitted(visit) or current_user.role == "admin",
         "skus": [{**s, **counts(s["id"])} for s in skus],
         "photos": [
-            {"id": p.id, "file_path": p.file_path, "sku_ids": [link.sku_id for link in p.sku_links]}
+            {"id": p.id, "file_path": p.file_path, "kind": SKU_PHOTO_TYPES[p.photo_type],
+             "sku_ids": [link.sku_id for link in p.sku_links]}
             for p in photos
         ],
     }
@@ -507,9 +520,12 @@ def save_sku_report(
         if changed:
             action.updated_at = now
 
+    # Replace photo links only for the SKUs sent, so a partial save never drops other SKUs' photos
     segment_photo_ids = {p.id for p in _segment_photos(db, visit_id, req.segment).all()}
-    if segment_photo_ids:
-        db.query(PhotoSKULink).filter(PhotoSKULink.photo_id.in_(segment_photo_ids)).delete(synchronize_session=False)
+    if segment_photo_ids and items:
+        db.query(PhotoSKULink).filter(
+            PhotoSKULink.photo_id.in_(segment_photo_ids), PhotoSKULink.sku_id.in_(set(items))
+        ).delete(synchronize_session=False)
     for item in req.items:
         for photo_id in set(item.photo_ids) & segment_photo_ids:
             db.add(PhotoSKULink(photo_id=photo_id, sku_id=item.sku_id))
@@ -629,7 +645,7 @@ async def complete_visit(
     ]
     if incomplete:
         detail = "; ".join(
-            f"{s['segment'].capitalize()}: {s['skus_total'] - s['skus_reported']} SKU(s) sin registrar"
+            f"{s['segment'].capitalize()}: {s['skus_total'] - s['skus_complete']} SKU(s) sin completar"
             for s in incomplete
         )
         raise HTTPException(status_code=400, detail=f"Faltan secciones por completar — {detail}")

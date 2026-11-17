@@ -7,7 +7,9 @@ Uses its own throwaway SQLite database.
 import os
 import tempfile
 
-os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp()}/test.db"
+_tmp = tempfile.mkdtemp()
+os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
+os.environ["UPLOAD_DIR"] = f"{_tmp}/uploads"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -23,6 +25,22 @@ def login(username, password):
     r = client.post("/api/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200, r.text
     return {"Authorization": "Bearer " + r.json()["access_token"]}
+
+
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
+    "0000000c4944415408d763f8ffff3f0005fe02fea7d6a4b30000000049454e44ae426082"
+)
+
+
+def upload_sku_photo(visit, headers, segment, sku_ids, photo_type="sku_photo_after"):
+    r = client.post(
+        f"/api/visits/{visit}/photos", headers=headers,
+        files={"file": ("p.png", PNG, "image/png")},
+        data={"photo_type": photo_type, "segment": segment, "sku_ids": ",".join(map(str, sku_ids)), "run_cv": "false"},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
 
 
 def approve_skus(store_id):
@@ -74,7 +92,21 @@ def test_cajas_workflow():
     save("produce", [{"sku_id": p1, "cajas_puestas": 4, "cajas_faltaron": 2},
                      {"sku_id": p2, "cajas_puestas": 0, "cajas_faltaron": 0}])
     save("provisiones", [{"sku_id": i, "cajas_puestas": 1, "cajas_faltaron": 1} for i in skus["provisiones"]])
+
+    # Counts alone don't complete a section: every SKU needs a "foto antes" and a "foto después"
+    assert status() == {"produce": "en_progreso", "provisiones": "en_progreso", "congelados": "no_aplica"}
+    upload_sku_photo(visit, merch, "produce", [p1, p2])  # después only
+    assert status()["produce"] == "en_progreso"
+    upload_sku_photo(visit, merch, "produce", [p1], photo_type="sku_photo")
+    assert status()["produce"] == "en_progreso"  # p2 still lacks antes
+    r = client.put(f"/api/visits/{visit}/complete", json={}, headers=merch)
+    assert r.status_code == 400 and "sin completar" in r.json()["detail"]
+    upload_sku_photo(visit, merch, "produce", [p2], photo_type="sku_photo")
+    for kind in ("sku_photo", "sku_photo_after"):  # one photo can cover several SKUs
+        upload_sku_photo(visit, merch, "provisiones", skus["provisiones"], photo_type=kind)
     assert status() == {"produce": "completado", "provisiones": "completado", "congelados": "no_aplica"}
+    kinds = sorted(p["kind"] for p in client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()["photos"])
+    assert kinds == ["antes", "antes", "despues"]
 
     # Submission is idempotent
     first = client.put(f"/api/visits/{visit}/complete", json={"notes": "ok"}, headers=merch)
@@ -84,7 +116,9 @@ def test_cajas_workflow():
 
     # Only admins edit after submission; a partial save doesn't drop other SKUs
     assert save("produce", [{"sku_id": p1, "cajas_puestas": 9, "cajas_faltaron": 2}]).status_code == 400
-    assert save("produce", [{"sku_id": p1, "cajas_puestas": 5, "cajas_faltaron": 2}], admin).status_code == 200
+    p1_photos = [p["id"] for p in client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=admin).json()["photos"]
+                 if p1 in p["sku_ids"]]
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 5, "cajas_faltaron": 2, "photo_ids": p1_photos}], admin).status_code == 200
     assert status()["produce"] == "completado"
 
     # Catalog changes don't alter submitted history

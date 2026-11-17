@@ -4420,3 +4420,17 @@ input.skr-val:focus { outline: 2px solid var(--skr-blue); outline-offset: 0; bor
 .cajas-grand-total { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 0; border-top: 2px solid var(--text); font-weight: 700; }
 .cajas-history { margin-top: 12px; font-size: 13px; }
 .cajas-history li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+
+/* Foto antes / Foto después */
+.skr-photo-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.skr-photo-buttons .skr-cam { justify-content: center; min-width: 0; }
+.skr-photo-buttons .skr-cam span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skr-cam.needs-photo { border-color: var(--skr-ink-3); }
+.skr-thumb-kind {
+  position: absolute; left: 2px; top: 2px; padding: 0 4px; border-radius: 4px;
+  font-size: 10px; font-weight: 800; line-height: 16px; color: #fff;
+}
+.skr-thumb-kind-antes { background: var(--skr-ink-2); }
+.skr-thumb-kind-despues { background: #2E7D32; }
+.skr-badge-todo { color: var(--skr-ink-2); background: #fff; border-color: var(--skr-line); }
+.skr-card.is-complete { border-color: #B7D2B0; }
