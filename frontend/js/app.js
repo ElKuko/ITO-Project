@@ -1194,9 +1194,9 @@ function renderPairsReview(reports) {
           <div class="skr-pair-head"><strong>Góndola ${p.number}</strong>
             <span>${p.minutes_between !== null ? `${p.minutes_between} min entre fotos` : 'Sin foto después'}</span></div>
           <div class="skr-pair-photos">
-            <a class="skr-pair-photo" href="${escapeHtml(p.antes.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.antes.url)}" alt="Antes"><span>Antes · ${formatPrDate(p.antes.captured_at, { timeStyle: 'short' })}</span></a>
+            <button type="button" class="skr-pair-photo" onclick="openPhotoViewer('${escapeHtml(p.antes.url)}', this.querySelector('span').textContent)"><img src="${escapeHtml(p.antes.url)}" alt="Antes"><span>Antes · ${formatPrDate(p.antes.captured_at, { timeStyle: 'short' })}</span></button>
             ${p.despues
-              ? `<a class="skr-pair-photo" href="${escapeHtml(p.despues.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.despues.url)}" alt="Después"><span>Después · ${formatPrDate(p.despues.captured_at, { timeStyle: 'short' })}</span></a>`
+              ? `<button type="button" class="skr-pair-photo" onclick="openPhotoViewer('${escapeHtml(p.despues.url)}', this.querySelector('span').textContent)"><img src="${escapeHtml(p.despues.url)}" alt="Después"><span>Después · ${formatPrDate(p.despues.captured_at, { timeStyle: 'short' })}</span></button>`
               : '<div class="skr-pair-photo is-empty"><span>Después</span></div>'}
           </div>
           <div class="skr-pair-skus">${p.sku_ids.map(id => escapeHtml(skuName(id))).join(' · ')}</div>
@@ -6645,7 +6645,7 @@ function renderPhotoPairs(report) {
   const el = document.getElementById('skr-pairs');
   const skuName = id => report.skus.find(s => s.id === id)?.name || `SKU ${id}`;
   const thumb = (photo, label) => photo
-    ? `<a class="skr-pair-photo" href="${escapeHtml(photo.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(photo.url)}" alt="${label}"><span>${label}</span></a>`
+    ? `<button type="button" class="skr-pair-photo" onclick="openPhotoViewer('${escapeHtml(photo.url)}', this.querySelector('span').textContent)"><img src="${escapeHtml(photo.url)}" alt="${label}"><span>${label}</span></button>`
     : `<div class="skr-pair-photo is-empty"><span>${label}</span></div>`;
   const unassigned = report.skus.filter(s => !pairOfSku(report, s.id)).length;
 
@@ -6667,7 +6667,8 @@ function renderPhotoPairs(report) {
         <div class="skr-pair-skus">${pair.sku_ids.map(id => escapeHtml(skuName(id))).join(' · ')}</div>
         <div class="skr-pair-actions">
           ${pair.despues
-            ? `<button class="skr-btn-ghost" onclick="takeFotoDespues('${pair.group_id}')">Repetir foto después</button>
+            ? `<p class="skr-pair-hint">SKUs bloqueados porque ya hay foto después. Para cambiarlos, elimine la foto después.</p>
+               <button class="skr-btn-ghost" onclick="takeFotoDespues('${pair.group_id}')">Repetir foto después</button>
                <button class="skr-btn-ghost" onclick="deleteFotoDespues('${pair.group_id}')">Eliminar foto después</button>`
             : `<button class="skr-save is-ready" onclick="takeFotoDespues('${pair.group_id}')">${SKR_ICON_CAMERA} Tomar foto después</button>
                <button class="skr-btn-ghost" onclick="editPairSkus('${pair.group_id}')">Cambiar SKUs</button>
@@ -6675,6 +6676,36 @@ function renderPhotoPairs(report) {
           <button class="skr-btn-ghost is-danger" onclick="deletePhotoPair('${pair.group_id}')">Eliminar góndola</button>
         </div>
       </section>`).join('')}`;
+}
+
+// Full-screen photo viewer with a close button (opening the image as its own page
+// leaves an installed app with no way back).
+function openPhotoViewer(url, caption = '') {
+  let el = document.getElementById('photo-viewer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'photo-viewer';
+    el.className = 'photo-viewer';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.innerHTML = `
+      <button type="button" class="photo-viewer-close" aria-label="Cerrar foto" onclick="closePhotoViewer()">✕ Cerrar</button>
+      <img alt="">
+      <div class="photo-viewer-caption"></div>`;
+    el.addEventListener('click', e => { if (e.target === el) closePhotoViewer(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closePhotoViewer(); });
+    document.body.appendChild(el);
+  }
+  el.querySelector('img').src = url;
+  el.querySelector('img').alt = caption;
+  el.querySelector('.photo-viewer-caption').textContent = caption;
+  el.hidden = false;
+  el.querySelector('.photo-viewer-close').focus();
+}
+
+function closePhotoViewer() {
+  const el = document.getElementById('photo-viewer');
+  if (el) el.hidden = true;
 }
 
 function scrollToPair(groupId) {
