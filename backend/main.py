@@ -38,7 +38,47 @@ def add_missing_columns():
                 print(f"Added missing column {table.name}.{column.name}")
 
 
+def relax_stale_not_null():
+    """Older databases can have NOT NULL on columns the models now leave optional
+    (e.g. visit_sku_actions.action_type, which box-count rows don't use), making
+    inserts fail. Drop those constraints so the database matches the models."""
+    inspector = inspect(engine)
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        db_cols = {c["name"]: c for c in inspector.get_columns(table.name)}
+        stale = [
+            col.name for col in table.columns
+            if col.nullable and not col.primary_key
+            and col.name in db_cols and not db_cols[col.name]["nullable"]
+        ]
+        if not stale:
+            continue
+        print(f"Making optional in {table.name}: {', '.join(stale)}")
+        if engine.dialect.name != "sqlite":
+            with engine.begin() as conn:
+                for name in stale:
+                    conn.execute(text(f'ALTER TABLE {table.name} ALTER COLUMN "{name}" DROP NOT NULL'))
+            continue
+        # SQLite can't alter a column: rebuild the table from the model and copy the rows over.
+        shared = [c.name for c in table.columns if c.name in db_cols]
+        cols = ", ".join(f'"{c}"' for c in shared)
+        old = f"{table.name}__old"
+        with engine.begin() as conn:
+            conn.execute(text("PRAGMA foreign_keys=OFF"))
+            for (index,) in conn.execute(text(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=:t AND sql IS NOT NULL"
+            ), {"t": table.name}).fetchall():
+                conn.execute(text(f'DROP INDEX "{index}"'))
+            conn.execute(text(f'ALTER TABLE {table.name} RENAME TO "{old}"'))
+            table.create(conn)
+            conn.execute(text(f'INSERT INTO {table.name} ({cols}) SELECT {cols} FROM "{old}"'))
+            conn.execute(text(f'DROP TABLE "{old}"'))
+            conn.execute(text("PRAGMA foreign_keys=ON"))
+
+
 add_missing_columns()
+relax_stale_not_null()
 
 
 def seed_if_empty():

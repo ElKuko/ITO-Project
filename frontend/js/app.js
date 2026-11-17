@@ -6298,10 +6298,11 @@ function scheduleSkuReportSave(delay) {
   clearTimeout(skuReportSaveTimer);
   skuReportSaveTimer = setTimeout(() => {
     saveSkuReports().catch(err => {
-      // Usually a dropped connection in the store: keep the entries on the phone and retry.
       console.error('Error saving SKU report:', err);
-      setSaveWarning(true);
-      scheduleSkuReportSave(5000);
+      setSaveWarning(err);
+      // No connection or a server hiccup: keep the entries on the phone and retry.
+      // A rejected request (4xx) won't succeed by retrying, so wait for the next change.
+      if (!err.status || err.status >= 500) scheduleSkuReportSave(err.status ? 15000 : 5000);
     });
   }, delay);
 }
@@ -6311,18 +6312,23 @@ function markSkuReportDirty() {
   scheduleSkuReportSave(1200);
 }
 
-function setSaveWarning(show) {
+// err: false hides the banner; an Error shows why saving failed.
+function setSaveWarning(err) {
   let el = document.getElementById('skr-save-warning');
-  if (!el && !show) return;
+  if (!el && !err) return;
   if (!el) {
     el = document.createElement('div');
     el.id = 'skr-save-warning';
     el.className = 'skr-save-warning';
     el.setAttribute('role', 'status');
-    el.textContent = 'Sin conexión — sus conteos están en el teléfono y se guardarán al reconectar. Reintentando…';
     document.body.appendChild(el);
   }
-  el.hidden = !show;
+  if (err) {
+    el.textContent = !err.status
+      ? 'Sin conexión — sus conteos están en el teléfono y se guardarán al reconectar. Reintentando…'
+      : `No se pudo guardar: ${err.message}`;
+  }
+  el.hidden = !err;
 }
 
 async function completarSeccion(btn) {
@@ -6345,8 +6351,8 @@ async function completarSeccion(btn) {
     workflowState.currentSegment = null;
     showStep(2);
   } catch (err) {
-    setSaveWarning(true);
-    toast('No se pudo guardar. Revise su conexión e intente de nuevo.');
+    setSaveWarning(err);
+    toast(err.status ? `No se pudo guardar: ${err.message}` : 'No se pudo guardar. Revise su conexión e intente de nuevo.');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Completar sección';

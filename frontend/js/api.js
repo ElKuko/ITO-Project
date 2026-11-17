@@ -50,8 +50,13 @@ async function api(path, options = {}) {
     throw new Error('Unauthorized');
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(err.detail || 'Request failed');
+    const body = await res.json().catch(() => ({}));
+    const detail = typeof body.detail === 'string' ? body.detail
+      : Array.isArray(body.detail) ? body.detail.map(d => d.msg).join('; ')
+      : `Error del servidor (${res.status})`;
+    const error = new Error(detail);
+    error.status = res.status;  // set only when the server answered; network failures have none
+    throw error;
   }
   return res.json();
 }

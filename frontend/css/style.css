@@ -4392,8 +4392,10 @@ input.skr-val::placeholder { color: var(--skr-ink-3); opacity: .55; }
 input.skr-val:focus { outline: 2px solid var(--skr-blue); outline-offset: 0; border-radius: 8px; background: #fff; }
 .skr-save:not(.is-ready) { background: var(--skr-ink-2); }
 
+/* Sits at the top and lets taps through, so it never blocks buttons (e.g. the photo sheet's) */
 .skr-save-warning {
-  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 1000; padding: 12px 14px; border-radius: 12px;
+  position: fixed; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); z-index: 1100; pointer-events: none;
+  padding: 10px 14px; border-radius: 12px;
   background: #5C2A0A; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.25);
 }
 .skr-save-warning[hidden] { display: none; }
