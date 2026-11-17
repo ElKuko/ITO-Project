@@ -6559,12 +6559,19 @@ function editSkuPhoto(photoId) {
 
 function openPhotoSheet(sheet) {
   const report = currentSkuReport();
-  // Pre-selected SKUs go first so the one the photo was taken for is always in view.
+  // Photos each SKU already has, not counting the photo being edited
+  const photoCount = id => report.photos.filter(p => p.id !== sheet.photoId && p.skuIds.includes(id)).length;
+  // Pre-selected SKUs go first so the one the photo was taken for is always in view,
+  // then the ones still without a photo, then the ones that already have one.
   sheet.order = [
     ...report.skus.filter(s => sheet.selected.has(s.id)),
-    ...report.skus.filter(s => !sheet.selected.has(s.id)),
+    ...report.skus.filter(s => !sheet.selected.has(s.id) && photoCount(s.id) === 0),
+    ...report.skus.filter(s => !sheet.selected.has(s.id) && photoCount(s.id) > 0),
   ];
   photoSheet = sheet;
+  const withPhoto = report.skus.filter(s => photoCount(s.id) > 0).length;
+  document.getElementById('skr-sheet-progress').textContent =
+    `${withPhoto} de ${report.skus.length} SKUs ya tienen foto · ${report.skus.length - withPhoto} sin foto`;
 
   document.getElementById('skr-sheet-title').textContent =
     sheet.mode === 'new' ? '¿Qué SKUs aparecen en la foto?' : 'SKUs en esta foto';
@@ -6577,6 +6584,9 @@ function openPhotoSheet(sheet) {
           <span class="skr-check-name">${escapeHtml(sku.name)}</span>
           <span class="skr-check-code">SKU ${escapeHtml(skuCode(sku))}${sku.id === sheet.originSkuId ? ' · Tomada para este SKU' : ''}</span>
         </span>
+        ${photoCount(sku.id)
+          ? `<span class="skr-photo-tag has-photo">📷 ${photoCount(sku.id) > 1 ? photoCount(sku.id) + ' fotos' : 'Con foto'}</span>`
+          : '<span class="skr-photo-tag">Sin foto</span>'}
       </label>
     </li>`).join('');
 
