@@ -1178,6 +1178,35 @@ function renderCajasSummary(reports, summaries) {
     </div>`;
 }
 
+const PAIR_FLAG_LABELS = {
+  despues_rapida: 'Foto después tomada menos de 1 minuto después de la foto antes',
+  foto_no_reciente: 'Una foto no parece tomada en el momento (posible foto de galería)',
+};
+
+// Side-by-side before/after review of every góndola, with quality flags.
+function renderPairsReview(reports) {
+  const sections = Object.entries(reports).filter(([, r]) => r.pairs.length).map(([segment, report]) => {
+    const skuName = id => report.skus.find(s => s.id === id)?.name || `SKU ${id}`;
+    return `<div class="cajas-section">
+      <div class="cajas-section-head"><strong>Góndolas · ${SEGMENT_LABELS_NEW[segment]}</strong><span>${report.pairs.length}</span></div>
+      ${report.pairs.map(p => `
+        <div class="skr-pair ${p.flags.length ? 'is-flagged' : ''}">
+          <div class="skr-pair-head"><strong>Góndola ${p.number}</strong>
+            <span>${p.minutes_between !== null ? `${p.minutes_between} min entre fotos` : 'Sin foto después'}</span></div>
+          <div class="skr-pair-photos">
+            <a class="skr-pair-photo" href="${escapeHtml(p.antes.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.antes.url)}" alt="Antes"><span>Antes · ${formatPrDate(p.antes.captured_at, { timeStyle: 'short' })}</span></a>
+            ${p.despues
+              ? `<a class="skr-pair-photo" href="${escapeHtml(p.despues.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.despues.url)}" alt="Después"><span>Después · ${formatPrDate(p.despues.captured_at, { timeStyle: 'short' })}</span></a>`
+              : '<div class="skr-pair-photo is-empty"><span>Después</span></div>'}
+          </div>
+          <div class="skr-pair-skus">${p.sku_ids.map(id => escapeHtml(skuName(id))).join(' · ')}</div>
+          ${p.flags.map(f => `<div class="skr-pair-flag">⚠ ${PAIR_FLAG_LABELS[f] || f}</div>`).join('')}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+  return sections;
+}
+
 async function loadCajasReports(visitId, summaries) {
   const reports = {};
   await Promise.all(summaries.filter(s => s.status !== 'no_aplica').map(async s => {
@@ -1288,7 +1317,7 @@ async function showVisitDetail(visitId, highlightGroupId = null, highlightPhotoT
 
     // Separate arrival photos from gondola photos
     const arrivalPhotos = (v.photos || []).filter(p => p.photo_type === 'arrival_proof');
-    const gondolaPhotos = (v.photos || []).filter(p => p.photo_type !== 'arrival_proof');
+    const gondolaPhotos = (v.photos || []).filter(p => !['arrival_proof', 'sku_photo', 'sku_photo_after'].includes(p.photo_type));
 
     // Group gondola photos by gondola_group_id
     const gondolaGroups = {};
@@ -1469,6 +1498,7 @@ async function loadVisitCajasDetail(v) {
     el.innerHTML = `
       <div class="summary-item"><span>Estado:</span><span>${submitted ? 'Enviada' : 'En progreso'}${v.end_time ? ' · ' + formatPrDate(v.end_time + 'Z', { dateStyle: 'medium', timeStyle: 'short' }) : ''}</span></div>
       ${renderCajasSummary(reports, summaries)}
+      ${renderPairsReview(reports)}
       <div style="margin-top:8px;"><strong>Observaciones de la visita</strong><div>${notes}</div></div>
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
         ${isAdmin && submitted ? '<button class="btn btn-outline btn-sm" onclick="startCajasEdit()">✏️ Editar conteos</button>' : ''}
@@ -6257,7 +6287,7 @@ async function loadSkuReport(segment, visitId = visitState.visitId) {
     skus: data.skus,
     editable: data.editable,
     counts: Object.fromEntries(data.skus.map(s => [s.id, { p: s.cajas_puestas, f: s.cajas_faltaron }])),
-    photos: data.photos.map(p => ({ id: p.id, url: p.file_path, kind: p.kind, skuIds: p.sku_ids })),
+    pairs: data.pairs,
     dirty: false,
   };
 }
@@ -6266,21 +6296,18 @@ function isSkuRegistered(c) {
   return c.p !== null && c.f !== null;
 }
 
-const PHOTO_KINDS = {
-  antes: { label: 'Foto antes', photoType: 'sku_photo', short: 'A' },
-  despues: { label: 'Foto después', photoType: 'sku_photo_after', short: 'D' },
-};
-
-function skuPhotoCount(report, skuId, kind, exceptPhotoId = null) {
-  return report.photos.filter(p => p.kind === kind && p.id !== exceptPhotoId && p.skuIds.includes(skuId)).length;
+// Before/after photo pairs ("góndolas"): foto antes picks the SKUs, foto después covers the same ones.
+function pairOfSku(report, skuId) {
+  return report.pairs.find(p => p.sku_ids.includes(skuId)) || null;
 }
 
 // What a SKU still needs before its section can be completed.
 function skuMissingSteps(report, skuId) {
   const missing = [];
+  const pair = pairOfSku(report, skuId);
   if (!isSkuRegistered(report.counts[skuId])) missing.push('conteo');
-  if (!skuPhotoCount(report, skuId, 'antes')) missing.push('foto antes');
-  if (!skuPhotoCount(report, skuId, 'despues')) missing.push('foto después');
+  if (!pair) missing.push('foto antes');
+  if (!pair?.despues) missing.push('foto después');
   return missing;
 }
 
@@ -6291,8 +6318,7 @@ function isSkuComplete(report, skuId) {
 function skuReportItems(report) {
   return report.skus.map(sku => {
     const c = report.counts[sku.id];
-    const photoIds = report.photos.filter(p => p.skuIds.includes(sku.id)).map(p => p.id);
-    return { sku_id: sku.id, cajas_puestas: c.p, cajas_faltaron: c.f, photo_ids: photoIds };
+    return { sku_id: sku.id, cajas_puestas: c.p, cajas_faltaron: c.f };
   });
 }
 
@@ -6363,8 +6389,9 @@ async function completarSeccion(btn) {
     const need = step => pendingSkus.filter(s => skuMissingSteps(report, s.id).includes(step)).length;
     const parts = [
       need('conteo') && `${need('conteo')} sin conteo`,
-      need('foto antes') && `${need('foto antes')} sin foto antes`,
-      need('foto después') && `${need('foto después')} sin foto después`,
+      need('foto antes') && `${need('foto antes')} sin góndola (foto antes)`,
+      report.pairs.some(p => !p.despues) &&
+        `góndola ${report.pairs.filter(p => !p.despues).map(p => p.number).join(', ')} sin foto después`,
     ].filter(Boolean).join(', ');
     toast(`Faltan ${pending} SKU${pending === 1 ? '' : 's'} por completar: ${parts}.`, 4500);
     setSkuFilter('pending');
@@ -6441,6 +6468,7 @@ function renderSkuReport() {
   const visible = report.skus.filter(sku =>
     (skuReport.filter === 'all' || skuReport.filterIds?.has(sku.id)) && skuMatchesQuery(sku, query));
 
+  renderPhotoPairs(report);
   const listEl = document.getElementById('skr-list');
   const focusKey = document.activeElement?.dataset?.focusKey;
 
@@ -6462,7 +6490,6 @@ function renderSkuCard(sku, report) {
   const c = report.counts[sku.id];
   const name = escapeHtml(sku.name);
   const pack = escapeHtml([sku.brand, sku.category].filter(Boolean).join(' · '));
-  const photos = report.photos.filter(p => p.skuIds.includes(sku.id));
   const registered = isSkuRegistered(c);
   const missing = registered && c.f > 0;
   const todo = skuMissingSteps(report, sku.id);
@@ -6484,20 +6511,16 @@ function renderSkuCard(sku, report) {
       : missing ? '<div class="skr-badge">Faltante</div>' : '<div class="skr-badge skr-badge-ok">✓ Completo</div>')
     : `<button class="skr-zero" data-focus-key="${sku.id}-zero" onclick="registerSkuZero(${sku.id})" aria-label="Registrar ${name} sin trabajo: 0 puestas y 0 faltaron">✓ 0 / 0</button>`;
 
-  const thumbs = [...photos].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'antes' ? -1 : 1)).map(p => `
-    <button class="skr-thumb" aria-label="Ver ${PHOTO_KINDS[p.kind].label.toLowerCase()}${p.skuIds.length > 1 ? `, compartida con ${p.skuIds.length - 1} SKU más` : ''}" onclick="editSkuPhoto(${p.id})">
-      <img src="${escapeHtml(p.url)}" alt="">
-      <span class="skr-thumb-kind skr-thumb-kind-${p.kind}">${PHOTO_KINDS[p.kind].short}</span>
-      ${p.skuIds.length > 1 ? `<span class="skr-thumb-shared">+${p.skuIds.length - 1}</span>` : ''}
-    </button>`).join('');
-
-  const camButton = kind => {
-    const n = skuPhotoCount(report, sku.id, kind);
-    return `<button class="skr-cam ${n ? 'has-photo' : 'needs-photo'}" data-focus-key="${sku.id}-cam-${kind}" onclick="captureSkuPhoto(${sku.id}, '${kind}')">
-      ${n ? '✓' : SKR_ICON_CAMERA}<span>${PHOTO_KINDS[kind].label}${n > 1 ? ` (${n})` : ''}</span>
-    </button>`;
-  };
-
+  const pair = pairOfSku(report, sku.id);
+  const photoRow = !pair
+    ? `<button class="skr-cam needs-photo" data-focus-key="${sku.id}-cam" onclick="startPhotoPair(${sku.id})">
+         ${SKR_ICON_CAMERA}<span>Foto antes</span></button>
+       <span class="skr-photo-state">Sin góndola</span>`
+    : !pair.despues
+      ? `<button class="skr-cam needs-photo" data-focus-key="${sku.id}-cam" onclick="takeFotoDespues('${pair.group_id}')">
+           ${SKR_ICON_CAMERA}<span>Foto después</span></button>
+         <button class="skr-photo-state is-link" onclick="scrollToPair('${pair.group_id}')">Góndola ${pair.number} · falta foto después</button>`
+      : `<button class="skr-photo-state is-done" onclick="scrollToPair('${pair.group_id}')">✓ Góndola ${pair.number} · antes y después</button>`;
   return `
     <section class="skr-card ${missing ? 'is-missing' : ''} ${registered ? 'is-registered' : 'is-pending'} ${todo.length ? '' : 'is-complete'}" aria-label="${name}">
       <div class="skr-card-top">
@@ -6513,8 +6536,7 @@ function renderSkuCard(sku, report) {
         ${stepper('p', 'Cajas puestas', 'Restar caja puesta', 'Sumar caja puesta')}
         ${stepper('f', 'Cajas que faltaron', 'Restar caja faltante', 'Sumar caja faltante')}
       </div>
-      <div class="skr-photo-buttons">${camButton('antes')}${camButton('despues')}</div>
-      ${thumbs ? `<div class="skr-thumbs">${thumbs}</div>` : ''}
+      <div class="skr-photos">${photoRow}</div>
     </section>`;
 }
 
@@ -6584,56 +6606,174 @@ function onSkuSearch(value) {
   renderSkuReport();
 }
 
-// ── Photo → multiple SKUs ───────────────────────────────────────────────
+// ── Before/after photo pairs ("góndolas") ───────────────────────────────
 
-function captureSkuPhoto(skuId, kind) {
+// Camera only: a photo whose file is older than this came from the photo library.
+const MAX_PHOTO_AGE_MS = 2 * 60 * 1000;
+
+function pickCameraPhoto(onPhoto) {
   const input = document.getElementById('camera-sku-photo');
   input.value = '';
   input.onchange = () => {
     const file = input.files[0];
-    if (file) openPhotoSheet({ mode: 'new', kind, file, url: URL.createObjectURL(file), originSkuId: skuId, selected: new Set([skuId]) });
+    if (!file) return;
+    if (file.lastModified && Date.now() - file.lastModified > MAX_PHOTO_AGE_MS) {
+      toast('Use la cámara para tomar una foto nueva. No se permiten fotos de la galería.', 4500);
+      return;
+    }
+    onPhoto(file);
   };
   input.click();
 }
 
-function editSkuPhoto(photoId) {
-  const photo = currentSkuReport().photos.find(p => p.id === photoId);
-  openPhotoSheet({ mode: 'edit', kind: photo.kind, photoId, url: photo.url, selected: new Set(photo.skuIds) });
+function pairPhotoForm(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('file_modified_at', String(file.lastModified || ''));
+  formData.append('latitude', visitState.gps.lat || '');
+  formData.append('longitude', visitState.gps.lng || '');
+  formData.append('gps_accuracy', visitState.gps.accuracy || '');
+  return formData;
+}
+
+function upsertPair(report, pair) {
+  const i = report.pairs.findIndex(p => p.group_id === pair.group_id);
+  if (i >= 0) report.pairs[i] = pair; else report.pairs.push(pair);
+}
+
+function renderPhotoPairs(report) {
+  const el = document.getElementById('skr-pairs');
+  const skuName = id => report.skus.find(s => s.id === id)?.name || `SKU ${id}`;
+  const thumb = (photo, label) => photo
+    ? `<a class="skr-pair-photo" href="${escapeHtml(photo.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(photo.url)}" alt="${label}"><span>${label}</span></a>`
+    : `<div class="skr-pair-photo is-empty"><span>${label}</span></div>`;
+  const unassigned = report.skus.filter(s => !pairOfSku(report, s.id)).length;
+
+  el.innerHTML = `
+    <div class="skr-pairs-head">
+      <div>
+        <div class="skr-pairs-title">Fotos de góndola</div>
+        <div class="skr-pairs-sub">${unassigned ? `${unassigned} SKU${unassigned === 1 ? '' : 's'} sin góndola` : 'Todos los SKUs están en una góndola'}</div>
+      </div>
+      ${unassigned ? `<button class="skr-cam needs-photo" onclick="startPhotoPair()">${SKR_ICON_CAMERA}<span>Foto antes</span></button>` : ''}
+    </div>
+    ${report.pairs.map(pair => `
+      <section class="skr-pair ${pair.despues ? 'is-done' : ''}" id="pair-${pair.group_id}">
+        <div class="skr-pair-head">
+          <strong>Góndola ${pair.number}</strong>
+          <span>${pair.despues ? '✓ Completa' : 'Falta foto después'}</span>
+        </div>
+        <div class="skr-pair-photos">${thumb(pair.antes, 'Antes')}${thumb(pair.despues, 'Después')}</div>
+        <div class="skr-pair-skus">${pair.sku_ids.map(id => escapeHtml(skuName(id))).join(' · ')}</div>
+        <div class="skr-pair-actions">
+          ${pair.despues
+            ? `<button class="skr-btn-ghost" onclick="takeFotoDespues('${pair.group_id}')">Repetir foto después</button>
+               <button class="skr-btn-ghost" onclick="deleteFotoDespues('${pair.group_id}')">Eliminar foto después</button>`
+            : `<button class="skr-save is-ready" onclick="takeFotoDespues('${pair.group_id}')">${SKR_ICON_CAMERA} Tomar foto después</button>
+               <button class="skr-btn-ghost" onclick="editPairSkus('${pair.group_id}')">Cambiar SKUs</button>
+               <button class="skr-btn-ghost" onclick="retakeFotoAntes('${pair.group_id}')">Repetir foto antes</button>`}
+          <button class="skr-btn-ghost is-danger" onclick="deletePhotoPair('${pair.group_id}')">Eliminar góndola</button>
+        </div>
+      </section>`).join('')}`;
+}
+
+function scrollToPair(groupId) {
+  document.getElementById(`pair-${groupId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function startPhotoPair(skuId = null) {
+  pickCameraPhoto(file => openPhotoSheet({
+    mode: 'new', file, url: URL.createObjectURL(file), originSkuId: skuId,
+    selected: new Set(skuId ? [skuId] : []),
+  }));
+}
+
+function editPairSkus(groupId) {
+  const pair = currentSkuReport().pairs.find(p => p.group_id === groupId);
+  openPhotoSheet({ mode: 'edit', groupId, url: pair.antes.url, selected: new Set(pair.sku_ids) });
+}
+
+async function pairRequest(path, options, okMessage) {
+  const report = currentSkuReport();
+  try {
+    const result = await api(`/visits/${visitState.visitId}/photo-pairs${path}`, options);
+    if (result?.group_id) upsertPair(report, result);
+    if (okMessage) toast(okMessage);
+    renderSkuReport();
+    return result;
+  } catch (err) {
+    toast('Error: ' + err.message, 4500);
+    return null;
+  }
+}
+
+function takeFotoDespues(groupId) {
+  pickCameraPhoto(file => {
+    toast('Subiendo foto después…');
+    const pair = currentSkuReport().pairs.find(p => p.group_id === groupId);
+    pairRequest(`/${groupId}/despues`, { method: 'POST', body: pairPhotoForm(file) },
+      `Foto después guardada · Góndola ${pair.number}`);
+  });
+}
+
+function retakeFotoAntes(groupId) {
+  pickCameraPhoto(file => {
+    toast('Subiendo foto antes…');
+    pairRequest(`/${groupId}/antes`, { method: 'POST', body: pairPhotoForm(file) }, 'Foto antes reemplazada');
+  });
+}
+
+function deleteFotoDespues(groupId) {
+  if (!confirm('¿Eliminar la foto después? Podrá tomarla de nuevo.')) return;
+  pairRequest(`/${groupId}?only=despues`, { method: 'DELETE' }, 'Foto después eliminada');
+}
+
+async function deletePhotoPair(groupId) {
+  const report = currentSkuReport();
+  const pair = report.pairs.find(p => p.group_id === groupId);
+  if (!confirm(`¿Eliminar la Góndola ${pair.number} y sus fotos? Sus SKUs quedarán sin góndola.`)) return;
+  const ok = await pairRequest(`/${groupId}`, { method: 'DELETE' }, `Góndola ${pair.number} eliminada`);
+  if (ok) {
+    report.pairs = report.pairs.filter(p => p.group_id !== groupId);
+    // Renumber like the server does (order taken)
+    report.pairs.forEach((p, i) => { p.number = i + 1; });
+    renderSkuReport();
+  }
 }
 
 function openPhotoSheet(sheet) {
   const report = currentSkuReport();
-  // Photos of this kind (antes/después) each SKU already has, not counting the photo being edited
-  const kindLabel = PHOTO_KINDS[sheet.kind].label.toLowerCase();
-  const photoCount = id => skuPhotoCount(report, id, sheet.kind, sheet.photoId);
-  // Pre-selected SKUs go first so the one the photo was taken for is always in view,
-  // then the ones still without a photo, then the ones that already have one.
+  const otherPair = id => report.pairs.find(p => p.group_id !== sheet.groupId && p.sku_ids.includes(id));
+  // The SKU the photo was taken for first, then free SKUs, then SKUs already in another góndola.
   sheet.order = [
     ...report.skus.filter(s => sheet.selected.has(s.id)),
-    ...report.skus.filter(s => !sheet.selected.has(s.id) && photoCount(s.id) === 0),
-    ...report.skus.filter(s => !sheet.selected.has(s.id) && photoCount(s.id) > 0),
+    ...report.skus.filter(s => !sheet.selected.has(s.id) && !otherPair(s.id)),
+    ...report.skus.filter(s => !sheet.selected.has(s.id) && otherPair(s.id)),
   ];
   photoSheet = sheet;
-  const withPhoto = report.skus.filter(s => photoCount(s.id) > 0).length;
+  const free = report.skus.filter(s => !otherPair(s.id)).length;
   document.getElementById('skr-sheet-progress').textContent =
-    `${withPhoto} de ${report.skus.length} SKUs ya tienen ${kindLabel} · ${report.skus.length - withPhoto} sin ${kindLabel}`;
+    `${report.skus.length - free} de ${report.skus.length} SKUs ya están en otra góndola · ${free} disponibles`;
 
   document.getElementById('skr-sheet-title').textContent =
-    `${PHOTO_KINDS[sheet.kind].label}: ${sheet.mode === 'new' ? '¿qué SKUs aparecen?' : 'SKUs en esta foto'}`;
+    sheet.mode === 'new' ? 'Foto antes: ¿qué SKUs aparecen?' : 'Cambiar SKUs de la góndola';
   document.getElementById('skr-sheet-photo').src = sheet.url;
-  document.getElementById('skr-sheet-list').innerHTML = sheet.order.map(sku => `
+  document.getElementById('skr-sheet-list').innerHTML = sheet.order.map(sku => {
+    const taken = otherPair(sku.id);
+    return `
     <li>
-      <label class="skr-check">
-        <input type="checkbox" ${sheet.selected.has(sku.id) ? 'checked' : ''} onchange="togglePhotoSheetSku(${sku.id}, this.checked)">
+      <label class="skr-check ${taken ? 'is-taken' : ''}">
+        <input type="checkbox" ${sheet.selected.has(sku.id) ? 'checked' : ''} ${taken ? 'disabled' : ''} onchange="togglePhotoSheetSku(${sku.id}, this.checked)">
         <span class="skr-check-text">
           <span class="skr-check-name">${escapeHtml(sku.name)}</span>
           <span class="skr-check-code">SKU ${escapeHtml(skuCode(sku))}${sku.id === sheet.originSkuId ? ' · Tomada para este SKU' : ''}</span>
         </span>
-        ${photoCount(sku.id)
-          ? `<span class="skr-photo-tag has-photo">📷 ${photoCount(sku.id) > 1 ? photoCount(sku.id) + ' fotos' : 'Con foto'}</span>`
+        ${taken
+          ? `<span class="skr-photo-tag has-photo">📷 En Góndola ${taken.number}</span>`
           : '<span class="skr-photo-tag">Sin foto</span>'}
       </label>
-    </li>`).join('');
+    </li>`;
+  }).join('');
 
   updatePhotoSheetConfirm();
   document.getElementById('skr-photo-sheet').hidden = false;
@@ -6649,13 +6789,10 @@ function togglePhotoSheetSku(skuId, checked) {
 function updatePhotoSheetConfirm() {
   const btn = document.getElementById('skr-sheet-confirm');
   const n = photoSheet.selected.size;
-  if (photoSheet.mode === 'edit' && n === 0) {
-    btn.textContent = 'Quitar foto';
-    btn.disabled = false;
-  } else {
-    btn.textContent = `Asociar a ${n} SKU${n === 1 ? '' : 's'}`;
-    btn.disabled = n === 0;
-  }
+  btn.textContent = photoSheet.mode === 'new'
+    ? `Guardar foto antes (${n} SKU${n === 1 ? '' : 's'})`
+    : `Guardar (${n} SKU${n === 1 ? '' : 's'})`;
+  btn.disabled = n === 0;
 }
 
 function closePhotoSheet() {
@@ -6667,39 +6804,23 @@ function closePhotoSheet() {
 
 async function confirmPhotoSheet() {
   const sheet = photoSheet;
-  const report = currentSkuReport();
   const skuIds = [...sheet.selected];
-
-  if (sheet.mode === 'edit') {
-    report.photos.find(p => p.id === sheet.photoId).skuIds = skuIds;
-    markSkuReportDirty();
-    closePhotoSheet();
-    renderSkuReport();
-    toast(skuIds.length ? `Foto asociada a ${skuIds.length} SKU${skuIds.length === 1 ? '' : 's'}` : 'Foto quitada');
-    return;
-  }
-
   const btn = document.getElementById('skr-sheet-confirm');
   btn.disabled = true;
-  btn.textContent = 'Subiendo…';
-  try {
-    const formData = new FormData();
-    formData.append('file', sheet.file);
-    formData.append('photo_type', PHOTO_KINDS[sheet.kind].photoType);
+  btn.textContent = sheet.mode === 'new' ? 'Subiendo…' : 'Guardando…';
+
+  let pair;
+  if (sheet.mode === 'edit') {
+    pair = await pairRequest(`/${sheet.groupId}`, {
+      method: 'PUT', body: JSON.stringify({ sku_ids: skuIds }),
+    }, 'SKUs de la góndola actualizados');
+  } else {
+    const formData = pairPhotoForm(sheet.file);
     formData.append('segment', workflowState.currentSegment);
     formData.append('sku_ids', skuIds.join(','));
-    formData.append('latitude', visitState.gps.lat || '');
-    formData.append('longitude', visitState.gps.lng || '');
-    formData.append('gps_accuracy', visitState.gps.accuracy || '');
-    formData.append('captured_at', new Date().toISOString());
-    const photo = await api(`/visits/${visitState.visitId}/photos`, { method: 'POST', body: formData });
-
-    report.photos.push({ id: photo.id, url: photo.file_path, kind: sheet.kind, skuIds });
-    closePhotoSheet();
-    renderSkuReport();
-    toast(`Foto asociada a ${skuIds.length} SKU${skuIds.length === 1 ? '' : 's'}`);
-  } catch (err) {
-    toast('Error subiendo foto: ' + err.message);
-    if (photoSheet === sheet) updatePhotoSheetConfirm();
+    pair = await pairRequest('', { method: 'POST', body: formData }, '');
+    if (pair) toast(`Góndola ${pair.number} creada · ahora trabaje y tome la foto después`, 4000);
   }
+  if (pair) closePhotoSheet();
+  else if (photoSheet === sheet) updatePhotoSheetConfirm();
 }

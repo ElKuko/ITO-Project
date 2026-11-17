@@ -33,14 +33,20 @@ PNG = bytes.fromhex(
 )
 
 
-def upload_sku_photo(visit, headers, segment, sku_ids, photo_type="sku_photo_after"):
+def foto_antes(visit, headers, segment, sku_ids, expect=200, **extra):
     r = client.post(
-        f"/api/visits/{visit}/photos", headers=headers,
-        files={"file": ("p.png", PNG, "image/png")},
-        data={"photo_type": photo_type, "segment": segment, "sku_ids": ",".join(map(str, sku_ids)), "run_cv": "false"},
+        f"/api/visits/{visit}/photo-pairs", headers=headers, files={"file": ("p.png", PNG, "image/png")},
+        data={"segment": segment, "sku_ids": ",".join(map(str, sku_ids)), **extra},
     )
-    assert r.status_code == 200, r.text
-    return r.json()["id"]
+    assert r.status_code == expect, r.text
+    return r.json()
+
+
+def foto_despues(visit, headers, group_id, kind="despues", expect=200, **extra):
+    r = client.post(f"/api/visits/{visit}/photo-pairs/{group_id}/{kind}", headers=headers,
+                    files={"file": ("p.png", PNG, "image/png")}, data=extra)
+    assert r.status_code == expect, r.text
+    return r.json()
 
 
 def approve_skus(store_id):
@@ -93,20 +99,38 @@ def test_cajas_workflow():
                      {"sku_id": p2, "cajas_puestas": 0, "cajas_faltaron": 0}])
     save("provisiones", [{"sku_id": i, "cajas_puestas": 1, "cajas_faltaron": 1} for i in skus["provisiones"]])
 
-    # Counts alone don't complete a section: every SKU needs a "foto antes" and a "foto después"
+    # Counts alone don't complete a section: every SKU needs a before/after photo pair
     assert status() == {"produce": "en_progreso", "provisiones": "en_progreso", "congelados": "no_aplica"}
-    upload_sku_photo(visit, merch, "produce", [p1, p2])  # después only
-    assert status()["produce"] == "en_progreso"
-    upload_sku_photo(visit, merch, "produce", [p1], photo_type="sku_photo")
-    assert status()["produce"] == "en_progreso"  # p2 still lacks antes
+    pair1 = foto_antes(visit, merch, "produce", [p1])
+    assert pair1["number"] == 1 and pair1["despues"] is None
+    foto_antes(visit, merch, "produce", [p1, p2], expect=400)  # p1 already in Góndola 1
+    pair1 = client.put(f"/api/visits/{visit}/photo-pairs/{pair1['group_id']}", json={"sku_ids": [p1, p2]}, headers=merch).json()
+    assert pair1["sku_ids"] == sorted([p1, p2])
+    assert status()["produce"] == "en_progreso"  # no foto después yet
     r = client.put(f"/api/visits/{visit}/complete", json={}, headers=merch)
     assert r.status_code == 400 and "sin completar" in r.json()["detail"]
-    upload_sku_photo(visit, merch, "produce", [p2], photo_type="sku_photo")
-    for kind in ("sku_photo", "sku_photo_after"):  # one photo can cover several SKUs
-        upload_sku_photo(visit, merch, "provisiones", skus["provisiones"], photo_type=kind)
+
+    pair1 = foto_despues(visit, merch, pair1["group_id"])
+    assert pair1["despues"] and pair1["sku_ids"] == sorted([p1, p2])  # después inherits antes' SKUs
+    assert "despues_rapida" in pair1["flags"]  # taken seconds apart
+    # Once después exists the SKUs are locked and antes can't be retaken
+    assert client.put(f"/api/visits/{visit}/photo-pairs/{pair1['group_id']}", json={"sku_ids": [p1]}, headers=merch).status_code == 400
+    foto_despues(visit, merch, pair1["group_id"], kind="antes", expect=400)
+    retaken = foto_despues(visit, merch, pair1["group_id"])  # retaking después replaces it
+    assert retaken["despues"]["id"] != pair1["despues"]["id"]
+
+    # A photo from the library (file much older than the upload) is flagged
+    old_ms = str(int((__import__("time").time() - 3600) * 1000))
+    pair2 = foto_antes(visit, merch, "provisiones", skus["provisiones"], file_modified_at=old_ms)
+    pair2 = foto_despues(visit, merch, pair2["group_id"])
+    assert "foto_no_reciente" in pair2["flags"]
     assert status() == {"produce": "completado", "provisiones": "completado", "congelados": "no_aplica"}
-    kinds = sorted(p["kind"] for p in client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()["photos"])
-    assert kinds == ["antes", "antes", "despues"]
+    pairs = client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=merch).json()["pairs"]
+    assert len(pairs) == 1 and pairs[0]["antes"] and pairs[0]["despues"]
+    # SKU photos can't bypass the pair rules through the generic upload
+    r = client.post(f"/api/visits/{visit}/photos", headers=merch, files={"file": ("p.png", PNG, "image/png")},
+                    data={"photo_type": "sku_photo_after", "segment": "produce", "sku_ids": str(p1)})
+    assert r.status_code == 400
 
     # Submission is idempotent
     first = client.put(f"/api/visits/{visit}/complete", json={"notes": "ok"}, headers=merch)
@@ -116,9 +140,9 @@ def test_cajas_workflow():
 
     # Only admins edit after submission; a partial save doesn't drop other SKUs
     assert save("produce", [{"sku_id": p1, "cajas_puestas": 9, "cajas_faltaron": 2}]).status_code == 400
-    p1_photos = [p["id"] for p in client.get(f"/api/visits/{visit}/sku-report?segment=produce", headers=admin).json()["photos"]
-                 if p1 in p["sku_ids"]]
-    assert save("produce", [{"sku_id": p1, "cajas_puestas": 5, "cajas_faltaron": 2, "photo_ids": p1_photos}], admin).status_code == 200
+    assert save("produce", [{"sku_id": p1, "cajas_puestas": 5, "cajas_faltaron": 2}], admin).status_code == 200
+    # Photos are locked after submission
+    assert client.delete(f"/api/visits/{visit}/photo-pairs/{pair1['group_id']}", headers=merch).status_code == 400
     assert status()["produce"] == "completado"
 
     # Catalog changes don't alter submitted history

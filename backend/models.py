@@ -258,6 +258,9 @@ class VisitPhoto(Base):
 
     # Metadata captured at photo time
     captured_at = Column(DateTime, default=datetime.datetime.utcnow)
+    # When the image file itself was created, as reported by the phone (camera shots are
+    # brand new; an older value means the picture came from the photo library)
+    file_modified_at = Column(DateTime, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     gps_accuracy = Column(Float, nullable=True)

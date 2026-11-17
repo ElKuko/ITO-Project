@@ -4434,3 +4434,34 @@ input.skr-val:focus { outline: 2px solid var(--skr-blue); outline-offset: 0; bor
 .skr-thumb-kind-despues { background: #2E7D32; }
 .skr-badge-todo { color: var(--skr-ink-2); background: #fff; border-color: var(--skr-line); }
 .skr-card.is-complete { border-color: #B7D2B0; }
+
+/* Before/after photo pairs (góndolas) */
+.skr-pairs { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 10px; }
+.skr-pairs-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.skr-pairs-title { font-size: 16px; font-weight: 800; }
+.skr-pairs-sub { font-size: 13px; color: var(--skr-ink-2); }
+.skr-pair { background: #fff; border: 1px solid var(--skr-line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.skr-pair.is-done { border-color: #B7D2B0; }
+.skr-pair.is-flagged { border-color: var(--skr-orange-line); }
+.skr-pair-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+.skr-pair-head span { font-size: 13px; color: var(--skr-ink-2); }
+.skr-pair.is-done .skr-pair-head span { color: #2E5A2A; font-weight: 700; }
+.skr-pair-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.skr-pair-photo { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: #E9E7E1; }
+.skr-pair-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.skr-pair-photo span {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 6px; border-radius: 6px;
+  background: rgba(22, 32, 43, .8); color: #fff; font-size: 11px; font-weight: 700;
+}
+.skr-pair-photo.is-empty { border: 2px dashed var(--skr-line); background: transparent; }
+.skr-pair-photo.is-empty span { background: none; color: var(--skr-ink-3); left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); }
+.skr-pair-skus { font-size: 13px; color: var(--skr-ink-2); }
+.skr-pair-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.skr-pair-actions .skr-save { flex: 1 1 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.skr-pair-actions .skr-btn-ghost { height: auto; min-height: 40px; padding: 0 10px; font-size: 13px; }
+.skr-btn-ghost.is-danger { color: #B3261E; }
+.skr-pair-flag { font-size: 13px; font-weight: 600; color: var(--skr-orange); }
+.skr-photo-state { font-size: 13px; font-weight: 600; color: var(--skr-ink-3); background: none; border: none; padding: 0; text-align: left; }
+.skr-photo-state.is-link { color: var(--skr-blue); text-decoration: underline; }
+.skr-photo-state.is-done { color: #2E5A2A; }
+.skr-check.is-taken { opacity: .6; }

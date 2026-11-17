@@ -25,7 +25,7 @@ from ..models import (
 )
 from ..schemas import (
     StoreVisitOut, VisitPhotoOut, VisitStartRequest, VisitStartResponse,
-    VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave, VisitNotesUpdate
+    VisitCompleteRequest, VisitConditionChecks, SKUOut, SkuReportSave, VisitNotesUpdate, PhotoPairSkus
 )
 from ..auth import get_current_user
 from ..quarters import effective_quarter
@@ -166,7 +166,7 @@ async def upload_photo(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Validate photo type
-    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after", "sku_photo", "sku_photo_after")
+    valid_types = ("arrival_proof", "gondola_before", "gondola_after", "shelf_before", "shelf_after", "shelf", "work_item_before", "work_item_after")  # SKU photos: use /photo-pairs
     if photo_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid photo_type. Must be one of: {valid_types}")
     photo_segment = segment if segment and segment.strip() else None
@@ -320,14 +320,6 @@ def _report_actions(db: Session, visit_id: int, segment: str):
     )
 
 
-def _segment_photos(db: Session, visit_id: int, segment: str):
-    return db.query(VisitPhoto).filter(
-        VisitPhoto.visit_id == visit_id,
-        VisitPhoto.photo_type.in_(SKU_PHOTO_TYPES),
-        VisitPhoto.segment == segment,
-    )
-
-
 def _is_submitted(visit: StoreVisit) -> bool:
     return visit.status in ("submitted", "reviewed")
 
@@ -376,29 +368,84 @@ def _segment_state(total: int, registered: int, complete: int, started: bool) ->
     return "en_progreso" if started else "pendiente"
 
 
+PAIR_QUICK_SECONDS = 60          # después this soon after antes gets flagged for review
+PHOTO_MAX_AGE_SECONDS = 5 * 60   # a "new" camera photo older than this gets flagged
+
+
+def _segment_pairs(db: Session, visit_id: int, segment: str) -> list[dict]:
+    """Before/after photo pairs (one gondola_group_id each), numbered in the order taken.
+    The pair's SKUs are the before-photo's SKUs."""
+    photos = db.query(VisitPhoto).options(joinedload(VisitPhoto.sku_links)).filter(
+        VisitPhoto.visit_id == visit_id,
+        VisitPhoto.segment == segment,
+        VisitPhoto.photo_type.in_(SKU_PHOTO_TYPES),
+        VisitPhoto.gondola_group_id != None,
+    ).all()
+    groups = {}
+    for p in photos:
+        groups.setdefault(p.gondola_group_id, {})[SKU_PHOTO_TYPES[p.photo_type]] = p
+    pairs = [
+        {"group_id": gid, "antes": g["antes"], "despues": g.get("despues"),
+         "sku_ids": sorted(link.sku_id for link in g["antes"].sku_links)}
+        for gid, g in groups.items() if "antes" in g
+    ]
+    pairs.sort(key=lambda p: (p["antes"].captured_at, p["antes"].id))
+    for n, pair in enumerate(pairs, 1):
+        pair["number"] = n
+    return pairs
+
+
+def _pair_flags(pair: dict) -> list[str]:
+    flags = []
+    antes, despues = pair["antes"], pair["despues"]
+    if despues and (despues.captured_at - antes.captured_at).total_seconds() < PAIR_QUICK_SECONDS:
+        flags.append("despues_rapida")
+    for photo in (antes, despues):
+        if photo and photo.file_modified_at and \
+                (photo.captured_at - photo.file_modified_at).total_seconds() > PHOTO_MAX_AGE_SECONDS:
+            flags.append("foto_no_reciente")
+            break
+    return flags
+
+
+def _pair_out(pair: dict) -> dict:
+    def photo(p):
+        return {"id": p.id, "url": p.file_path, "captured_at": _iso(p.captured_at)} if p else None
+    seconds = (pair["despues"].captured_at - pair["antes"].captured_at).total_seconds() if pair["despues"] else None
+    return {
+        "group_id": pair["group_id"],
+        "number": pair["number"],
+        "sku_ids": pair["sku_ids"],
+        "antes": photo(pair["antes"]),
+        "despues": photo(pair["despues"]),
+        "minutes_between": round(seconds / 60, 1) if seconds is not None else None,
+        "flags": _pair_flags(pair),
+    }
+
+
 def _segment_summary(db: Session, visit: StoreVisit, segment: str) -> dict:
-    """A SKU is complete once its counts are entered and it has at least one
-    before-photo (foto antes) and one after-photo (foto después)."""
+    """A SKU is complete once its counts are entered and it belongs to a photo pair
+    that has both its foto antes and foto después."""
     actions = {a.sku_id: a for a in _report_actions(db, visit.id, segment).all()}
     sku_ids = [s["id"] for s in _segment_skus(db, visit, segment, actions)]
     registered = [actions[i] for i in sku_ids if _is_registered(actions.get(i))]
-    photos = _segment_photos(db, visit.id, segment).options(joinedload(VisitPhoto.sku_links)).all()
-    def skus_with(photo_type):
-        return {link.sku_id for p in photos if p.photo_type == photo_type for link in p.sku_links} & set(sku_ids)
-
-    with_before, with_after = skus_with("sku_photo"), skus_with("sku_photo_after")
-    complete = [a for a in registered if a.sku_id in with_before and a.sku_id in with_after]
+    pairs = _segment_pairs(db, visit.id, segment)
+    in_pair = {i for p in pairs for i in p["sku_ids"]} & set(sku_ids)
+    with_after = {i for p in pairs if p["despues"] for i in p["sku_ids"]} & set(sku_ids)
+    complete = [a for a in registered if a.sku_id in with_after]
     return {
         "segment": segment,
-        "status": _segment_state(len(sku_ids), len(registered), len(complete), bool(registered or photos)),
+        "status": _segment_state(len(sku_ids), len(registered), len(complete), bool(registered or pairs)),
         "skus_total": len(sku_ids),
         "skus_reported": len(registered),
-        "skus_with_before_photo": len(with_before),
+        "skus_with_before_photo": len(in_pair),
         "skus_with_after_photo": len(with_after),
         "skus_complete": len(complete),
         "cajas_puestas": sum(a.cajas_puestas for a in registered),
         "cajas_faltaron": sum(a.cajas_faltaron for a in registered),
-        "photos": len(photos),
+        "pairs": len(pairs),
+        "pairs_without_after": sum(1 for p in pairs if not p["despues"]),
+        "pairs_flagged": sum(1 for p in pairs if _pair_flags(p)),
     }
 
 
@@ -419,7 +466,6 @@ def get_sku_report(
 
     actions = {a.sku_id: a for a in _report_actions(db, visit_id, segment).options(joinedload(VisitSKUAction.sku)).all()}
     skus = _segment_skus(db, visit, segment, actions)
-    photos = _segment_photos(db, visit_id, segment).options(joinedload(VisitPhoto.sku_links)).all()
 
     def counts(sku_id):
         a = actions.get(sku_id)
@@ -437,11 +483,7 @@ def get_sku_report(
         "segment": segment,
         "editable": not _is_submitted(visit) or current_user.role == "admin",
         "skus": [{**s, **counts(s["id"])} for s in skus],
-        "photos": [
-            {"id": p.id, "file_path": p.file_path, "kind": SKU_PHOTO_TYPES[p.photo_type],
-             "sku_ids": [link.sku_id for link in p.sku_links]}
-            for p in photos
-        ],
+        "pairs": [_pair_out(p) for p in _segment_pairs(db, visit_id, segment)],
     }
 
 
@@ -452,10 +494,9 @@ def save_sku_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Save a segment's box counts and photo-to-SKU links.
+    """Save a segment's box counts (photos are managed through the photo-pair endpoints).
 
-    Items with both counts entered are registered; items with neither only carry
-    photo links. Counts are updated in place: a field's timestamp changes only when
+    Items with both counts entered are registered; items with neither are not. Counts are updated in place: a field's timestamp changes only when
     its value changes, and every change is appended to the count history.
     Submitted visits can only be changed by an admin.
     """
@@ -520,16 +561,6 @@ def save_sku_report(
         if changed:
             action.updated_at = now
 
-    # Replace photo links only for the SKUs sent, so a partial save never drops other SKUs' photos
-    segment_photo_ids = {p.id for p in _segment_photos(db, visit_id, req.segment).all()}
-    if segment_photo_ids and items:
-        db.query(PhotoSKULink).filter(
-            PhotoSKULink.photo_id.in_(segment_photo_ids), PhotoSKULink.sku_id.in_(set(items))
-        ).delete(synchronize_session=False)
-    for item in req.items:
-        for photo_id in set(item.photo_ids) & segment_photo_ids:
-            db.add(PhotoSKULink(photo_id=photo_id, sku_id=item.sku_id))
-
     db.commit()
     return _segment_summary(db, visit, req.segment)
 
@@ -577,6 +608,191 @@ def get_sku_report_history(
         }
         for e in events
     ]
+
+
+# ── Before/after photo pairs ─────────────────────────────────────────────
+#
+# Foto antes starts a pair and chooses its SKUs; foto después completes it and always
+# covers exactly the same SKUs. Each SKU belongs to at most one pair per visit.
+
+
+def _editable_visit_for_photos(db: Session, visit_id: int, current_user: User) -> StoreVisit:
+    visit = _get_own_visit(db, visit_id, current_user)
+    if _is_submitted(visit):
+        raise HTTPException(status_code=400, detail="La visita ya fue enviada")
+    return visit
+
+
+def _find_pair(db: Session, visit_id: int, group_id: str) -> tuple[str, dict]:
+    segment = db.query(VisitPhoto.segment).filter(
+        VisitPhoto.visit_id == visit_id, VisitPhoto.gondola_group_id == group_id,
+        VisitPhoto.photo_type.in_(SKU_PHOTO_TYPES),
+    ).limit(1).scalar()
+    pair = next((p for p in _segment_pairs(db, visit_id, segment) if p["group_id"] == group_id), None) if segment else None
+    if not pair:
+        raise HTTPException(status_code=404, detail="Par de fotos no encontrado")
+    return segment, pair
+
+
+def _check_pair_skus(db: Session, visit: StoreVisit, segment: str, sku_ids: list[int], group_id: str = None):
+    if not sku_ids:
+        raise HTTPException(status_code=400, detail="Seleccione al menos un SKU")
+    actions = {a.sku_id: a for a in _report_actions(db, visit.id, segment).all()}
+    allowed = {s["id"] for s in _segment_skus(db, visit, segment, actions)}
+    unknown = set(sku_ids) - allowed
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"SKUs no aprobados para esta sección: {sorted(unknown)}")
+    for pair in _segment_pairs(db, visit.id, segment):
+        taken = set(sku_ids) & set(pair["sku_ids"])
+        if pair["group_id"] != group_id and taken:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{len(taken)} SKU(s) ya están en la Góndola {pair['number']}. Cada SKU va en una sola góndola.",
+            )
+
+
+def _parse_sku_ids(raw: str) -> list[int]:
+    try:
+        return sorted({int(x) for x in (raw or "").split(",") if x.strip()})
+    except ValueError:
+        raise HTTPException(status_code=400, detail="sku_ids inválidos")
+
+
+def _parse_float(raw):
+    try:
+        return float(raw) if raw not in (None, "") else None
+    except ValueError:
+        return None
+
+
+async def _store_pair_photo(db, visit, segment, group_id, photo_type, file, lat, lng, acc, file_modified_at):
+    ext = os.path.splitext(file.filename or "photo.jpg")[1] or ".jpg"
+    filename = f"{visit.id}_{photo_type}_{uuid.uuid4().hex}{ext}"
+    file_url = await storage.upload(await file.read(), filename, file.content_type or "image/jpeg")
+    modified = None
+    if file_modified_at:
+        try:
+            modified = datetime.utcfromtimestamp(int(file_modified_at) / 1000)
+        except (ValueError, OverflowError, OSError):
+            pass
+    photo = VisitPhoto(
+        visit_id=visit.id, photo_type=photo_type, file_path=file_url, segment=segment,
+        gondola_group_id=group_id,
+        captured_at=datetime.utcnow(),  # server time: the order of antes/después can't be faked
+        file_modified_at=modified,
+        latitude=_parse_float(lat), longitude=_parse_float(lng), gps_accuracy=_parse_float(acc),
+    )
+    db.add(photo)
+    db.flush()
+    return photo
+
+
+def _pair_response(db, visit_id, segment, group_id):
+    db.commit()
+    pair = next(p for p in _segment_pairs(db, visit_id, segment) if p["group_id"] == group_id)
+    return _pair_out(pair)
+
+
+@router.post("/{visit_id}/photo-pairs")
+async def create_photo_pair(
+    visit_id: int,
+    file: UploadFile = File(...),
+    segment: str = Form(...),
+    sku_ids: str = Form(...),
+    latitude: str = Form(default=None),
+    longitude: str = Form(default=None),
+    gps_accuracy: str = Form(default=None),
+    file_modified_at: str = Form(default=None),  # File.lastModified, ms since epoch
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Take a foto antes: starts a new pair covering the given SKUs."""
+    _check_segment(segment)
+    visit = _editable_visit_for_photos(db, visit_id, current_user)
+    ids = _parse_sku_ids(sku_ids)
+    _check_pair_skus(db, visit, segment, ids)
+    group_id = str(uuid.uuid4())
+    photo = await _store_pair_photo(db, visit, segment, group_id, "sku_photo", file,
+                                    latitude, longitude, gps_accuracy, file_modified_at)
+    for sku_id in ids:
+        db.add(PhotoSKULink(photo_id=photo.id, sku_id=sku_id))
+    return _pair_response(db, visit_id, segment, group_id)
+
+
+@router.post("/{visit_id}/photo-pairs/{group_id}/{kind}")
+async def upload_pair_photo(
+    visit_id: int,
+    group_id: str,
+    kind: str,
+    file: UploadFile = File(...),
+    latitude: str = Form(default=None),
+    longitude: str = Form(default=None),
+    gps_accuracy: str = Form(default=None),
+    file_modified_at: str = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """kind=despues: take (or retake) the pair's foto después; it covers the pair's SKUs.
+    kind=antes: retake the foto antes (only while there's no foto después)."""
+    if kind not in ("antes", "despues"):
+        raise HTTPException(status_code=400, detail="kind debe ser antes o despues")
+    visit = _editable_visit_for_photos(db, visit_id, current_user)
+    segment, pair = _find_pair(db, visit_id, group_id)
+    if kind == "antes" and pair["despues"]:
+        raise HTTPException(status_code=400, detail="Elimine la foto después antes de repetir la foto antes")
+
+    old = pair[kind]
+    photo_type = "sku_photo" if kind == "antes" else "sku_photo_after"
+    photo = await _store_pair_photo(db, visit, segment, group_id, photo_type, file,
+                                    latitude, longitude, gps_accuracy, file_modified_at)
+    for sku_id in pair["sku_ids"]:
+        db.add(PhotoSKULink(photo_id=photo.id, sku_id=sku_id))
+    if old is not None:
+        db.delete(old)
+    return _pair_response(db, visit_id, segment, group_id)
+
+
+@router.put("/{visit_id}/photo-pairs/{group_id}")
+def update_photo_pair_skus(
+    visit_id: int,
+    group_id: str,
+    req: PhotoPairSkus,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Change which SKUs a pair covers. Locked once the foto después is taken."""
+    visit = _editable_visit_for_photos(db, visit_id, current_user)
+    segment, pair = _find_pair(db, visit_id, group_id)
+    if pair["despues"]:
+        raise HTTPException(status_code=400, detail="La foto después ya fue tomada. Elimínela para cambiar los SKUs.")
+    ids = sorted(set(req.sku_ids))
+    _check_pair_skus(db, visit, segment, ids, group_id)
+    db.query(PhotoSKULink).filter(PhotoSKULink.photo_id == pair["antes"].id).delete(synchronize_session=False)
+    for sku_id in ids:
+        db.add(PhotoSKULink(photo_id=pair["antes"].id, sku_id=sku_id))
+    return _pair_response(db, visit_id, segment, group_id)
+
+
+@router.delete("/{visit_id}/photo-pairs/{group_id}")
+def delete_photo_pair(
+    visit_id: int,
+    group_id: str,
+    only: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete the whole pair, or with only=despues just its foto después."""
+    _editable_visit_for_photos(db, visit_id, current_user)
+    segment, pair = _find_pair(db, visit_id, group_id)
+    if only == "despues":
+        if pair["despues"]:
+            db.delete(pair["despues"])
+        return _pair_response(db, visit_id, segment, group_id)
+    for photo in (pair["antes"], pair["despues"]):
+        if photo is not None:
+            db.delete(photo)
+    db.commit()
+    return {"detail": "Par eliminado"}
 
 
 @router.put("/{visit_id}/notes")

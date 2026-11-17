@@ -229,6 +229,10 @@ class SkuReportSave(BaseModel):
     items: list[SkuReportItem] = []
 
 
+class PhotoPairSkus(BaseModel):
+    sku_ids: list[int]
+
+
 class VisitNotesUpdate(BaseModel):
     notes: Optional[str] = None
 
