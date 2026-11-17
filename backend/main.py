@@ -17,27 +17,25 @@ Base.metadata.create_all(bind=engine)
 
 
 def add_missing_columns():
-    """create_all() never alters existing tables, so add columns introduced after a DB was created."""
-    new_columns = {
-        "visit_sku_actions": {
-            "segment": "VARCHAR(30)",
-            "cajas_puestas": "INTEGER",
-            "cajas_faltaron": "INTEGER",
-            "cajas_puestas_at": "TIMESTAMP",
-            "cajas_faltaron_at": "TIMESTAMP",
-            "updated_at": "TIMESTAMP",
-            "store_id": "INTEGER",
-            "sku_name": "VARCHAR(200)",
-            "sku_code": "VARCHAR(50)",
-        },
-    }
+    """create_all() never alters existing tables, so add any column the models define
+    that an older database is missing (e.g. a local ito.db created by an earlier version).
+    Columns are added as nullable; existing rows get NULL or the column's simple default."""
     inspector = inspect(engine)
     with engine.begin() as conn:
-        for table, columns in new_columns.items():
-            existing = {c["name"] for c in inspector.get_columns(table)}
-            for name, sql_type in columns.items():
-                if name not in existing:
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+        for table in Base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                col_type = column.type.compile(dialect=engine.dialect)
+                default = ""
+                if isinstance(column.default.arg if column.default is not None else None, (bool, int, float, str)):
+                    value = column.default.arg
+                    default = f" DEFAULT {int(value) if isinstance(value, bool) else repr(value)}"
+                conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}{default}'))
+                print(f"Added missing column {table.name}.{column.name}")
 
 
 add_missing_columns()
