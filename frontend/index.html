@@ -10,7 +10,7 @@
   <title>Ito Merchandising</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="/css/style.css?v=20261119b">
+  <link rel="stylesheet" href="/css/style.css?v=20261119c">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 </head>
@@ -547,7 +547,7 @@
             <div class="detalle-head">
               <div>
                 <h4 style="margin:0;">Detalle de Visitas</h4>
-                <p class="meta" style="margin:4px 0 0;">Cada SKU de cada visita enviada: cajas puestas, cajas que faltaron, horas y fotos. Horas en tiempo de Puerto Rico.</p>
+                <p class="meta" style="margin:4px 0 0;">Cada SKU de cada visita enviada: cajas puestas, cajas que faltaron, horas y fotos. Tiempo total en tienda = de la foto de la tienda al envío. Horas en tiempo de Puerto Rico.</p>
               </div>
               <button class="btn btn-primary" id="detalle-download" onclick="downloadDetalleCsv()">Descargar Excel</button>
             </div>
@@ -574,10 +574,10 @@
                   <tr>
                     <th scope="col">Sección</th><th scope="col">SKU</th>
                     <th scope="col" class="num">Puestas</th><th scope="col" class="num">Faltaron</th>
-                    <th scope="col">Góndola</th><th scope="col">Foto antes</th><th scope="col">Foto después</th>
+                    <th scope="col">Foto antes</th><th scope="col">Foto después</th>
                   </tr>
                 </thead>
-                <tbody id="detalle-body"><tr><td colspan="7" class="meta">Cargando…</td></tr></tbody>
+                <tbody id="detalle-body"><tr><td colspan="6" class="meta">Cargando…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -931,8 +931,8 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=20261119b"></script>
-  <script src="/js/app.js?v=20261119b"></script>
+  <script src="/js/api.js?v=20261119c"></script>
+  <script src="/js/app.js?v=20261119c"></script>
   <script>
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {

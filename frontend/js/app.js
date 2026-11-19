@@ -2901,13 +2901,13 @@ async function loadDetalleReport() {
   const summary = document.getElementById('detalle-summary');
   const { qs, error } = detalleQuery();
   if (error) { summary.textContent = error; return; }
-  body.innerHTML = '<tr><td colspan="7" class="meta">Cargando…</td></tr>';
+  body.innerHTML = '<tr><td colspan="6" class="meta">Cargando…</td></tr>';
   try {
     const records = await apiGet(`/reports/cajas/records?${qs}`);
     detalleData.records = records;
     renderDetalleReport(records);
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="7" class="meta">No se pudo cargar el reporte: ${escapeHtml(err.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="meta">No se pudo cargar el reporte: ${escapeHtml(err.message)}</td></tr>`;
     summary.textContent = '';
   }
 }
@@ -2929,7 +2929,7 @@ function renderDetalleReport(records) {
   document.getElementById('detalle-download').disabled = records.length === 0;
 
   if (!records.length) {
-    body.innerHTML = '<tr><td colspan="7" class="meta">No hay visitas enviadas con estos filtros.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="meta">No hay visitas enviadas con estos filtros.</td></tr>';
     return;
   }
   let shown = 0;
@@ -2939,9 +2939,10 @@ function renderDetalleReport(records) {
     const r = v.first;
     const start = prParts(r.arrival_photo_at || r.visit_started_at);
     const end = prParts(r.visit_submitted_at);
-    html.push(`<tr class="detalle-visit"><th colspan="7" scope="rowgroup">
+    html.push(`<tr class="detalle-visit"><th colspan="6" scope="rowgroup">
       <span class="detalle-visit-store">${escapeHtml(r.store_name || '')}</span>
-      <span>${start.date} · ${start.time}–${end.time}${r.minutes_in_store !== null ? ` · ${formatMinutes(r.minutes_in_store)} h en tienda` : ''}</span>
+      <span>${start.date} · ${start.time}–${end.time}</span>
+      <span class="detalle-time">Tiempo total en tienda: <b>${r.minutes_in_store !== null ? formatMinutes(r.minutes_in_store) + ' h' : 'sin foto de tienda'}</b></span>
       <span>${escapeHtml(r.merchandiser_name || '')}</span>
       <span><b class="skr-p">${v.p}</b> puestas · <b class="skr-f">${v.f}</b> faltaron</span>
       <button type="button" class="detalle-open" onclick="showVisitDetail(${r.visit_id})">Ver visita →</button>
@@ -2953,7 +2954,6 @@ function renderDetalleReport(records) {
         <td>${escapeHtml(row.sku_name || '')}${row.corrected_by_admin ? ' <span class="detalle-tag">corregido</span>' : ''}</td>
         <td class="num">${row.cajas_puestas}</td>
         <td class="num ${row.cajas_faltaron ? 'skr-f' : ''}">${row.cajas_faltaron}</td>
-        <td>${row.gondola_number ?? '—'}</td>
         <td>${prParts(row.foto_antes_at).time || '—'}</td>
         <td>${prParts(row.foto_despues_at).time || '—'}</td>
       </tr>`);
@@ -2969,7 +2969,7 @@ function downloadDetalleCsv() {
     ['Fecha', r => prParts(r.arrival_photo_at || r.visit_started_at).date],
     ['Hora llegada (foto tienda)', r => prParts(r.arrival_photo_at).time],
     ['Hora envío', r => prParts(r.visit_submitted_at).time],
-    ['Hora total en tienda (h:mm)', r => formatMinutes(r.minutes_in_store)],
+    ['Tiempo total en tienda (h:mm)', r => formatMinutes(r.minutes_in_store)],
     ['Minutos en tienda', r => r.minutes_in_store ?? ''],
     ['ID visita', r => r.visit_id],
     ['Tienda', r => r.store_name], ['Cadena', r => r.chain], ['Pueblo', r => r.pueblo], ['Región', r => r.region],
@@ -2979,7 +2979,6 @@ function downloadDetalleCsv() {
     ['Cajas puestas', r => r.cajas_puestas], ['Cajas que faltaron', r => r.cajas_faltaron],
     ['Hora conteo puestas', r => prParts(r.cajas_puestas_at).time],
     ['Hora conteo faltaron', r => prParts(r.cajas_faltaron_at).time],
-    ['Góndola #', r => r.gondola_number ?? ''],
     ['Hora foto antes', r => prParts(r.foto_antes_at).time],
     ['Hora foto después', r => prParts(r.foto_despues_at).time],
     ['Corregido por admin', r => (r.corrected_by_admin ? 'Sí' : 'No')],

@@ -4545,3 +4545,4 @@ button.skr-pair-photo { width: 100%; padding: 0; border: none; cursor: pointer; 
 .detalle-visit-store { font-weight: 700; }
 .detalle-open { border: none; background: none; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
 .detalle-tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #FFF4EC; color: #A8400F; }
+.detalle-time b { font-weight: 800; }
