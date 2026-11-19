@@ -182,7 +182,8 @@ async def upload_photo(
 
     # Parse captured_at if provided
     photo_captured_at = datetime.utcnow()
-    if captured_at:
+    # The arrival photo starts the "time in store" clock, so it uses server time, not the phone's
+    if captured_at and photo_type != "arrival_proof":
         try:
             photo_captured_at = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
         except ValueError:

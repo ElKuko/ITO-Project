@@ -2829,8 +2829,178 @@ async function loadReports() {
   if (!reportsData.filterOptions) {
     await loadReportFilterOptions();
   }
+  loadDetalleFilters().then(loadDetalleReport);
   // Load the approved SKUs report
   loadApprovedSkusReport();
+}
+
+// ── Report: Detalle de Visitas ──────────────────────────────────────────
+
+const DETALLE_SCREEN_LIMIT = 1500;  // rows drawn on screen; the download has all of them
+let detalleData = { records: [], stores: [], loadedFilters: false };
+
+function prParts(iso) {
+  if (!iso) return { date: '', time: '' };
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString('en-CA', { timeZone: PR_TIME_ZONE }),  // YYYY-MM-DD, sorts well in Excel
+    time: d.toLocaleTimeString('en-GB', { timeZone: PR_TIME_ZONE, hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+function formatMinutes(min) {
+  if (min === null || min === undefined) return '';
+  const total = Math.round(min);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+async function loadDetalleFilters() {
+  if (detalleData.loadedFilters) return;
+  const fromEl = document.getElementById('detalle-from');
+  const toEl = document.getElementById('detalle-to');
+  const today = new Date();
+  const monthAgo = new Date(today.getTime() - 30 * 86400000);
+  toEl.value = prParts(today.toISOString()).date;
+  fromEl.value = prParts(monthAgo.toISOString()).date;
+  try {
+    const [stores, regions, merchs] = await Promise.all([
+      apiGet('/stores/'), apiGet('/dashboard/regions'), apiGet('/users/?role=merchandiser'),
+    ]);
+    detalleData.stores = stores;
+    document.getElementById('detalle-store-list').innerHTML =
+      stores.map(s => `<option value="${escapeHtml(s.name)}"></option>`).join('');
+    document.getElementById('detalle-region').innerHTML = '<option value="">Todas</option>' +
+      regions.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    document.getElementById('detalle-merch').innerHTML = '<option value="">Todos</option>' +
+      merchs.map(m => `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`).join('');
+    detalleData.loadedFilters = true;
+  } catch (err) {
+    console.error('Error loading report filters:', err);
+  }
+}
+
+function detalleQuery() {
+  const params = new URLSearchParams();
+  const val = id => document.getElementById(id).value.trim();
+  if (val('detalle-from')) params.set('date_from', val('detalle-from'));
+  if (val('detalle-to')) params.set('date_to', val('detalle-to'));
+  if (val('detalle-region')) params.set('region', val('detalle-region'));
+  if (val('detalle-merch')) params.set('merchandiser_id', val('detalle-merch'));
+  if (val('detalle-section')) params.set('section', val('detalle-section'));
+  const storeName = val('detalle-store');
+  if (storeName) {
+    const store = detalleData.stores.find(s => s.name.toLowerCase() === storeName.toLowerCase());
+    if (!store) return { error: `No se encontró la tienda "${storeName}". Elíjala de la lista.` };
+    params.set('store_id', store.id);
+  }
+  return { qs: params.toString() };
+}
+
+async function loadDetalleReport() {
+  const body = document.getElementById('detalle-body');
+  const summary = document.getElementById('detalle-summary');
+  const { qs, error } = detalleQuery();
+  if (error) { summary.textContent = error; return; }
+  body.innerHTML = '<tr><td colspan="7" class="meta">Cargando…</td></tr>';
+  try {
+    const records = await apiGet(`/reports/cajas/records?${qs}`);
+    detalleData.records = records;
+    renderDetalleReport(records);
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="7" class="meta">No se pudo cargar el reporte: ${escapeHtml(err.message)}</td></tr>`;
+    summary.textContent = '';
+  }
+}
+
+function renderDetalleReport(records) {
+  const body = document.getElementById('detalle-body');
+  const summary = document.getElementById('detalle-summary');
+  const visits = new Map();
+  for (const r of records) {
+    if (!visits.has(r.visit_id)) visits.set(r.visit_id, { first: r, rows: [], p: 0, f: 0 });
+    const v = visits.get(r.visit_id);
+    v.rows.push(r); v.p += r.cajas_puestas; v.f += r.cajas_faltaron;
+  }
+  const totP = records.reduce((t, r) => t + r.cajas_puestas, 0);
+  const totF = records.reduce((t, r) => t + r.cajas_faltaron, 0);
+  summary.innerHTML = `<span><b>${visits.size}</b> visitas</span><span><b>${records.length}</b> filas (SKU × visita)</span>
+    <span><b class="skr-p">${totP}</b> puestas</span><span><b class="skr-f">${totF}</b> faltaron</span>
+    ${records.length > DETALLE_SCREEN_LIMIT ? `<span class="detalle-note">Mostrando ${DETALLE_SCREEN_LIMIT} filas; la descarga incluye todas.</span>` : ''}`;
+  document.getElementById('detalle-download').disabled = records.length === 0;
+
+  if (!records.length) {
+    body.innerHTML = '<tr><td colspan="7" class="meta">No hay visitas enviadas con estos filtros.</td></tr>';
+    return;
+  }
+  let shown = 0;
+  const html = [];
+  for (const v of visits.values()) {
+    if (shown >= DETALLE_SCREEN_LIMIT) break;
+    const r = v.first;
+    const start = prParts(r.arrival_photo_at || r.visit_started_at);
+    const end = prParts(r.visit_submitted_at);
+    html.push(`<tr class="detalle-visit"><th colspan="7" scope="rowgroup">
+      <span class="detalle-visit-store">${escapeHtml(r.store_name || '')}</span>
+      <span>${start.date} · ${start.time}–${end.time}${r.minutes_in_store !== null ? ` · ${formatMinutes(r.minutes_in_store)} h en tienda` : ''}</span>
+      <span>${escapeHtml(r.merchandiser_name || '')}</span>
+      <span><b class="skr-p">${v.p}</b> puestas · <b class="skr-f">${v.f}</b> faltaron</span>
+      <button type="button" class="detalle-open" onclick="showVisitDetail(${r.visit_id})">Ver visita →</button>
+    </th></tr>`);
+    for (const row of v.rows) {
+      if (shown++ >= DETALLE_SCREEN_LIMIT) break;
+      html.push(`<tr>
+        <td>${escapeHtml(SEGMENT_LABELS_NEW[row.section_id] || row.section_id || '')}</td>
+        <td>${escapeHtml(row.sku_name || '')}${row.corrected_by_admin ? ' <span class="detalle-tag">corregido</span>' : ''}</td>
+        <td class="num">${row.cajas_puestas}</td>
+        <td class="num ${row.cajas_faltaron ? 'skr-f' : ''}">${row.cajas_faltaron}</td>
+        <td>${row.gondola_number ?? '—'}</td>
+        <td>${prParts(row.foto_antes_at).time || '—'}</td>
+        <td>${prParts(row.foto_despues_at).time || '—'}</td>
+      </tr>`);
+    }
+  }
+  body.innerHTML = html.join('');
+}
+
+function downloadDetalleCsv() {
+  const records = detalleData.records;
+  if (!records.length) { toast('No hay datos para descargar'); return; }
+  const columns = [
+    ['Fecha', r => prParts(r.arrival_photo_at || r.visit_started_at).date],
+    ['Hora llegada (foto tienda)', r => prParts(r.arrival_photo_at).time],
+    ['Hora envío', r => prParts(r.visit_submitted_at).time],
+    ['Hora total en tienda (h:mm)', r => formatMinutes(r.minutes_in_store)],
+    ['Minutos en tienda', r => r.minutes_in_store ?? ''],
+    ['ID visita', r => r.visit_id],
+    ['Tienda', r => r.store_name], ['Cadena', r => r.chain], ['Pueblo', r => r.pueblo], ['Región', r => r.region],
+    ['Mercaderista', r => r.merchandiser_name],
+    ['Sección', r => SEGMENT_LABELS_NEW[r.section_id] || r.section_id],
+    ['Código SKU', r => r.sku_code], ['SKU', r => r.sku_name],
+    ['Cajas puestas', r => r.cajas_puestas], ['Cajas que faltaron', r => r.cajas_faltaron],
+    ['Hora conteo puestas', r => prParts(r.cajas_puestas_at).time],
+    ['Hora conteo faltaron', r => prParts(r.cajas_faltaron_at).time],
+    ['Góndola #', r => r.gondola_number ?? ''],
+    ['Hora foto antes', r => prParts(r.foto_antes_at).time],
+    ['Hora foto después', r => prParts(r.foto_despues_at).time],
+    ['Corregido por admin', r => (r.corrected_by_admin ? 'Sí' : 'No')],
+    ['Observaciones de la visita', r => r.visit_notes],
+  ];
+  const cell = v => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [columns.map(c => cell(c[0])).join(',')]
+    .concat(records.map(r => columns.map(c => cell(c[1](r))).join(',')));
+  const from = document.getElementById('detalle-from').value || 'inicio';
+  const to = document.getElementById('detalle-to').value || 'hoy';
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `detalle_visitas_${from}_a_${to}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 async function loadReportFilterOptions() {

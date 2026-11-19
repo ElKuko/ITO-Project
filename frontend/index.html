@@ -10,7 +10,7 @@
   <title>Ito Merchandising</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="/css/style.css?v=20261119a">
+  <link rel="stylesheet" href="/css/style.css?v=20261119b">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 </head>
@@ -542,6 +542,46 @@
           </div>
           <p class="meta" style="margin:0 0 16px;">Datos de inteligencia de mercado obtenidos via los merchandisers.</p>
 
+          <!-- Report: Detalle de Visitas (one row per SKU per submitted visit) -->
+          <div class="report-card detalle-card">
+            <div class="detalle-head">
+              <div>
+                <h4 style="margin:0;">Detalle de Visitas</h4>
+                <p class="meta" style="margin:4px 0 0;">Cada SKU de cada visita enviada: cajas puestas, cajas que faltaron, horas y fotos. Horas en tiempo de Puerto Rico.</p>
+              </div>
+              <button class="btn btn-primary" id="detalle-download" onclick="downloadDetalleCsv()">Descargar Excel</button>
+            </div>
+            <div class="detalle-filters">
+              <label>Desde <input type="date" id="detalle-from" onchange="loadDetalleReport()"></label>
+              <label>Hasta <input type="date" id="detalle-to" onchange="loadDetalleReport()"></label>
+              <label>Tienda
+                <input type="text" id="detalle-store" list="detalle-store-list" placeholder="Todas las tiendas" onchange="loadDetalleReport()" autocomplete="off">
+                <datalist id="detalle-store-list"></datalist>
+              </label>
+              <label>Región <select id="detalle-region" onchange="loadDetalleReport()"><option value="">Todas</option></select></label>
+              <label>Mercaderista <select id="detalle-merch" onchange="loadDetalleReport()"><option value="">Todos</option></select></label>
+              <label>Sección
+                <select id="detalle-section" onchange="loadDetalleReport()">
+                  <option value="">Todas</option><option value="produce">Produce</option>
+                  <option value="provisiones">Provisiones</option><option value="congelados">Congelados</option>
+                </select>
+              </label>
+            </div>
+            <div class="detalle-summary" id="detalle-summary" aria-live="polite"></div>
+            <div class="table-wrapper detalle-table-wrap">
+              <table class="detalle-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Sección</th><th scope="col">SKU</th>
+                    <th scope="col" class="num">Puestas</th><th scope="col" class="num">Faltaron</th>
+                    <th scope="col">Góndola</th><th scope="col">Foto antes</th><th scope="col">Foto después</th>
+                  </tr>
+                </thead>
+                <tbody id="detalle-body"><tr><td colspan="7" class="meta">Cargando…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Report: SKUs Aprobados -->
           <div class="report-card" style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -891,8 +931,8 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=20261119a"></script>
-  <script src="/js/app.js?v=20261119a"></script>
+  <script src="/js/api.js?v=20261119b"></script>
+  <script src="/js/app.js?v=20261119b"></script>
   <script>
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {

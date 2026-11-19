@@ -308,30 +308,63 @@ def get_cajas_records(
     merchandiser_id: int = None,
     date_from: str = None,
     date_to: str = None,
+    region: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """The flat dataset: one row per SKU per submitted visit, with IDs and UTC timestamps.
+    """The most granular dataset: one row per SKU per submitted visit, newest visit first.
+
+    Includes store and merchandiser details, the visit's arrival photo and submission
+    times (minutes_in_store = arrival photo → submission), each count's last-entry
+    time, the SKU's góndola (before/after photo pair) with its quality flags, and
+    whether an admin corrected the SKU after submission. Times are UTC (ISO, "Z").
     format=csv downloads it as a spreadsheet-friendly file."""
     import csv
     import io
     from fastapi.responses import StreamingResponse
+    from ..models import StoreVisit, VisitSKUAction, VisitPhoto, VisitSKUCountEvent
+    from .visits import _segment_pairs, _pair_flags
 
     _require_reports_access(current_user)
-    from ..models import StoreVisit, VisitSKUAction
-    rows = _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to).order_by(
-        StoreVisit.start_time, VisitSKUAction.segment, VisitSKUAction.sku_name
+    rows = _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to, region).order_by(
+        StoreVisit.start_time.desc(), StoreVisit.id, VisitSKUAction.segment, VisitSKUAction.sku_name
     ).all()
+    visit_ids = {v.id for _, v in rows}
+
+    arrivals = {}
+    corrected = set()
+    if visit_ids:
+        for p in db.query(VisitPhoto).filter(VisitPhoto.visit_id.in_(visit_ids), VisitPhoto.photo_type == "arrival_proof"):
+            if p.visit_id not in arrivals or p.captured_at < arrivals[p.visit_id]:
+                arrivals[p.visit_id] = p.captured_at
+        corrected = {
+            (e.visit_id, e.sku_id) for e in db.query(VisitSKUCountEvent).filter(
+                VisitSKUCountEvent.visit_id.in_(visit_ids), VisitSKUCountEvent.after_submission == True)
+        }
+
+    pair_cache = {}
+
+    def pair_of(visit_id, segment, sku_id):
+        if (visit_id, segment) not in pair_cache:
+            pair_cache[(visit_id, segment)] = _segment_pairs(db, visit_id, segment)
+        return next((p for p in pair_cache[(visit_id, segment)] if sku_id in p["sku_ids"]), None)
 
     def iso(dt):
         return dt.isoformat() + "Z" if dt else None
 
-    records = [
-        {
+    records = []
+    for a, v in rows:
+        arrival = arrivals.get(v.id)
+        minutes = round((v.end_time - arrival).total_seconds() / 60, 1) if arrival and v.end_time else None
+        pair = pair_of(v.id, a.segment, a.sku_id)
+        records.append({
             "visit_sku_id": a.id,
             "visit_id": v.id,
             "store_id": v.store_id,
             "store_name": v.store.name if v.store else None,
+            "chain": v.store.chain if v.store else None,
+            "pueblo": v.store.pueblo if v.store else None,
+            "region": v.store.region if v.store else None,
             "merchandiser_id": v.user_id,
             "merchandiser_name": v.user.full_name if v.user else None,
             "section_id": a.segment,
@@ -343,11 +376,17 @@ def get_cajas_records(
             "cajas_puestas_at": iso(a.cajas_puestas_at),
             "cajas_faltaron_at": iso(a.cajas_faltaron_at),
             "updated_at": iso(a.updated_at),
+            "gondola_number": pair["number"] if pair else None,
+            "foto_antes_at": iso(pair["antes"].captured_at) if pair else None,
+            "foto_despues_at": iso(pair["despues"].captured_at) if pair and pair["despues"] else None,
+            "alerts": ",".join(_pair_flags(pair)) if pair else "",
+            "corrected_by_admin": (v.id, a.sku_id) in corrected,
             "visit_started_at": iso(v.start_time),
+            "arrival_photo_at": iso(arrival),
             "visit_submitted_at": iso(v.end_time),
-        }
-        for a, v in rows
-    ]
+            "minutes_in_store": minutes,
+            "visit_notes": v.notes,
+        })
     if format != "csv":
         return records
 

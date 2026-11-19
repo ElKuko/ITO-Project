@@ -4521,3 +4521,27 @@ button.skr-pair-photo { width: 100%; padding: 0; border: none; cursor: pointer; 
   .cajas-store-row { grid-template-columns: 1fr; }
   .cajas-store-nums { justify-content: space-between; }
 }
+
+/* Report: Detalle de Visitas */
+.detalle-card { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.detalle-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.detalle-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-bottom: 12px; }
+.detalle-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.detalle-filters input, .detalle-filters select { min-height: 36px; padding: 6px 10px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.detalle-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; font-size: 14px; color: var(--text-secondary); }
+.detalle-summary b { color: var(--text); }
+.detalle-note { color: var(--text-secondary); font-style: italic; }
+.detalle-table-wrap { max-height: 560px; overflow: auto; background: #fff; border-radius: 8px; }
+.detalle-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detalle-table thead th { position: sticky; top: 0; z-index: 1; background: #fff; text-align: left; font-size: 12px; color: var(--text-secondary); padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.detalle-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.detalle-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.detalle-visit th {
+  position: sticky; top: 33px; background: #EEF2F8; text-align: left; padding: 8px; font-size: 13px; font-weight: 500;
+  text-transform: none; letter-spacing: normal; color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.detalle-visit th > span { margin-right: 14px; display: inline-block; }
+.detalle-visit-store { font-weight: 700; }
+.detalle-open { border: none; background: none; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+.detalle-tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #FFF4EC; color: #A8400F; }

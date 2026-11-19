@@ -132,6 +132,11 @@ def test_cajas_workflow():
                     data={"photo_type": "sku_photo_after", "segment": "produce", "sku_ids": str(p1)})
     assert r.status_code == 400
 
+    # Arrival photo starts the time-in-store clock (server time, whatever the phone sends)
+    r = client.post(f"/api/visits/{visit}/photos", headers=merch, files={"file": ("p.png", PNG, "image/png")},
+                    data={"photo_type": "arrival_proof", "captured_at": "2001-01-01T00:00:00Z"})
+    assert r.status_code == 200 and r.json()["captured_at"].startswith(str(__import__("datetime").date.today().year))
+
     # Submission is idempotent
     first = client.put(f"/api/visits/{visit}/complete", json={"notes": "ok"}, headers=merch)
     again = client.put(f"/api/visits/{visit}/complete", json={"notes": "dup"}, headers=merch)
@@ -167,6 +172,12 @@ def test_cajas_workflow():
     by_store = client.get("/api/reports/cajas?group_by=store", headers=admin).json()["rows"]
     assert by_store[0]["cajas_puestas"] == 7 and by_store[0]["region"] and by_store[0]["last_visit_at"]
     assert client.get("/api/reports/cajas?group_by=store&region=NoExiste", headers=admin).json()["rows"] == []
+    records = client.get("/api/reports/cajas/records", headers=admin).json()
+    assert len(records) == 4 and all(r["gondola_number"] == 1 and r["foto_despues_at"] for r in records)
+    p1_row = next(r for r in records if r["sku_id"] == p1)
+    assert p1_row["corrected_by_admin"] is True and "despues_rapida" in p1_row["alerts"]
+    assert all(r["minutes_in_store"] is not None and 0 <= r["minutes_in_store"] < 5 for r in records)
+    assert all(r["arrival_photo_at"] and r["visit_submitted_at"] for r in records)
     csv = client.get("/api/reports/cajas/records?format=csv", headers=admin).text
     assert csv.startswith("visit_sku_id,visit_id,store_id") and len(csv.strip().splitlines()) == 5
     assert client.get("/api/reports/cajas", headers=merch).status_code == 403
