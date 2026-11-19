@@ -164,6 +164,9 @@ def test_cajas_workflow():
     rep = client.get("/api/reports/cajas?group_by=section", headers=admin).json()
     assert rep["totals"]["cajas_puestas"] == 7 and rep["totals"]["cajas_faltaron"] == 4
     assert rep["totals"]["placement_completion_rate"] == round(7 / 11, 4)
+    by_store = client.get("/api/reports/cajas?group_by=store", headers=admin).json()["rows"]
+    assert by_store[0]["cajas_puestas"] == 7 and by_store[0]["region"] and by_store[0]["last_visit_at"]
+    assert client.get("/api/reports/cajas?group_by=store&region=NoExiste", headers=admin).json()["rows"] == []
     csv = client.get("/api/reports/cajas/records?format=csv", headers=admin).text
     assert csv.startswith("visit_sku_id,visit_id,store_id") and len(csv.strip().splitlines()) == 5
     assert client.get("/api/reports/cajas", headers=merch).status_code == 403

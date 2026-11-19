@@ -194,7 +194,7 @@ def get_report_filter_options(
 CAJAS_GROUPS = ("store", "sku", "section", "merchandiser", "date", "visit")
 
 
-def _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to):
+def _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to, region=None):
     from datetime import timedelta
     from ..models import StoreVisit, VisitSKUAction
 
@@ -207,6 +207,8 @@ def _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date
     )
     if store_id:
         q = q.filter(StoreVisit.store_id == store_id)
+    if region:
+        q = q.filter(StoreVisit.store.has(Store.region == region))
     if sku_id:
         q = q.filter(VisitSKUAction.sku_id == sku_id)
     if section:
@@ -249,6 +251,7 @@ def get_cajas_report(
     merchandiser_id: int = None,
     date_from: str = None,
     date_to: str = None,
+    region: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -259,7 +262,7 @@ def get_cajas_report(
     _require_reports_access(current_user)
     if group_by not in CAJAS_GROUPS:
         raise HTTPException(status_code=400, detail=f"group_by must be one of {CAJAS_GROUPS}")
-    rows = _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to).all()
+    rows = _cajas_query(db, store_id, sku_id, section, merchandiser_id, date_from, date_to, region).all()
 
     groups = {}
     for a, v in rows:
@@ -271,14 +274,19 @@ def get_cajas_report(
             "date": (pr_date(v.start_time), pr_date(v.start_time)),
             "visit": (v.id, f"{v.store.name if v.store else v.store_id} · {pr_date(v.start_time)}"),
         }[group_by]
-        g = groups.setdefault(key, {"key": key, "label": label, "p": 0, "f": 0, "skus": 0, "visits": set()})
+        g = groups.setdefault(key, {"key": key, "label": label, "p": 0, "f": 0, "skus": 0, "visits": set(),
+                                    "last": None, "region": v.store.region if v.store else None})
+        g["last"] = max(g["last"], v.start_time) if g["last"] else v.start_time
         g["p"] += a.cajas_puestas
         g["f"] += a.cajas_faltaron
         g["skus"] += 1
         g["visits"].add(v.id)
 
     result = [
-        {"key": g["key"], "label": g["label"], "visits": len(g["visits"]), "sku_records": g["skus"], **_rates(g["p"], g["f"])}
+        {"key": g["key"], "label": g["label"], "visits": len(g["visits"]), "sku_records": g["skus"],
+         "last_visit_at": g["last"].isoformat() + "Z" if g["last"] else None,
+         **({"region": g["region"]} if group_by == "store" else {}),
+         **_rates(g["p"], g["f"])}
         for g in groups.values()
     ]
     result.sort(key=lambda r: (str(r["key"]) if group_by == "date" else -r["placement_opportunity"]))

@@ -4481,3 +4481,43 @@ input.skr-val:focus { outline: 2px solid var(--skr-blue); outline-offset: 0; bor
 .photo-viewer-caption { color: #fff; font-size: 14px; font-weight: 600; text-align: center; }
 button.skr-pair-photo { width: 100%; padding: 0; border: none; cursor: pointer; font: inherit; }
 .skr-pair-hint { flex: 1 1 100%; margin: 0; font-size: 12px; color: var(--skr-ink-3); }
+
+/* Dashboard: cajas por tienda */
+.cajas-kpis .stat-label { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cajas-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.cajas-swatch-p { background: #1F4FA8; }
+.cajas-swatch-f { background: #C4612C; }
+.cajas-store-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.cajas-sort { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.cajas-sort select { min-height: 36px; }
+.cajas-legend { display: flex; gap: 16px; margin: 12px 0 4px; font-size: 13px; color: var(--text-secondary); }
+.cajas-legend > span { display: flex; align-items: center; gap: 6px; }
+.cajas-store-list { display: flex; flex-direction: column; }
+.cajas-store { border-bottom: 1px solid var(--border); }
+.cajas-store-row {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center;
+  padding: 12px 4px; border: none; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer;
+}
+.cajas-store-row:hover { background: var(--bg); }
+.cajas-store-name { display: flex; flex-direction: column; min-width: 0; }
+.cajas-store-name strong { font-size: 15px; }
+.cajas-store-name span { font-size: 12px; color: var(--text-secondary); }
+.cajas-store-nums { display: flex; gap: 12px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cajas-store-nums b { color: var(--text); }
+.cajas-rate { min-width: 40px; text-align: right; font-weight: 700; color: var(--text); }
+.cajas-bar { grid-column: 1 / -1; display: flex; gap: 2px; height: 12px; }
+.cajas-bar.is-empty { height: 4px; background: var(--border); border-radius: 4px; }
+.cajas-seg { display: block; height: 100%; min-width: 3px; }
+.cajas-seg:first-child { border-radius: 4px 0 0 4px; }
+.cajas-seg:last-child { border-radius: 0 4px 4px 0; }
+.cajas-seg:only-child { border-radius: 4px; }
+.cajas-seg-p { background: #1F4FA8; }
+.cajas-seg-f { background: #C4612C; }
+.cajas-store-detail:empty { display: none; }
+.cajas-store-detail { padding: 4px 4px 16px; }
+.cajas-visits { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.cajas-visit-link { text-align: left; padding: 8px 0; border: none; background: none; color: var(--primary); font: inherit; font-size: 14px; cursor: pointer; }
+@media (max-width: 520px) {
+  .cajas-store-row { grid-template-columns: 1fr; }
+  .cajas-store-nums { justify-content: space-between; }
+}

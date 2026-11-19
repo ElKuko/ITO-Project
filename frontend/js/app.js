@@ -1590,7 +1590,8 @@ function createVisitDetailContainer() {
   const container = document.createElement('div');
   container.id = 'visit-detail-container';
   container.className = 'visit-detail-overlay';
-  document.getElementById('page-route-history').appendChild(container);
+  // On <body> (it's a fixed overlay) so it also opens from the dashboard
+  document.body.appendChild(container);
   return container;
 }
 
@@ -1600,6 +1601,12 @@ function closeVisitDetail() {
     container.style.display = 'none';
     container.innerHTML = '';
   }
+  // Admin corrections made in the detail show up right away
+  if (document.getElementById('page-dashboard')?.classList.contains('active')) refreshDashboard();
+}
+
+function openDashboardVisit(visitId) {
+  showVisitDetail(visitId);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2091,8 +2098,11 @@ function getDateRange(range) {
   return { from: null, to: null };
 }
 
+let cajasDashboard = { rows: [], qs: '', expanded: null };
+
 async function refreshDashboard() {
   const region = document.getElementById('filter-region').value;
+  const section = document.getElementById('filter-section').value;
 
   let dateFrom, dateTo;
   if (dashboardDateFilter === 'custom') {
@@ -2104,57 +2114,111 @@ async function refreshDashboard() {
     dateTo = range.to;
   }
 
-  let params = [];
-  if (region) params.push(`region=${region}`);
-  if (dateFrom) params.push(`date_from=${dateFrom}`);
-  if (dateTo) params.push(`date_to=${dateTo}`);
-  const qs = params.length > 0 ? '?' + params.join('&') : '';
+  const params = new URLSearchParams();
+  if (region) params.set('region', region);
+  if (section) params.set('section', section);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  const qs = params.toString();
 
+  const listEl = document.getElementById('cajas-store-list');
   try {
-    const [summary, byStore] = await Promise.all([
-      apiGet(`/dashboard/summary${qs}`),
-      apiGet(`/dashboard/by-store${qs}`),
-    ]);
-
-    document.getElementById('stat-visits').textContent = summary.total_visits;
-
-    // Only show coverage when a date filter is active
-    const coverageEl = document.getElementById('stat-coverage');
-    const coverageCard = coverageEl.closest('.stat-card');
-    if (dashboardDateFilter) {
-      coverageEl.textContent = `${(summary.coverage_rate * 100).toFixed(0)}%`;
-      coverageCard.style.display = '';
-    } else {
-      coverageCard.style.display = 'none';
-    }
-
-    // Action type stats
-    const gondolaLlena = document.getElementById('stat-gondola-llena');
-    const seRelleno = document.getElementById('stat-se-relleno');
-    const orden = document.getElementById('stat-orden');
-    const agotado = document.getElementById('stat-agotado');
-
-    if (gondolaLlena) gondolaLlena.textContent = summary.actions?.gondola_llena || 0;
-    if (seRelleno) seRelleno.textContent = summary.actions?.se_relleno || 0;
-    if (orden) orden.textContent = summary.actions?.orden || 0;
-    if (agotado) agotado.textContent = summary.actions?.agotado || 0;
-
-    // By-store table
-    const tableBody = document.getElementById('store-table-body');
-    tableBody.innerHTML = byStore.map(s => `
-      <tr>
-        <td>${s.store_name}</td>
-        <td>${s.region}</td>
-        <td>${s.visit_count}</td>
-        <td>${s.gondola_llena || 0}</td>
-        <td>${s.se_relleno || 0}</td>
-        <td>${s.orden || 0}</td>
-        <td>${s.agotado || 0}</td>
-      </tr>
-    `).join('');
-
+    const report = await apiGet(`/reports/cajas?group_by=store${qs ? '&' + qs : ''}`);
+    const t = report.totals;
+    document.getElementById('stat-visits').textContent = t.visits;
+    document.getElementById('stat-puestas').textContent = t.cajas_puestas.toLocaleString('es-PR');
+    document.getElementById('stat-faltaron').textContent = t.cajas_faltaron.toLocaleString('es-PR');
+    document.getElementById('stat-rate').textContent = formatRate(t.placement_completion_rate);
+    cajasDashboard = { rows: report.rows, qs, expanded: null };
+    renderCajasStores();
   } catch (err) {
-    toast('Error actualizando dashboard');
+    listEl.innerHTML = `<p class="meta">No se pudo cargar el dashboard: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function formatRate(rate) {
+  return rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)}%`;
+}
+
+// Stacked bar: puestas then faltaron, length relative to the largest opportunity in view.
+function cajasBar(p, f, max, label) {
+  if (!max || p + f === 0) return `<div class="cajas-bar is-empty" aria-hidden="true"></div>`;
+  const pct = v => `${(v / max) * 100}%`;
+  return `<div class="cajas-bar" role="img" aria-label="${escapeHtml(label)}: ${p} puestas, ${f} faltaron">
+    ${p ? `<span class="cajas-seg cajas-seg-p" style="width:${pct(p)}" title="${p} cajas puestas"></span>` : ''}
+    ${f ? `<span class="cajas-seg cajas-seg-f" style="width:${pct(f)}" title="${f} cajas que faltaron"></span>` : ''}
+  </div>`;
+}
+
+function sortCajasRows(rows, by) {
+  const sorted = [...rows];
+  const rate = r => (r.placement_completion_rate ?? 2);  // stores with no data go last
+  if (by === 'puestas') sorted.sort((a, b) => b.cajas_puestas - a.cajas_puestas);
+  else if (by === 'rate') sorted.sort((a, b) => rate(a) - rate(b));
+  else if (by === 'name') sorted.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'es'));
+  else sorted.sort((a, b) => b.cajas_faltaron - a.cajas_faltaron || b.cajas_puestas - a.cajas_puestas);
+  return sorted;
+}
+
+function renderCajasStores() {
+  const listEl = document.getElementById('cajas-store-list');
+  const rows = sortCajasRows(cajasDashboard.rows, document.getElementById('cajas-sort').value);
+  if (!rows.length) {
+    listEl.innerHTML = '<p class="meta">No hay visitas enviadas con estos filtros.</p>';
+    return;
+  }
+  const max = Math.max(...rows.map(r => r.placement_opportunity));
+  listEl.innerHTML = rows.map(r => `
+    <div class="cajas-store ${cajasDashboard.expanded === r.key ? 'is-open' : ''}">
+      <button type="button" class="cajas-store-row" aria-expanded="${cajasDashboard.expanded === r.key}" onclick="toggleCajasStore(${r.key})">
+        <div class="cajas-store-name">
+          <strong>${escapeHtml(r.label || 'Tienda ' + r.key)}</strong>
+          <span>${escapeHtml(r.region || '')} · ${r.visits} visita${r.visits === 1 ? '' : 's'}${r.last_visit_at ? ' · última ' + formatPrDate(r.last_visit_at, { dateStyle: 'medium' }) : ''}</span>
+        </div>
+        <div class="cajas-store-nums">
+          <span><b>${r.cajas_puestas}</b> puestas</span>
+          <span><b>${r.cajas_faltaron}</b> faltaron</span>
+          <span class="cajas-rate">${formatRate(r.placement_completion_rate)}</span>
+        </div>
+        ${cajasBar(r.cajas_puestas, r.cajas_faltaron, max, r.label || '')}
+      </button>
+      <div class="cajas-store-detail" id="cajas-detail-${r.key}">${cajasDashboard.expanded === r.key ? '<p class="meta">Cargando SKUs…</p>' : ''}</div>
+    </div>`).join('');
+  if (cajasDashboard.expanded) loadCajasStoreDetail(cajasDashboard.expanded);
+}
+
+function toggleCajasStore(storeId) {
+  cajasDashboard.expanded = cajasDashboard.expanded === storeId ? null : storeId;
+  renderCajasStores();
+}
+
+async function loadCajasStoreDetail(storeId) {
+  const el = document.getElementById(`cajas-detail-${storeId}`);
+  try {
+    const qs = cajasDashboard.qs ? '&' + cajasDashboard.qs : '';
+    const [bySku, byVisit] = await Promise.all([
+      apiGet(`/reports/cajas?group_by=sku&store_id=${storeId}${qs}`),
+      apiGet(`/reports/cajas?group_by=visit&store_id=${storeId}${qs}`),
+    ]);
+    if (cajasDashboard.expanded !== storeId || !el.isConnected) return;
+    const skus = [...bySku.rows].sort((a, b) => b.cajas_faltaron - a.cajas_faltaron || b.cajas_puestas - a.cajas_puestas);
+    const visits = [...byVisit.rows].sort((a, b) => (b.last_visit_at || '').localeCompare(a.last_visit_at || ''));
+    el.innerHTML = `
+      <table class="cajas-table">
+        <thead><tr><th scope="col">SKU</th><th scope="col" class="num">Puestas</th><th scope="col" class="num">Faltaron</th><th scope="col" class="num">% col.</th></tr></thead>
+        <tbody>${skus.map(s => `<tr>
+          <td>${escapeHtml(s.label || 'SKU ' + s.key)}</td>
+          <td class="num">${s.cajas_puestas}</td>
+          <td class="num ${s.cajas_faltaron ? 'skr-f' : ''}">${s.cajas_faltaron}</td>
+          <td class="num">${formatRate(s.placement_completion_rate)}</td></tr>`).join('')}</tbody>
+      </table>
+      <div class="cajas-visits">
+        <strong>Visitas</strong>
+        ${visits.map(v => `<button type="button" class="cajas-visit-link" onclick="openDashboardVisit(${v.key})">
+          ${formatPrDate(v.last_visit_at, { dateStyle: 'medium', timeStyle: 'short' })} · ${v.cajas_puestas} puestas · ${v.cajas_faltaron} faltaron →</button>`).join('')}
+      </div>`;
+  } catch (err) {
+    if (el.isConnected) el.innerHTML = `<p class="meta">No se pudieron cargar los SKUs: ${escapeHtml(err.message)}</p>`;
   }
 }
 

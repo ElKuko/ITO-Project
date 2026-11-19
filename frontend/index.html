@@ -10,7 +10,7 @@
   <title>Ito Merchandising</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="/css/style.css?v=20261117g">
+  <link rel="stylesheet" href="/css/style.css?v=20261119a">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 </head>
@@ -346,6 +346,12 @@
           <select id="filter-region" onchange="refreshDashboard()">
             <option value="">Todas las Regiones</option>
           </select>
+          <select id="filter-section" onchange="refreshDashboard()">
+            <option value="">Todas las Secciones</option>
+            <option value="produce">Produce</option>
+            <option value="provisiones">Provisiones</option>
+            <option value="congelados">Congelados</option>
+          </select>
           <div class="date-quick-filters">
             <button class="quick-filter-btn" data-range="today" onclick="setDateFilter('today')">Hoy</button>
             <button class="quick-filter-btn" data-range="week" onclick="setDateFilter('week')">Esta Semana</button>
@@ -355,48 +361,47 @@
           <input type="date" id="filter-date-to" onchange="setCustomDateFilter()">
         </div>
 
-        <!-- Summary Stats -->
-        <div class="stats-grid">
+        <!-- Summary: submitted visits only -->
+        <div class="stats-grid cajas-kpis">
           <div class="stat-card">
             <div class="stat-value" id="stat-visits">-</div>
-            <div class="stat-label">Visitas</div>
+            <div class="stat-label">Visitas enviadas</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-coverage">-</div>
-            <div class="stat-label">Cobertura</div>
+            <div class="stat-value" id="stat-puestas">-</div>
+            <div class="stat-label"><span class="cajas-swatch cajas-swatch-p" aria-hidden="true"></span>Cajas puestas</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-gondola-llena" style="color:var(--success)">-</div>
-            <div class="stat-label">Góndola Llena</div>
+            <div class="stat-value" id="stat-faltaron">-</div>
+            <div class="stat-label"><span class="cajas-swatch cajas-swatch-f" aria-hidden="true"></span>Cajas que faltaron</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" id="stat-se-relleno" style="color:var(--primary)">-</div>
-            <div class="stat-label">Se Rellenó</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="stat-orden" style="color:var(--warning)">-</div>
-            <div class="stat-label">Orden</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="stat-agotado" style="color:#7c3aed">-</div>
-            <div class="stat-label">Agotado</div>
+            <div class="stat-value" id="stat-rate">-</div>
+            <div class="stat-label">% colocación</div>
           </div>
         </div>
 
-        <!-- By Store Table -->
+        <!-- By store -->
         <div class="card">
-          <h3>Desempeño por Tienda</h3>
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tienda</th><th>Región</th><th>Visitas</th>
-                  <th>Llena</th><th>Rellenó</th><th>Orden</th><th>Agotado</th>
-                </tr>
-              </thead>
-              <tbody id="store-table-body"></tbody>
-            </table>
+          <div class="cajas-store-head">
+            <div>
+              <h3 style="margin:0;">Cajas por Tienda</h3>
+              <p class="meta" style="margin:2px 0 0;">% colocación = puestas ÷ (puestas + faltaron). Toque una tienda para ver sus SKUs.</p>
+            </div>
+            <label class="cajas-sort">Ordenar
+              <select id="cajas-sort" onchange="renderCajasStores()">
+                <option value="faltaron">Más cajas faltaron</option>
+                <option value="puestas">Más cajas puestas</option>
+                <option value="rate">Menor % colocación</option>
+                <option value="name">Nombre</option>
+              </select>
+            </label>
           </div>
+          <div class="cajas-legend" aria-hidden="true">
+            <span><span class="cajas-swatch cajas-swatch-p"></span>Cajas puestas</span>
+            <span><span class="cajas-swatch cajas-swatch-f"></span>Cajas que faltaron</span>
+          </div>
+          <div id="cajas-store-list" class="cajas-store-list"><p class="meta">Cargando…</p></div>
         </div>
 
       </div>
@@ -886,8 +891,8 @@
     </div>
   </div>
 
-  <script src="/js/api.js?v=20261117g"></script>
-  <script src="/js/app.js?v=20261117g"></script>
+  <script src="/js/api.js?v=20261119a"></script>
+  <script src="/js/app.js?v=20261119a"></script>
   <script>
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {
